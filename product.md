@@ -299,12 +299,15 @@ The failure mode of any rigid schedule is that a single miss makes the whole pla
 
 The cold-start problem is real. A blank activity list is a bad first screen.
 
-Templates are the empty state — static JSON, pre-filled and then edited:
+Templates are the empty state — static JSON, pre-filled and then edited. They stay
+reachable afterwards from **Home**, and the define panel can roll the activity list
+back to the template it came from:
 
 - Student
 - Full-time worker
 - Exam preparation
 - Fitness-focused
+- Entrepreneur
 - Deep work
 
 ---

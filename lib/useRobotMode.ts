@@ -5,7 +5,7 @@ import type { Activity, Day, PlacedBlock, Settings } from "./types"
 import { generate } from "./scheduler/generate"
 import { computeBudget } from "./scheduler/budget"
 import { initialState, load, save, type SavedState } from "./storage"
-import type { Template } from "./templates"
+import { matchesTemplate, templateById, type Template } from "./templates"
 
 export type NotBefore = { day: Day; minuteOfDay: number }
 
@@ -17,16 +17,23 @@ const subscribe = () => () => {}
 
 export function useRobotMode() {
   // `load()` returns the defaults on the server, so this initialiser is SSR-safe.
-  const [state, setState] = useState<SavedState>(load)
+  const [stored, setStored] = useState<SavedState>(load)
   const [notBefore, setNotBefore] = useState<NotBefore | null>(null)
 
-  // False during SSR and the hydrating render, true afterwards. Callers render
-  // nothing until it flips, which keeps saved state from causing a mismatch.
+  // False during SSR and the hydrating render, true afterwards.
   const hydrated = useSyncExternalStore(
     subscribe,
     () => true,
     () => false,
   )
+
+  /**
+   * Every consumer must see the same thing on the server and on the hydrating
+   * render. Exposing `stored` directly meant the saved week reached the header
+   * one render early, so button labels and `disabled` flags differed from the
+   * server markup and React threw a hydration error.
+   */
+  const state = hydrated ? stored : initialState
 
   useEffect(() => {
     if (hydrated) save(state)
@@ -46,15 +53,15 @@ export function useRobotMode() {
   const budget = useMemo(() => computeBudget(state.settings), [state.settings])
 
   const patchSettings = useCallback((patch: Partial<Settings>) => {
-    setState((s) => ({ ...s, settings: { ...s.settings, ...patch } }))
+    setStored((s) => ({ ...s, settings: { ...s.settings, ...patch } }))
   }, [])
 
   const addActivity = useCallback((activity: Activity) => {
-    setState((s) => ({ ...s, settings: { ...s.settings, activities: [...s.settings.activities, activity] } }))
+    setStored((s) => ({ ...s, settings: { ...s.settings, activities: [...s.settings.activities, activity] } }))
   }, [])
 
   const updateActivity = useCallback((id: string, patch: Partial<Activity>) => {
-    setState((s) => ({
+    setStored((s) => ({
       ...s,
       settings: {
         ...s.settings,
@@ -67,7 +74,7 @@ export function useRobotMode() {
   }, [])
 
   const removeActivity = useCallback((id: string) => {
-    setState((s) => ({
+    setStored((s) => ({
       ...s,
       settings: { ...s.settings, activities: s.settings.activities.filter((a) => a.id !== id) },
       locked: s.locked.filter((b) => b.activityId !== id),
@@ -77,7 +84,7 @@ export function useRobotMode() {
 
   const toggleLock = useCallback(
     (blockId: string) => {
-      setState((s) => {
+      setStored((s) => {
         const already = s.locked.find((b) => b.id === blockId)
         if (already) return { ...s, locked: s.locked.filter((b) => b.id !== blockId) }
         const block = schedule.blocks.find((b) => b.id === blockId)
@@ -88,7 +95,7 @@ export function useRobotMode() {
   )
 
   const removeBlock = useCallback((blockId: string) => {
-    setState((s) => ({
+    setStored((s) => ({
       ...s,
       locked: s.locked.filter((b) => b.id !== blockId),
       skipped: s.skipped.includes(blockId) ? s.skipped : [...s.skipped, blockId],
@@ -105,7 +112,7 @@ export function useRobotMode() {
       const past = schedule.blocks.filter(
         (b) => b.id !== blockId && (b.day < marker.day || (b.day === marker.day && b.startMinute < marker.minuteOfDay)),
       )
-      setState((s) => {
+      setStored((s) => {
         const keep = new Map(s.locked.map((b) => [b.id, b]))
         for (const b of past) keep.set(b.id, { ...b, locked: true })
         return {
@@ -120,27 +127,49 @@ export function useRobotMode() {
   )
 
   const shuffle = useCallback(() => {
-    setState((s) => ({ ...s, settings: { ...s.settings, seed: s.settings.seed + 1 } }))
+    setStored((s) => ({ ...s, settings: { ...s.settings, seed: s.settings.seed + 1 } }))
   }, [])
 
   const applyTemplate = useCallback((template: Template) => {
-    setState({ ...initialState, settings: { ...template.settings } })
+    setStored({ ...initialState, settings: { ...template.settings }, templateId: template.id })
     setNotBefore(null)
   }, [])
 
+  /** The template this week came from, if it is still a known one. */
+  const activeTemplate = useMemo(() => templateById(state.templateId), [state.templateId])
+
+  /** Whether the activity list has drifted from that template. */
+  const templateEdited = useMemo(
+    () => (activeTemplate ? !matchesTemplate(state.settings, activeTemplate) : false),
+    [activeTemplate, state.settings],
+  )
+
+  /** Put the activities, times and free time back the way the template had them. */
+  const resetToTemplate = useCallback(() => {
+    if (!activeTemplate) return
+    setStored((s) => ({
+      ...initialState,
+      // A shuffled seed is not an edit, so it survives the reset.
+      settings: { ...activeTemplate.settings, seed: s.settings.seed },
+      exportSequence: s.exportSequence,
+      templateId: activeTemplate.id,
+    }))
+    setNotBefore(null)
+  }, [activeTemplate])
+
   const freshWeek = useCallback(() => {
-    setState((s) => ({ ...s, locked: [], skipped: [] }))
+    setStored((s) => ({ ...s, locked: [], skipped: [] }))
     setNotBefore(null)
   }, [])
 
   const replaceState = useCallback((next: SavedState) => {
-    setState(next)
+    setStored(next)
     setNotBefore(null)
   }, [])
 
   const bumpExport = useCallback(() => {
     const sequence = state.exportSequence + 1
-    setState((s) => ({ ...s, exportSequence: sequence }))
+    setStored((s) => ({ ...s, exportSequence: sequence }))
     return sequence
   }, [state.exportSequence])
 
@@ -159,6 +188,9 @@ export function useRobotMode() {
     markMissed,
     shuffle,
     applyTemplate,
+    activeTemplate,
+    templateEdited,
+    resetToTemplate,
     freshWeek,
     replaceState,
     bumpExport,

@@ -127,3 +127,23 @@ export const templates: Template[] = [
     },
   },
 ]
+
+export function templateById(id: string | undefined): Template | undefined {
+  return id ? templates.find((t) => t.id === id) : undefined
+}
+
+/**
+ * True when the week still matches the template it came from. Only the parts a
+ * template defines are compared — the seed changes on every shuffle and is not
+ * an edit.
+ */
+export function matchesTemplate(settings: Settings, template: Template): boolean {
+  const shape = (s: Settings) =>
+    JSON.stringify({
+      wakeTime: s.wakeTime,
+      sleepTime: s.sleepTime,
+      minFreeMinutesPerDay: s.minFreeMinutesPerDay,
+      activities: s.activities,
+    })
+  return shape(settings) === shape(template.settings)
+}

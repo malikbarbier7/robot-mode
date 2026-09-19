@@ -9,6 +9,8 @@ export type SavedState = {
   skipped: string[]
   /** Bumped on every ICS export so calendars accept the update. */
   exportSequence: number
+  /** The template this week started from, so edits can be rolled back to it. */
+  templateId?: string
 }
 
 export const emptySettings: Settings = {
@@ -41,6 +43,7 @@ export function load(): SavedState {
       locked: parsed.locked ?? [],
       skipped: parsed.skipped ?? [],
       exportSequence: parsed.exportSequence ?? 0,
+      templateId: parsed.templateId,
     }
   } catch {
     return initialState
@@ -70,6 +73,7 @@ export function fromJson(text: string): SavedState | null {
       locked: parsed.locked ?? [],
       skipped: parsed.skipped ?? [],
       exportSequence: parsed.exportSequence ?? 0,
+      templateId: parsed.templateId,
     }
   } catch {
     return null

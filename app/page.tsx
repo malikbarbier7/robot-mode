@@ -46,7 +46,7 @@ export default function Page() {
         </div>
 
         <div className="flex items-center gap-2 pb-0.5">
-          <div className="mr-2 flex">
+          <div className="flex">
             {(["week", "now"] as const).map((v) => (
               <button
                 key={v}
@@ -60,15 +60,19 @@ export default function Page() {
                 {v}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => setView("templates")}
+              disabled={view === "templates"}
+              aria-pressed={view === "templates"}
+              title="Back to the template picker"
+              className={`label border border-l-0 border-ink px-3 py-1 disabled:opacity-30 ${
+                view === "templates" ? "bg-ink text-paper" : "hover:bg-ink/10"
+              }`}
+            >
+              Home
+            </button>
           </div>
-
-          <Button
-            onClick={() => setView("templates")}
-            disabled={view === "templates"}
-            title="Start again from a template"
-          >
-            Templates
-          </Button>
           <Button onClick={rm.shuffle} disabled={empty} title="Same constraints, different arrangement">
             Shuffle
           </Button>
@@ -77,11 +81,11 @@ export default function Page() {
             disabled={weekEdits === 0}
             title={
               weekEdits === 0
-                ? "Nothing to reset: no locked blocks, removed blocks or missed sessions"
+                ? "Nothing to clear: no locked blocks, removed blocks or missed sessions"
                 : `Unlock ${rm.state.locked.length} block(s), restore ${rm.state.skipped.length} removed, and undo today's replan`
             }
           >
-            Reset week{weekEdits > 0 ? ` (${weekEdits})` : ""}
+            Clear edits{weekEdits > 0 ? ` (${weekEdits})` : ""}
           </Button>
           <Button
             variant="solid"
@@ -137,6 +141,9 @@ export default function Page() {
               onAddActivity={rm.addActivity}
               onUpdateActivity={rm.updateActivity}
               onRemoveActivity={rm.removeActivity}
+              template={rm.activeTemplate}
+              templateEdited={rm.templateEdited}
+              onResetToTemplate={rm.resetToTemplate}
             />
           )}
         </aside>

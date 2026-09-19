@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import type { Activity, Schedule, Settings } from "@/lib/types"
+import type { Template } from "@/lib/templates"
 import { parseDuration } from "@/lib/duration"
 import { ActivityRow } from "./ActivityRow"
 import { Button, Field, inputClass } from "./ui"
@@ -13,6 +14,9 @@ export function DefinePanel({
   onAddActivity,
   onUpdateActivity,
   onRemoveActivity,
+  template,
+  templateEdited,
+  onResetToTemplate,
 }: {
   settings: Settings
   schedule: Schedule
@@ -20,6 +24,9 @@ export function DefinePanel({
   onAddActivity: (activity: Activity) => void
   onUpdateActivity: (id: string, patch: Partial<Activity>) => void
   onRemoveActivity: (id: string) => void
+  template?: Template
+  templateEdited: boolean
+  onResetToTemplate: () => void
 }) {
   const placedCount = (id: string) => schedule.blocks.filter((b) => b.activityId === id).length
 
@@ -65,6 +72,29 @@ export function DefinePanel({
           />
         ))}
       </div>
+
+      {template && (
+        <div className="flex items-center justify-between gap-2 border-t border-ink/15 px-6 py-2.5">
+          <span className="label truncate text-ink/45">
+            {templateEdited ? `${template.name}, edited` : template.name}
+          </span>
+          <Button
+            onClick={() => {
+              if (window.confirm(`Discard your changes and restore the ${template.name} activities?`)) {
+                onResetToTemplate()
+              }
+            }}
+            disabled={!templateEdited}
+            title={
+              templateEdited
+                ? `Restore the ${template.name} activities, times and free time`
+                : `Unchanged from the ${template.name} template`
+            }
+          >
+            Reset activities
+          </Button>
+        </div>
+      )}
 
       <QuickAdd onAdd={onAddActivity} />
     </div>
