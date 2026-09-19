@@ -171,6 +171,7 @@ The week is a grid of 15-minute slots: **7 × 96 = 672**.
 - Is it at the same hour as this activity's already-placed sessions? *(consistency)*
 - Is this day already overloaded relative to the others? *(spread)*
 - Is it late at night for a high-priority activity?
+- Is it squatting on hours that a windowed activity is competing for? *(contention)*
 
 ## Hard constraints
 
