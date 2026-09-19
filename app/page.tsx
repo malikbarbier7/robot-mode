@@ -14,12 +14,22 @@ import { useRobotMode } from "@/lib/useRobotMode"
 
 export default function Page() {
   const rm = useRobotMode()
-  const [view, setView] = useState<"week" | "now">("week")
+  const [view, setView] = useState<"week" | "now" | "templates">("week")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const empty = rm.state.settings.activities.length === 0
   const selected = rm.schedule.blocks.find((b) => b.id === selectedId) ?? null
+
+  // "Reset week" only undoes per-week edits, so it is dead unless there are some.
+  const weekEdits = rm.state.locked.length + rm.state.skipped.length + (rm.notBefore ? 1 : 0)
+
+  const pickTemplate = (template: Parameters<typeof rm.applyTemplate>[0]) => {
+    if (!empty && !window.confirm(`Replace your current week with "${template.name}"?`)) return
+    rm.applyTemplate(template)
+    setSelectedId(null)
+    setView("week")
+  }
 
   const importJson = async (file: File) => {
     const parsed = fromJson(await file.text())
@@ -45,17 +55,33 @@ export default function Page() {
                 className={`label border border-ink px-3 py-1 ${
                   view === v ? "bg-ink text-paper" : "hover:bg-ink/10"
                 } ${v === "now" ? "border-l-0" : ""}`}
+                aria-pressed={view === v}
               >
                 {v}
               </button>
             ))}
           </div>
 
+          <Button
+            onClick={() => setView("templates")}
+            disabled={view === "templates"}
+            title="Start again from a template"
+          >
+            Templates
+          </Button>
           <Button onClick={rm.shuffle} disabled={empty} title="Same constraints, different arrangement">
             Shuffle
           </Button>
-          <Button onClick={rm.freshWeek} disabled={empty} title="Clear locks, removals and today's replan">
-            Reset week
+          <Button
+            onClick={rm.freshWeek}
+            disabled={weekEdits === 0}
+            title={
+              weekEdits === 0
+                ? "Nothing to reset: no locked blocks, removed blocks or missed sessions"
+                : `Unlock ${rm.state.locked.length} block(s), restore ${rm.state.skipped.length} removed, and undo today's replan`
+            }
+          >
+            Reset week{weekEdits > 0 ? ` (${weekEdits})` : ""}
           </Button>
           <Button
             variant="solid"
@@ -116,8 +142,8 @@ export default function Page() {
         </aside>
 
         <main className="min-w-0 flex-1 overflow-auto">
-          {!rm.hydrated ? null : empty ? (
-            <Templates onPick={rm.applyTemplate} />
+          {!rm.hydrated ? null : empty || view === "templates" ? (
+            <Templates onPick={pickTemplate} onCancel={empty ? undefined : () => setView("week")} />
           ) : view === "week" ? (
             <WeekGrid
               settings={rm.state.settings}

@@ -85,6 +85,28 @@ export const templates: Template[] = [
     },
   },
   {
+    id: "entrepreneur",
+    name: "Entrepreneur",
+    blurb: "Mornings defended for building, afternoons for calls and selling.",
+    settings: {
+      ...base,
+      wakeTime: "07:00",
+      sleepTime: "23:30",
+      minFreeMinutesPerDay: 150,
+      activities: [
+        { id: "build", name: "Building", durationMinutes: 180, sessionsPerWeek: 5, priority: "critical", allowedDays: [0, 1, 2, 3, 4], window: { start: "08:00", end: "12:30" } },
+        { id: "lunch", name: "Lunch", durationMinutes: 45, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "13:00" } },
+        { id: "calls", name: "Calls & meetings", durationMinutes: 120, sessionsPerWeek: 4, priority: "high", allowedDays: [0, 1, 2, 3, 4], window: { start: "14:00", end: "18:00" } },
+        { id: "sales", name: "Sales & outreach", durationMinutes: 60, sessionsPerWeek: 5, priority: "high", allowedDays: [0, 1, 2, 3, 4], window: { start: "14:00", end: "18:30" } },
+        { id: "admin", name: "Admin & inbox", durationMinutes: 45, sessionsPerWeek: 5, priority: "medium", window: { start: "17:30", end: "19:00" } },
+        { id: "gym", name: "Gym", durationMinutes: 60, sessionsPerWeek: 3, priority: "high", window: { start: "17:00", end: "19:00" }, bufferMinutes: 15 },
+        { id: "dinner", name: "Dinner", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "19:30" } },
+        { id: "learning", name: "Reading & learning", durationMinutes: 45, sessionsPerWeek: 5, priority: "medium", window: { start: "21:00", end: "23:00" } },
+        { id: "weekend-build", name: "Catch-up work", durationMinutes: 120, sessionsPerWeek: 2, priority: "low", allowedDays: [5, 6], window: { start: "10:00", end: "14:00" } },
+      ],
+    },
+  },
+  {
     id: "deep-work",
     name: "Deep work",
     blurb: "Two uninterrupted blocks a day, defended from everything else.",
