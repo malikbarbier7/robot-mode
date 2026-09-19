@@ -118,6 +118,20 @@ describe("determinism", () => {
     const b = generate({ ...tightWeek, seed: tightWeek.seed + 1 })
     expect(b.blocks).not.toEqual(a.blocks)
   })
+
+  it("shuffles a comfortable week too, rather than returning it unchanged", () => {
+    const a = generate(comfortableWeek)
+    const b = generate({ ...comfortableWeek, seed: comfortableWeek.seed + 1 })
+    expect(b.blocks).not.toEqual(a.blocks)
+  })
+
+  it("still places everything after a shuffle", () => {
+    for (let seed = 1; seed <= 6; seed++) {
+      const s = generate({ ...comfortableWeek, seed })
+      expect(s.unplaced, `seed ${seed}`).toEqual([])
+      expectNoOverlaps(s.blocks)
+    }
+  })
 })
 
 describe("tight week", () => {

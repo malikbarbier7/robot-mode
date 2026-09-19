@@ -24,6 +24,12 @@ const P_ORPHAN_GAP = 40
 const P_CONTENTION = 100
 /** Tiny nudge so equal-scoring slots resolve to the earliest one, deterministically. */
 const P_EARLY_BIAS = 0.01
+/**
+ * Seeded tie-break. Smaller than any real penalty (the cheapest is 3 per slot of
+ * drift), so it only separates candidates the constraints rate as equal. Without
+ * it Shuffle returns a byte-identical week and looks broken.
+ */
+const P_JITTER = 0.8
 
 const UNPLACED_PENALTY: Record<Priority, number> = {
   critical: 1e7,
@@ -42,6 +48,8 @@ export type GenerateOptions = {
   locked?: PlacedBlock[]
   /** Nothing new is scheduled before this instant — used by "I missed this". */
   notBefore?: { day: Day; minuteOfDay: number }
+  /** Session keys the user removed from this week. Not placed at all. */
+  skip?: string[]
   passes?: number
 }
 
@@ -82,21 +90,25 @@ export function generate(settings: Settings, options: GenerateOptions = {}): Sch
 
   // A locked block already satisfies its session, so it must not be placed a second time.
   const lockedKeys = new Set((options.locked ?? []).map((b) => b.id))
+  const skippedKeys = new Set(options.skip ?? [])
   const demand = buildDemand(settings.activities, windows)
-  const sessions = expandSessions(settings.activities).filter((s) => !lockedKeys.has(s.key))
+  const sessions = expandSessions(settings.activities).filter(
+    (s) => !lockedKeys.has(s.key) && !skippedKeys.has(s.key),
+  )
   const fixed = sessions.filter((s) => s.activity.fixedAt)
   const flexible = sessions.filter((s) => !s.activity.fixedAt)
 
   let best: { state: PassState; unplaced: Unplaced[] } | null = null
 
   for (let pass = 0; pass < passes; pass++) {
-    const rng = makeRng(settings.seed + pass * 7919)
+    const passSeed = settings.seed + pass * 7919
+    const rng = makeRng(passSeed)
     const state = seedState(settings, windows, options)
     const unplacedKeys: SessionSpec[] = []
 
     // Fixed anchors first — they constrain everything else.
     for (const session of fixed) {
-      const placedOk = placeFixed(session, state, windows, settings, capSlotsPerDay, demand)
+      const placedOk = placeFixed(session, state, windows, settings, capSlotsPerDay, demand, passSeed)
       if (!placedOk) unplacedKeys.push(session)
     }
 
@@ -104,7 +116,7 @@ export function generate(settings: Settings, options: GenerateOptions = {}): Sch
     for (const tier of PRIORITY_ORDER) {
       const tierSessions = flexible.filter((s) => s.activity.priority === tier)
       for (const session of shuffled(tierSessions, rng)) {
-        const placedOk = placeFlexible(session, state, windows, capSlotsPerDay, demand)
+        const placedOk = placeFlexible(session, state, windows, capSlotsPerDay, demand, passSeed)
         if (!placedOk) unplacedKeys.push(session)
       }
     }
@@ -244,6 +256,13 @@ function windowRange(activity: Activity, win: DayWindow): { from: number; to: nu
   return { from: dayStart + from, to: dayStart + to }
 }
 
+/** Deterministic per (pass seed, session, slot). Same seed always gives the same week. */
+function jitter(passSeed: number, key: string, startAbs: number): number {
+  let h = (passSeed ^ (startAbs * 2654435761)) >>> 0
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193)
+  return ((h >>> 0) / 4294967296) * P_JITTER
+}
+
 function circularSlotDistance(a: number, b: number): number {
   const d = Math.abs(a - b)
   return Math.min(d, SLOTS_PER_DAY - d)
@@ -255,6 +274,7 @@ function scoreCandidate(
   startAbs: number,
   win: DayWindow,
   demand: Float64Array,
+  passSeed: number,
 ): Candidate | null {
   const endAbs = startAbs + session.slots
   const bufStart = Math.max(win.startAbs, startAbs - session.bufferSlots)
@@ -299,6 +319,7 @@ function scoreCandidate(
   if (after > 0 && after <= 2) score += P_ORPHAN_GAP
 
   score += (startAbs - win.startAbs) * P_EARLY_BIAS
+  score += jitter(passSeed, session.key, startAbs)
 
   return { startAbs, day: win.day, score, outsideWindow, consistent, bufStart, bufEnd }
 }
@@ -336,6 +357,7 @@ function placeFlexible(
   windows: DayWindow[],
   capSlotsPerDay: number,
   demand: Float64Array,
+  passSeed: number,
 ): boolean {
   const days = allowedDaysOf(session.activity)
   let best: Candidate | null = null
@@ -343,7 +365,7 @@ function placeFlexible(
   for (const day of days) {
     const win = windows[day]
     for (let start = win.startAbs; start + session.slots <= win.endAbs; start++) {
-      const candidate = scoreCandidate(session, state, start, win, demand)
+      const candidate = scoreCandidate(session, state, start, win, demand, passSeed)
       if (!candidate) continue
       if (!fitsCap(session, state, candidate, capSlotsPerDay)) continue
       if (!best || candidate.score < best.score) best = candidate
@@ -362,6 +384,7 @@ function placeFixed(
   settings: Settings,
   capSlotsPerDay: number,
   demand: Float64Array,
+  passSeed: number,
 ): boolean {
   const activity = session.activity
   const anchor = activity.fixedAt!
@@ -377,7 +400,7 @@ function placeFixed(
   for (const day of candidateDays) {
     if ((state.countByActivityDay.get(`${activity.id}:${day}`) ?? 0) > 0) continue
     const win = windows[day]
-    const candidate = scoreCandidate(session, state, day * SLOTS_PER_DAY + anchorSlot, win, demand)
+    const candidate = scoreCandidate(session, state, day * SLOTS_PER_DAY + anchorSlot, win, demand, passSeed)
     if (!candidate) continue
     if (!fitsCap(session, state, candidate, capSlotsPerDay)) continue
     commit(session, state, candidate, `Fixed at ${anchor.start}`)

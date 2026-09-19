@@ -1,7 +1,9 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+  // Keeps the bottom-left overlay from sitting on top of the add-activity form.
+  devIndicators: false,
+  turbopack: { root: __dirname },
+}
 
-export default nextConfig;
+export default nextConfig
