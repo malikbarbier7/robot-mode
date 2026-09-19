@@ -38,7 +38,9 @@ export function Templates({
               {template.blurb}
             </p>
             <div className="label mt-4 text-ink/45 group-hover:text-paper/70">
-              {template.settings.activities.length} activities →
+              {template.settings.activities.length > 0
+                ? `${template.settings.activities.length} activities →`
+                : "Start from nothing →"}
             </div>
           </button>
         ))}

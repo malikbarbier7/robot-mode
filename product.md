@@ -309,6 +309,7 @@ back to the template it came from:
 - Fitness-focused
 - Entrepreneur
 - Deep work
+- Blank week — no activities, for people who would rather start from nothing
 
 ---
 

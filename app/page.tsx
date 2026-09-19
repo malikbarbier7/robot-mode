@@ -19,6 +19,10 @@ export default function Page() {
   const fileInput = useRef<HTMLInputElement>(null)
 
   const empty = rm.state.settings.activities.length === 0
+  // A blank week is a started week. Without this, choosing "Blank week" would
+  // bounce straight back to the picker, and deleting your last activity would
+  // yank you out of the week you were building.
+  const started = rm.state.templateId !== undefined || !empty
   const selected = rm.schedule.blocks.find((b) => b.id === selectedId) ?? null
 
   // "Reset week" only undoes per-week edits, so it is dead unless there are some.
@@ -112,7 +116,7 @@ export default function Page() {
         </div>
       </header>
 
-      {!empty && (
+      {started && (
         <>
           <div className="border-b border-ink/20">
             <BudgetBar budget={rm.budget} />
@@ -149,8 +153,8 @@ export default function Page() {
         </aside>
 
         <main className="min-w-0 flex-1 overflow-auto">
-          {!rm.hydrated ? null : empty || view === "templates" ? (
-            <Templates onPick={pickTemplate} onCancel={empty ? undefined : () => setView("week")} />
+          {!rm.hydrated ? null : !started || view === "templates" ? (
+            <Templates onPick={pickTemplate} onCancel={started ? () => setView("week") : undefined} />
           ) : view === "week" ? (
             <WeekGrid
               settings={rm.state.settings}

@@ -126,6 +126,18 @@ export const templates: Template[] = [
       ],
     },
   },
+  {
+    id: "blank",
+    name: "Blank week",
+    blurb: "Nothing scheduled. Set your hours and add activities one at a time.",
+    settings: {
+      ...base,
+      wakeTime: "07:30",
+      sleepTime: "23:30",
+      minFreeMinutesPerDay: 120,
+      activities: [],
+    },
+  },
 ]
 
 export function templateById(id: string | undefined): Template | undefined {
