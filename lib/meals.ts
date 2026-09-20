@@ -8,7 +8,6 @@ import type { Activity, Meal, Settings } from "./types"
 export const defaultMeals: Meal[] = [
   { id: "breakfast", name: "Breakfast", start: "08:00", durationMinutes: 30, enabled: false },
   { id: "lunch", name: "Lunch", start: "13:00", durationMinutes: 45, enabled: false },
-  { id: "snack", name: "Snack", start: "16:00", durationMinutes: 15, enabled: false },
   { id: "dinner", name: "Dinner", start: "19:30", durationMinutes: 60, enabled: false },
 ]
 

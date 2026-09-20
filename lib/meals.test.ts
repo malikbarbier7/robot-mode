@@ -6,6 +6,7 @@ import type { Meal, Settings } from "./types"
 
 /** Every slot switched on, for tests about what happens once they are. */
 const allOn = defaultMeals.map((m) => ({ ...m, enabled: true }))
+const on = (id: string) => allOn.find((m) => m.id === id)!
 
 const base: Settings = {
   wakeTime: "07:30",
@@ -18,7 +19,7 @@ const base: Settings = {
 
 describe("mealActivities", () => {
   it("makes each enabled meal a fixed, critical, daily activity", () => {
-    const [breakfast] = mealActivities([allOn[0]])
+    const [breakfast] = mealActivities([on("breakfast")])
     expect(breakfast).toEqual({
       id: "meal-breakfast",
       name: "Breakfast",
@@ -39,7 +40,7 @@ describe("mealActivities", () => {
   })
 
   it("leaves out a meal with no duration", () => {
-    const empty: Meal = { ...allOn[0], durationMinutes: 0 }
+    const empty: Meal = { ...on("breakfast"), durationMinutes: 0 }
     expect(mealActivities([empty])).toEqual([])
   })
 
@@ -101,15 +102,25 @@ describe("meals in the schedule", () => {
 
 describe("mealsOf", () => {
   it("fills in a slot the saved settings never had", () => {
-    const old = mealsOf({ meals: [{ ...allOn[0] }, { ...allOn[1] }] })
-    expect(old.map((m) => m.id)).toEqual(defaultMeals.map((m) => m.id))
-    expect(old.find((m) => m.id === "snack")?.enabled).toBe(false)
+    const partial = mealsOf({ meals: [on("breakfast")] })
+    expect(partial.map((m) => m.id)).toEqual(defaultMeals.map((m) => m.id))
+    expect(partial.find((m) => m.id === "dinner")?.enabled).toBe(false)
   })
 
   it("keeps what was saved", () => {
-    const saved = mealsOf({ meals: [{ ...allOn[3], start: "21:00", durationMinutes: 90 }] })
-    const dinner = saved.find((m) => m.id === "dinner")!
-    expect(dinner).toMatchObject({ start: "21:00", durationMinutes: 90, enabled: true })
+    const saved = mealsOf({ meals: [{ ...on("dinner"), start: "21:00", durationMinutes: 90 }] })
+    expect(saved.find((m) => m.id === "dinner")).toMatchObject({
+      start: "21:00",
+      durationMinutes: 90,
+      enabled: true,
+    })
+  })
+
+  it("drops a slot that no longer exists", () => {
+    const withSnack = mealsOf({
+      meals: [{ id: "snack", name: "Snack", start: "16:00", durationMinutes: 15, enabled: true }],
+    })
+    expect(withSnack.map((m) => m.id)).toEqual(defaultMeals.map((m) => m.id))
   })
 
   it("returns every slot when nothing is saved", () => {

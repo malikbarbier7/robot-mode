@@ -70,8 +70,8 @@ The list is the product. Anything that competes with it on the first screen,
 templates included, is pushing the user away from the thing they came to do.
 
 Above the input, the frame it all has to fit inside: **Wake** 07:30, **Sleep** 23:30,
-how much free time a day to protect, and **meals** — breakfast, lunch, snack and
-dinner, each at a time, for a length.
+how much free time a day to protect, and **meals** — breakfast, lunch and dinner,
+each at a time, for a length.
 
 Every meal starts **off**. Reserving someone's evening for a dinner they never
 asked for is a worse default than asking for one click, and it would quietly make
@@ -196,7 +196,7 @@ type Settings = {
   wakeTime: string
   sleepTime: string
   activities: Activity[]
-  meals?: Meal[]                 // breakfast, lunch, snack, dinner; all off by default
+  meals?: Meal[]                 // breakfast, lunch, dinner; all off by default
   minFreeMinutesPerDay: number   // protected unscheduled time
   seed: number
 }
