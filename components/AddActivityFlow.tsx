@@ -230,12 +230,20 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
          * never moves between the opening row and the first step — clicking the
          * same place twice used to land on Back.
          */}
+        {/*
+         * Distinct keys, and only the opening row's Add is a submit. Without
+         * both, clicking Next let React reuse the same DOM node and flip its
+         * type to "submit" mid-click — the browser then ran the click's default
+         * action on what had become a submit button, so step 4 was skipped and
+         * the activity was added instead.
+         */}
         {step === null ? (
-          <button type="submit" disabled={!valid} className={SECONDARY}>
+          <button key="add-now" type="submit" disabled={!valid} className={SECONDARY}>
             Add
           </button>
         ) : (
           <button
+            key="back"
             type="button"
             onClick={() => setStep((current) => (current !== null && current > 0 ? current - 1 : null))}
             className={SECONDARY}
@@ -245,11 +253,12 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
         )}
 
         {onLastStep ? (
-          <button type="submit" disabled={!valid} className={PRIMARY}>
+          <button key="add-done" type="button" onClick={add} disabled={!valid} className={PRIMARY}>
             Add
           </button>
         ) : (
           <button
+            key="next"
             type="button"
             onClick={next}
             disabled={!valid}
