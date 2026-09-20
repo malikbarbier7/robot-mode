@@ -80,12 +80,42 @@ export function BuildScreen({
         out when it all fits.
       </p>
 
+      <div className="mt-10">
+        <div className="label mb-3 text-ink/45">Your day</div>
+        <div className="flex flex-wrap items-center gap-6">
+          <DayField
+            label="Wake"
+            value={settings.wakeTime}
+            onChange={(v) => onPatchSettings({ wakeTime: v })}
+          />
+          <DayField
+            label="Sleep"
+            value={settings.sleepTime}
+            onChange={(v) => onPatchSettings({ sleepTime: v })}
+          />
+          <label className="flex items-baseline gap-2">
+            <span className="label text-ink/45">Free time a day</span>
+            <input
+              type="number"
+              min={0}
+              step={30}
+              value={settings.minFreeMinutesPerDay}
+              onChange={(e) =>
+                onPatchSettings({ minFreeMinutesPerDay: Math.max(0, Number(e.target.value)) })
+              }
+              className="w-16 border-b border-ink/30 bg-transparent py-1 font-mono text-[15px] tabular-nums"
+            />
+            <span className="label text-ink/45">min</span>
+          </label>
+        </div>
+      </div>
+
       <form
         onSubmit={(e) => {
           e.preventDefault()
           submit()
         }}
-        className="mt-10 flex gap-2 border-y-2 border-ink py-4"
+        className="mt-8 flex gap-2 border-y-2 border-ink py-4"
       >
         <input
           className={`${FIELD} min-w-0 flex-1 font-sans`}
@@ -167,64 +197,34 @@ export function BuildScreen({
         </>
       )}
 
-      <div className="mt-12 border-t border-ink/25 pt-6">
-        <div className="label mb-3 text-ink/45">Your day</div>
-        <div className="flex flex-wrap items-center gap-6">
-          <DayField
-            label="Wake"
-            value={settings.wakeTime}
-            onChange={(v) => onPatchSettings({ wakeTime: v })}
-          />
-          <DayField
-            label="Sleep"
-            value={settings.sleepTime}
-            onChange={(v) => onPatchSettings({ sleepTime: v })}
-          />
-          <label className="flex items-baseline gap-2">
-            <span className="label text-ink/45">Free time a day</span>
-            <input
-              type="number"
-              min={0}
-              step={30}
-              value={settings.minFreeMinutesPerDay}
-              onChange={(e) =>
-                onPatchSettings({ minFreeMinutesPerDay: Math.max(0, Number(e.target.value)) })
-              }
-              className="w-16 border-b border-ink/30 bg-transparent py-1 font-mono text-[15px] tabular-nums"
+      {activities.length > 0 && (
+        <div className="mt-12 border-t border-ink/25 pt-6">
+          <div className="relative h-3 border border-ink/40">
+            <div
+              className={`absolute inset-y-0 left-0 ${budget.feasible ? "bg-ink" : "hatch"}`}
+              style={{
+                width: `${Math.min(
+                  budget.allocatableMinutesPerWeek > 0
+                    ? (budget.requestedMinutes / budget.allocatableMinutesPerWeek) * 100
+                    : 0,
+                  100,
+                )}%`,
+              }}
             />
-            <span className="label text-ink/45">min</span>
-          </label>
-        </div>
-
-        {activities.length > 0 && (
-          <div className="mt-6">
-            <div className="relative h-3 border border-ink/40">
-              <div
-                className={`absolute inset-y-0 left-0 ${budget.feasible ? "bg-ink" : "hatch"}`}
-                style={{
-                  width: `${Math.min(
-                    budget.allocatableMinutesPerWeek > 0
-                      ? (budget.requestedMinutes / budget.allocatableMinutesPerWeek) * 100
-                      : 0,
-                    100,
-                  )}%`,
-                }}
-              />
-            </div>
-            <div className="mt-2 font-mono text-[12px] tabular-nums text-ink/60">
-              {formatHours(budget.requestedMinutes)} of {formatHours(budget.allocatableMinutesPerWeek)}{" "}
-              available
-              {!budget.feasible && (
-                <span className="text-ink">
-                  {" "}
-                  — over by {formatHours(budget.overByMinutes)}
-                  {budget.suggestion && `, try cutting ${budget.suggestion.name}`}
-                </span>
-              )}
-            </div>
           </div>
-        )}
-      </div>
+          <div className="mt-2 font-mono text-[12px] tabular-nums text-ink/60">
+            {formatHours(budget.requestedMinutes)} of {formatHours(budget.allocatableMinutesPerWeek)}{" "}
+            available
+            {!budget.feasible && (
+              <span className="text-ink">
+                {" "}
+                — over by {formatHours(budget.overByMinutes)}
+                {budget.suggestion && `, try cutting ${budget.suggestion.name}`}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mt-12">
         <button

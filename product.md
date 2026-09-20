@@ -69,8 +69,9 @@ how many times a week — and everything you add stacks up beneath it, numbered.
 The list is the product. Anything that competes with it on the first screen,
 templates included, is pushing the user away from the thing they came to do.
 
-Underneath, quietly: **Wake** 07:30, **Sleep** 23:30, and how much free time a day
-to protect.
+Above the input, the frame it all has to fit inside: **Wake** 07:30, **Sleep** 23:30,
+and how much free time a day to protect. The hours come first — you decide how big
+the container is before you decide what goes in it.
 
 ## Step 2 — Add activities
 
