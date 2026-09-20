@@ -70,7 +70,9 @@ The list is the product. Anything that competes with it on the first screen,
 templates included, is pushing the user away from the thing they came to do.
 
 Above the input, the frame it all has to fit inside: **Wake** 07:30, **Sleep** 23:30,
-and how much free time a day to protect. The hours come first — you decide how big
+how much free time a day to protect, and **meals** — each one on or off, at a time,
+for a length. Meals are part of the shape of a day rather than things you want to
+get done, so they belong here and never appear in the list. The hours come first — you decide how big
 the container is before you decide what goes in it.
 
 ## Step 2 — Add activities
@@ -176,10 +178,19 @@ type Activity = {
   fixedAt?: { day: Day; start: string }     // appointments
 }
 
+type Meal = {
+  id: string
+  name: string
+  start: string                  // the same clock time every day
+  durationMinutes: number
+  enabled: boolean
+}
+
 type Settings = {
   wakeTime: string
   sleepTime: string
   activities: Activity[]
+  meals?: Meal[]                 // breakfast, lunch, dinner
   minFreeMinutesPerDay: number   // protected unscheduled time
   seed: number
 }
@@ -196,6 +207,10 @@ type Settings = {
 **`bufferMinutes` earns its place.** Gym 16:00–17:15 ignores the commute and the shower. Ten lines of engine code, and the difference between a schedule that looks right and one that survives Tuesday.
 
 **`minFreeMinutesPerDay` replaces a relaxed/balanced/rigid setting.** Same outcome, but concrete and directly enforceable rather than a mood the engine has to interpret.
+
+**Meals are not activities.** An enabled meal becomes a critical, fixed-time
+activity on all seven days when the week is solved, so it is locked and everything
+else works around it — but it stays out of the list the user is writing.
 
 **Dropped:** `minimumGap`, `maximumConsecutive`, `category`, `preferredDays`, `flexibility`. Add back only when a real test week needs them.
 

@@ -1,3 +1,4 @@
+import { defaultMeals, noMeals } from "./meals"
 import type { PlacedBlock, Settings } from "./types"
 
 const KEY = "robot-mode:v1"
@@ -21,6 +22,7 @@ export const emptySettings: Settings = {
   minFreeMinutesPerDay: 120,
   seed: 1,
   activities: [],
+  meals: defaultMeals,
 }
 
 export const initialState: SavedState = {
@@ -41,7 +43,11 @@ export function load(): SavedState {
     if (parsed.version !== 1 || !parsed.settings) return initialState
     return {
       version: 1,
-      settings: { ...emptySettings, ...parsed.settings },
+      settings: {
+        ...emptySettings,
+        ...parsed.settings,
+        meals: parsed.settings.meals ?? noMeals,
+      },
       locked: parsed.locked ?? [],
       skipped: parsed.skipped ?? [],
       exportSequence: parsed.exportSequence ?? 0,
@@ -72,7 +78,11 @@ export function fromJson(text: string): SavedState | null {
     if (!parsed.settings || !Array.isArray(parsed.settings.activities)) return null
     return {
       version: 1,
-      settings: { ...emptySettings, ...parsed.settings },
+      settings: {
+        ...emptySettings,
+        ...parsed.settings,
+        meals: parsed.settings.meals ?? noMeals,
+      },
       locked: parsed.locked ?? [],
       skipped: parsed.skipped ?? [],
       exportSequence: parsed.exportSequence ?? 0,

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { generate } from "./generate"
+import { allActivities } from "@/lib/meals"
 import { templates } from "@/lib/templates"
 
 const student = templates.find((t) => t.id === "student")!.settings
-const totalSessions = (s = student) => s.activities.reduce((n, a) => n + a.sessionsPerWeek, 0)
+// Meals are scheduled too, so they count towards the expected block total.
+const totalSessions = (s = student) => allActivities(s).reduce((n, a) => n + a.sessionsPerWeek, 0)
 
 describe("locks and skips together", () => {
   it("places exactly one block per session that is neither locked nor skipped", () => {

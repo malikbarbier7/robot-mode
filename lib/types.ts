@@ -26,10 +26,24 @@ export type Activity = {
   fixedAt?: { start: string; days?: Day[] }
 }
 
+/**
+ * A recurring meal. Not an activity: meals are part of the shape of a day, not
+ * something you'd list under "what do you want to do".
+ */
+export type Meal = {
+  id: string
+  name: string
+  /** HH:MM, the same time every day. */
+  start: string
+  durationMinutes: number
+  enabled: boolean
+}
+
 export type Settings = {
   wakeTime: string
   sleepTime: string
   activities: Activity[]
+  meals?: Meal[]
   /** Unscheduled time protected on every day. */
   minFreeMinutesPerDay: number
   seed: number

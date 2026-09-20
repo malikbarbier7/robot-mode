@@ -1,4 +1,5 @@
 import type { Activity, Day, PlacedBlock, Priority, Schedule, Settings, Unplaced } from "@/lib/types"
+import { allActivities } from "@/lib/meals"
 import { computeBudget } from "./budget"
 import { makeRng, shuffled } from "./rng"
 import {
@@ -102,11 +103,13 @@ export function generate(settings: Settings, options: GenerateOptions = {}): Sch
   const capSlotsPerDay =
     windows[0].endAbs - windows[0].startAbs - Math.ceil(Math.max(0, settings.minFreeMinutesPerDay) / SLOT_MINUTES)
 
+  const activities = allActivities(settings)
+
   // A locked block already satisfies its session, so it must not be placed a second time.
   const lockedKeys = new Set((options.locked ?? []).map((b) => b.id))
   const skippedKeys = new Set(options.skip ?? [])
-  const demand = buildDemand(settings.activities, windows)
-  const sessions = expandSessions(settings.activities).filter(
+  const demand = buildDemand(activities, windows)
+  const sessions = expandSessions(activities).filter(
     (s) => !lockedKeys.has(s.key) && !skippedKeys.has(s.key),
   )
   const fixed = sessions.filter((s) => s.activity.fixedAt)
@@ -140,7 +143,7 @@ export function generate(settings: Settings, options: GenerateOptions = {}): Sch
     }
 
     if (!best || state.penalty < best.state.penalty) {
-      best = { state, unplaced: summariseUnplaced(unplacedKeys, settings.activities) }
+      best = { state, unplaced: summariseUnplaced(unplacedKeys, activities) }
     }
   }
 

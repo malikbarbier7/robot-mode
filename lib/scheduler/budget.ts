@@ -1,4 +1,5 @@
 import type { BudgetReport, Priority, Settings } from "@/lib/types"
+import { allActivities } from "@/lib/meals"
 import { DAYS, SLOT_MINUTES, slotsFor, wakingSlotsPerDay } from "./time"
 
 const PRIORITY_RANK: Record<Priority, number> = {
@@ -28,8 +29,10 @@ export function computeBudget(settings: Settings): BudgetReport {
   const protectedFree = Math.max(0, settings.minFreeMinutesPerDay) * DAYS
   const allocatableMinutesPerWeek = Math.max(0, wakingMinutesPerWeek - protectedFree)
 
+  const activities = allActivities(settings)
+
   let requestedMinutes = 0
-  for (const a of settings.activities) {
+  for (const a of activities) {
     requestedMinutes += activityCost(a.durationMinutes, a.sessionsPerWeek, a.bufferMinutes)
   }
 
@@ -38,7 +41,7 @@ export function computeBudget(settings: Settings): BudgetReport {
   let suggestion: BudgetReport["suggestion"]
   if (overByMinutes > 0) {
     // The cheapest thing to cut: lowest priority tier present, biggest consumer within it.
-    const ranked = settings.activities
+    const ranked = activities
       .filter((a) => a.sessionsPerWeek > 0 && a.durationMinutes > 0)
       .map((a) => ({
         activityId: a.id,

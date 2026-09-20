@@ -1,6 +1,7 @@
 "use client"
 
-import type { Activity, BudgetReport, Schedule, Settings } from "@/lib/types"
+import type { Activity, BudgetReport, Meal, Schedule, Settings } from "@/lib/types"
+import { defaultMeals } from "@/lib/meals"
 import { ActivityRow } from "./ActivityRow"
 import { AddActivityFlow } from "./AddActivityFlow"
 import { formatHours } from "@/lib/duration"
@@ -64,6 +65,23 @@ export function BuildScreen({
             />
             <span className="label text-ink/45">min</span>
           </label>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
+          <span className="label w-10 shrink-0 text-ink/45">Meals</span>
+          {(settings.meals ?? defaultMeals).map((meal) => (
+            <MealField
+              key={meal.id}
+              meal={meal}
+              onChange={(patch) =>
+                onPatchSettings({
+                  meals: (settings.meals ?? defaultMeals).map((m) =>
+                    m.id === meal.id ? { ...m, ...patch } : m,
+                  ),
+                })
+              }
+            />
+          ))}
         </div>
       </div>
 
@@ -144,6 +162,41 @@ export function BuildScreen({
         </button>
       </div>
     </div>
+  )
+}
+
+/** A meal is on or off, at a time, for a length. Off means the hour stays free. */
+function MealField({ meal, onChange }: { meal: Meal; onChange: (patch: Partial<Meal>) => void }) {
+  return (
+    <span className="flex items-baseline gap-2">
+      <button
+        type="button"
+        onClick={() => onChange({ enabled: !meal.enabled })}
+        title={meal.enabled ? `Stop reserving ${meal.name}` : `Reserve time for ${meal.name}`}
+        className={`label border px-2 py-1 ${
+          meal.enabled ? "border-ink bg-ink text-paper" : "border-ink/30 text-ink/40"
+        }`}
+      >
+        {meal.name}
+      </button>
+      <input
+        type="time"
+        value={meal.start}
+        disabled={!meal.enabled}
+        onChange={(e) => e.target.value && onChange({ start: e.target.value })}
+        className="border-b border-ink/30 bg-transparent py-1 font-mono text-[15px] tabular-nums disabled:opacity-30"
+      />
+      <input
+        type="number"
+        min={0}
+        step={15}
+        value={meal.durationMinutes}
+        disabled={!meal.enabled}
+        onChange={(e) => onChange({ durationMinutes: Math.max(0, Number(e.target.value)) })}
+        className="w-12 border-b border-ink/30 bg-transparent py-1 font-mono text-[15px] tabular-nums disabled:opacity-30"
+      />
+      <span className="label text-ink/35">min</span>
+    </span>
   )
 }
 

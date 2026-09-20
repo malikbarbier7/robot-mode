@@ -1,3 +1,4 @@
+import { defaultMeals } from "./meals"
 import type { Settings } from "./types"
 
 export type Template = { id: string; name: string; blurb: string; settings: Settings }
@@ -14,10 +15,12 @@ export const templates: Template[] = [
       wakeTime: "08:00",
       sleepTime: "00:00",
       minFreeMinutesPerDay: 150,
+      meals: [
+        { id: "breakfast", name: "Breakfast", start: "08:30", durationMinutes: 30, enabled: true },
+        { id: "lunch", name: "Lunch", start: "13:00", durationMinutes: 60, enabled: true },
+        { id: "dinner", name: "Dinner", start: "19:30", durationMinutes: 60, enabled: true },
+      ],
       activities: [
-        { id: "breakfast", name: "Breakfast", durationMinutes: 30, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "08:30" } },
-        { id: "lunch", name: "Lunch", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "13:00" } },
-        { id: "dinner", name: "Dinner", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "19:30" } },
         { id: "lectures", name: "Lectures", durationMinutes: 180, sessionsPerWeek: 5, priority: "critical", allowedDays: [0, 1, 2, 3, 4], window: { start: "09:00", end: "13:00" } },
         { id: "study", name: "Study", durationMinutes: 90, sessionsPerWeek: 5, priority: "high", window: { start: "14:00", end: "19:00" } },
         { id: "gym", name: "Gym", durationMinutes: 75, sessionsPerWeek: 4, priority: "high", allowedDays: [0, 1, 3, 4], window: { start: "17:00", end: "19:30" }, bufferMinutes: 15 },
@@ -34,14 +37,17 @@ export const templates: Template[] = [
       wakeTime: "07:00",
       sleepTime: "23:30",
       minFreeMinutesPerDay: 150,
+      meals: [
+        { id: "breakfast", name: "Breakfast", start: "08:00", durationMinutes: 30, enabled: false },
+        { id: "lunch", name: "Lunch", start: "13:00", durationMinutes: 45, enabled: true },
+        { id: "dinner", name: "Dinner", start: "19:30", durationMinutes: 60, enabled: true },
+      ],
       activities: [
         { id: "build", name: "Building", durationMinutes: 180, sessionsPerWeek: 5, priority: "critical", allowedDays: [0, 1, 2, 3, 4], window: { start: "08:00", end: "12:30" } },
-        { id: "lunch", name: "Lunch", durationMinutes: 45, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "13:00" } },
         { id: "calls", name: "Calls & meetings", durationMinutes: 120, sessionsPerWeek: 4, priority: "high", allowedDays: [0, 1, 2, 3, 4], window: { start: "14:00", end: "18:00" } },
         { id: "sales", name: "Sales & outreach", durationMinutes: 60, sessionsPerWeek: 5, priority: "high", allowedDays: [0, 1, 2, 3, 4], window: { start: "14:00", end: "18:30" } },
         { id: "admin", name: "Admin & inbox", durationMinutes: 45, sessionsPerWeek: 5, priority: "medium", window: { start: "17:30", end: "19:00" } },
         { id: "gym", name: "Gym", durationMinutes: 60, sessionsPerWeek: 3, priority: "high", window: { start: "17:00", end: "19:00" }, bufferMinutes: 15 },
-        { id: "dinner", name: "Dinner", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "19:30" } },
         { id: "learning", name: "Reading & learning", durationMinutes: 45, sessionsPerWeek: 5, priority: "medium", window: { start: "21:00", end: "23:00" } },
         { id: "weekend-build", name: "Catch-up work", durationMinutes: 120, sessionsPerWeek: 2, priority: "low", allowedDays: [5, 6], window: { start: "10:00", end: "14:00" } },
       ],
@@ -56,13 +62,15 @@ export const templates: Template[] = [
       wakeTime: "07:00",
       sleepTime: "23:00",
       minFreeMinutesPerDay: 150,
+      meals: [
+        { id: "breakfast", name: "Breakfast", start: "07:30", durationMinutes: 30, enabled: true },
+        { id: "lunch", name: "Lunch", start: "13:00", durationMinutes: 60, enabled: true },
+        { id: "dinner", name: "Dinner", start: "20:00", durationMinutes: 60, enabled: true },
+      ],
       activities: [
-        { id: "breakfast", name: "Breakfast", durationMinutes: 30, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "07:30" } },
         { id: "work-am", name: "Work (morning)", durationMinutes: 240, sessionsPerWeek: 5, priority: "critical", allowedDays: [0, 1, 2, 3, 4], window: { start: "09:00", end: "13:00" } },
-        { id: "lunch", name: "Lunch", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "13:00" } },
         { id: "work-pm", name: "Work (afternoon)", durationMinutes: 240, sessionsPerWeek: 5, priority: "critical", allowedDays: [0, 1, 2, 3, 4], window: { start: "14:00", end: "18:00" } },
         { id: "gym", name: "Gym", durationMinutes: 60, sessionsPerWeek: 3, priority: "high", window: { start: "18:00", end: "20:00" }, bufferMinutes: 15 },
-        { id: "dinner", name: "Dinner", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "20:00" } },
         { id: "reading", name: "Reading", durationMinutes: 45, sessionsPerWeek: 5, priority: "medium", window: { start: "21:30", end: "23:00" } },
       ],
     },
@@ -76,13 +84,15 @@ export const templates: Template[] = [
       wakeTime: "06:30",
       sleepTime: "22:30",
       minFreeMinutesPerDay: 120,
+      meals: [
+        { id: "breakfast", name: "Breakfast", start: "09:30", durationMinutes: 30, enabled: true },
+        { id: "lunch", name: "Lunch", start: "13:30", durationMinutes: 45, enabled: true },
+        { id: "dinner", name: "Dinner", start: "19:00", durationMinutes: 60, enabled: true },
+      ],
       activities: [
         { id: "training", name: "Training", durationMinutes: 90, sessionsPerWeek: 6, priority: "high", window: { start: "07:00", end: "10:00" }, bufferMinutes: 30 },
-        { id: "breakfast", name: "Breakfast", durationMinutes: 30, sessionsPerWeek: 7, priority: "critical", window: { start: "09:00", end: "11:00" } },
         { id: "work", name: "Work", durationMinutes: 210, sessionsPerWeek: 10, priority: "critical", allowedDays: [0, 1, 2, 3, 4] },
-        { id: "lunch", name: "Lunch", durationMinutes: 45, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "13:30" } },
         { id: "mobility", name: "Mobility", durationMinutes: 30, sessionsPerWeek: 5, priority: "medium", window: { start: "19:00", end: "21:30" } },
-        { id: "dinner", name: "Dinner", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "19:00" } },
       ],
     },
   },
@@ -95,13 +105,15 @@ export const templates: Template[] = [
       wakeTime: "07:30",
       sleepTime: "23:30",
       minFreeMinutesPerDay: 180,
+      meals: [
+        { id: "breakfast", name: "Breakfast", start: "08:00", durationMinutes: 30, enabled: true },
+        { id: "lunch", name: "Lunch", start: "13:00", durationMinutes: 60, enabled: true },
+        { id: "dinner", name: "Dinner", start: "19:30", durationMinutes: 60, enabled: true },
+      ],
       activities: [
-        { id: "breakfast", name: "Breakfast", durationMinutes: 30, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "08:00" } },
         { id: "revision-am", name: "Revision (deep)", durationMinutes: 120, sessionsPerWeek: 7, priority: "critical", window: { start: "08:30", end: "12:30" } },
-        { id: "lunch", name: "Lunch", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "13:00" } },
         { id: "revision-pm", name: "Revision (practice)", durationMinutes: 120, sessionsPerWeek: 7, priority: "high", window: { start: "14:00", end: "18:00" } },
         { id: "walk", name: "Walk", durationMinutes: 45, sessionsPerWeek: 7, priority: "medium", window: { start: "17:00", end: "19:00" } },
-        { id: "dinner", name: "Dinner", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "19:30" } },
         { id: "review", name: "Flashcards", durationMinutes: 30, sessionsPerWeek: 7, priority: "medium", window: { start: "21:00", end: "23:00" } },
       ],
     },
@@ -115,13 +127,16 @@ export const templates: Template[] = [
       wakeTime: "07:00",
       sleepTime: "23:00",
       minFreeMinutesPerDay: 180,
+      meals: [
+        { id: "breakfast", name: "Breakfast", start: "08:00", durationMinutes: 30, enabled: false },
+        { id: "lunch", name: "Lunch", start: "12:30", durationMinutes: 60, enabled: true },
+        { id: "dinner", name: "Dinner", start: "19:00", durationMinutes: 60, enabled: true },
+      ],
       activities: [
         { id: "deep-1", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 5, priority: "critical", allowedDays: [0, 1, 2, 3, 4], window: { start: "08:00", end: "12:00" } },
-        { id: "lunch", name: "Lunch", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "12:30" } },
         { id: "deep-2", name: "Deep work", durationMinutes: 120, sessionsPerWeek: 5, priority: "high", allowedDays: [0, 1, 2, 3, 4], window: { start: "14:00", end: "17:00" } },
         { id: "admin", name: "Admin & email", durationMinutes: 45, sessionsPerWeek: 5, priority: "medium", allowedDays: [0, 1, 2, 3, 4], window: { start: "17:00", end: "18:30" } },
         { id: "walk", name: "Walk", durationMinutes: 45, sessionsPerWeek: 7, priority: "medium", window: { start: "12:00", end: "14:00" } },
-        { id: "dinner", name: "Dinner", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "19:00" } },
         { id: "reading", name: "Reading", durationMinutes: 60, sessionsPerWeek: 7, priority: "medium", window: { start: "20:30", end: "23:00" } },
       ],
     },
@@ -135,6 +150,7 @@ export const templates: Template[] = [
       wakeTime: "07:30",
       sleepTime: "23:30",
       minFreeMinutesPerDay: 120,
+      meals: defaultMeals,
       activities: [],
     },
   },
@@ -155,6 +171,7 @@ export function matchesTemplate(settings: Settings, template: Template): boolean
       wakeTime: s.wakeTime,
       sleepTime: s.sleepTime,
       minFreeMinutesPerDay: s.minFreeMinutesPerDay,
+      meals: s.meals,
       activities: s.activities,
     })
   return shape(settings) === shape(template.settings)
