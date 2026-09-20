@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { describeDraft, draftToActivity, emptyDraft, isDraftValid, type Draft } from "./draft"
+import { STEPS, describeDraft, draftToActivity, emptyDraft, isDraftValid, type Draft } from "./draft"
 
 const base: Draft = { name: "Gym", durationMinutes: 75, sessionsPerWeek: 4 }
 
@@ -82,5 +82,11 @@ describe("describeDraft", () => {
     expect(describeDraft({ ...base, window: { start: "06:00", end: "12:00" }, fixedAt: { start: "07:00" } })).toEqual([
       "always 07:00",
     ])
+  })
+})
+
+describe("STEPS", () => {
+  it("asks four questions, with the two exclusive ones merged", () => {
+    expect([...STEPS]).toEqual(["Days", "Priority", "Travel buffer", "When"])
   })
 })

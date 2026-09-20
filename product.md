@@ -85,12 +85,18 @@ Gym, 1h15, 4×
 that walks through the rest, one question at a time:
 
 ```text
-1/5  Days     2/5  Priority     3/5  Travel buffer
-4/5  Preferred window ( Morning | Afternoon | Evening )     5/5  Always at
+1/4  Days     2/4  Priority     3/4  Travel buffer
+4/4  When  ( Decide for me | Preferred window | Always at )
 ```
 
-Every step can be answered with **Decide for me**, which stores nothing and leaves
-the choice to the engine. A recap line shows what has been chosen so far.
+A preferred window and a fixed time are one question answered two ways, so they
+share the last step: picking one clears the other, and only the relevant control
+is shown.
+
+Every step can be skipped, which stores nothing and leaves the choice to the
+engine. The wording matters — **Decide for me** on days, priority and when, but
+**No buffer** on travel time, because skipping that means zero rather than a
+decision handed to the scheduler. A recap line shows what has been chosen so far.
 
 This is where preferences belong. Collected up front, the first generated week is
 one you can live with; collected afterwards, every week starts as something to fix

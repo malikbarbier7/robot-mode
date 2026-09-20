@@ -15,7 +15,11 @@ export type Draft = {
   fixedAt?: { start: string }
 }
 
-export const STEPS = ["Days", "Priority", "Travel buffer", "Preferred window", "Always at"] as const
+/**
+ * A preferred window and a fixed time are the same question answered two ways,
+ * so they share one step rather than making you walk past the one you don't want.
+ */
+export const STEPS = ["Days", "Priority", "Travel buffer", "When"] as const
 export type Step = (typeof STEPS)[number]
 
 /** Ready-made windows, since "mornings" is how people actually think about this. */

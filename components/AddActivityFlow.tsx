@@ -29,6 +29,7 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
   const [sessionsText, setSessionsText] = useState("")
   const [draft, setDraft] = useState<Draft>({ name: "", durationMinutes: 0, sessionsPerWeek: 1 })
   const [step, setStep] = useState<number | null>(null)
+  const [whenMode, setWhenMode] = useState<"any" | "window" | "at">("any")
 
   const minutes = parseDuration(durationText)
   const current: Draft = {
@@ -46,6 +47,7 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
     setSessionsText("")
     setDraft({ name: "", durationMinutes: 0, sessionsPerWeek: 1 })
     setStep(null)
+    setWhenMode("any")
   }
 
   const add = () => {
@@ -132,62 +134,95 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
                 ))}
               </div>
               <span className="label text-ink/35">each side</span>
-              <Skip active={!draft.bufferMinutes} onClick={() => patch({ bufferMinutes: undefined })} />
+              <Skip
+                active={!draft.bufferMinutes}
+                onClick={() => patch({ bufferMinutes: undefined })}
+                label="No buffer"
+              />
             </>
           )}
 
           {step === 3 && (
             <>
               <div className="flex gap-1">
-                {WINDOW_PRESETS.map((w) => (
+                {(
+                  [
+                    ["any", "Decide for me"],
+                    ["window", "Preferred window"],
+                    ["at", "Always at"],
+                  ] as const
+                ).map(([mode, label]) => (
                   <button
-                    key={w.label}
+                    key={mode}
                     type="button"
-                    onClick={() => patch({ window: { start: w.start, end: w.end } })}
-                    className={`label h-8 border border-ink/40 px-2.5 ${
-                      draft.window?.start === w.start && draft.window?.end === w.end
-                        ? "bg-ink text-paper"
-                        : "text-ink/55"
+                    onClick={() => {
+                      setWhenMode(mode)
+                      // The two are exclusive, so picking one clears the other.
+                      if (mode === "any") patch({ window: undefined, fixedAt: undefined })
+                      if (mode === "window") patch({ fixedAt: undefined })
+                      if (mode === "at") patch({ window: undefined })
+                    }}
+                    className={`label h-8 border px-2.5 ${
+                      whenMode === mode ? "border-ink bg-ink text-paper" : "border-ink/30 text-ink/50"
                     }`}
                   >
-                    {w.label}
+                    {label}
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-1">
-                <input
-                  type="time"
-                  value={draft.window?.start ?? ""}
-                  onChange={(e) =>
-                    patch({ window: { start: e.target.value, end: draft.window?.end ?? "23:00" } })
-                  }
-                  className="border-b border-ink/30 bg-transparent py-1 font-mono text-[13px] tabular-nums"
-                />
-                <span className="text-ink/35">–</span>
-                <input
-                  type="time"
-                  value={draft.window?.end ?? ""}
-                  onChange={(e) =>
-                    patch({ window: { start: draft.window?.start ?? "08:00", end: e.target.value } })
-                  }
-                  className="border-b border-ink/30 bg-transparent py-1 font-mono text-[13px] tabular-nums"
-                />
-              </div>
-              <Skip active={!draft.window} onClick={() => patch({ window: undefined })} label="Any time" />
-            </>
-          )}
 
-          {step === 4 && (
-            <>
-              <input
-                type="time"
-                value={draft.fixedAt?.start ?? ""}
-                onChange={(e) => patch({ fixedAt: e.target.value ? { start: e.target.value } : undefined })}
-                className="border-b border-ink/30 bg-transparent py-1 font-mono text-[15px] tabular-nums"
-              />
-              <Skip active={!draft.fixedAt} onClick={() => patch({ fixedAt: undefined })} />
-              {draft.fixedAt && draft.window && (
-                <span className="label text-ink/40">overrides the preferred window</span>
+              {whenMode === "window" && (
+                <>
+                  <div className="flex gap-1">
+                    {WINDOW_PRESETS.map((w) => (
+                      <button
+                        key={w.label}
+                        type="button"
+                        onClick={() => patch({ window: { start: w.start, end: w.end } })}
+                        className={`label h-8 border border-ink/40 px-2.5 ${
+                          draft.window?.start === w.start && draft.window?.end === w.end
+                            ? "bg-ink text-paper"
+                            : "text-ink/55"
+                        }`}
+                      >
+                        {w.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="time"
+                      value={draft.window?.start ?? ""}
+                      onChange={(e) =>
+                        patch({ window: { start: e.target.value, end: draft.window?.end ?? "23:00" } })
+                      }
+                      className="border-b border-ink/30 bg-transparent py-1 font-mono text-[13px] tabular-nums"
+                    />
+                    <span className="text-ink/35">–</span>
+                    <input
+                      type="time"
+                      value={draft.window?.end ?? ""}
+                      onChange={(e) =>
+                        patch({ window: { start: draft.window?.start ?? "08:00", end: e.target.value } })
+                      }
+                      className="border-b border-ink/30 bg-transparent py-1 font-mono text-[13px] tabular-nums"
+                    />
+                  </div>
+                </>
+              )}
+
+              {whenMode === "at" && (
+                <>
+                  <input
+                    type="time"
+                    value={draft.fixedAt?.start ?? ""}
+                    onChange={(e) =>
+                      patch({ fixedAt: e.target.value ? { start: e.target.value } : undefined })
+                    }
+                    className="border-b border-ink/30 bg-transparent py-1 font-mono text-[15px] tabular-nums"
+                  />
+                  <span className="label text-ink/35">same time every day</span>
+                </>
               )}
             </>
           )}
