@@ -76,6 +76,8 @@ type SessionSpec = {
 
 type PassState = {
   occupied: Uint8Array
+  /** Index into `placed` for each slot, or -1. Lets a failure name what is there. */
+  occupantAt: Int16Array
   /** How many blocks already sit at each of the 96 times of day, across all seven days. */
   usageByTimeOfDay: Float64Array
   allocatedByDay: number[]
@@ -143,7 +145,7 @@ export function generate(settings: Settings, options: GenerateOptions = {}): Sch
     }
 
     if (!best || state.penalty < best.state.penalty) {
-      best = { state, unplaced: summariseUnplaced(unplacedKeys, activities) }
+      best = { state, unplaced: summariseUnplaced(unplacedKeys, activities, state, windows) }
     }
   }
 
@@ -196,8 +198,10 @@ function expandSessions(activities: Activity[]): SessionSpec[] {
 }
 
 function seedState(settings: Settings, windows: DayWindow[], options: GenerateOptions): PassState {
+  const occupantAt = new Int16Array(GRID_SLOTS).fill(-1)
   const state: PassState = {
     occupied: new Uint8Array(GRID_SLOTS),
+    occupantAt,
     usageByTimeOfDay: new Float64Array(SLOTS_PER_DAY),
     allocatedByDay: new Array(7).fill(0),
     placed: [],
@@ -215,8 +219,10 @@ function seedState(settings: Settings, windows: DayWindow[], options: GenerateOp
   for (const block of options.locked ?? []) {
     const startAbs = block.day * SLOTS_PER_DAY + Math.floor(block.startMinute / SLOT_MINUTES)
     const endAbs = block.day * SLOTS_PER_DAY + Math.ceil(block.endMinute / SLOT_MINUTES)
+    const index = state.placed.length
     for (let i = startAbs; i < endAbs && i < GRID_SLOTS; i++) {
       state.occupied[i] = 1
+      state.occupantAt[i] = index
       state.usageByTimeOfDay[slotOfDay(i)] += 1
     }
     state.allocatedByDay[block.day] += endAbs - startAbs
@@ -370,8 +376,10 @@ function scoreCandidate(
 }
 
 function commit(session: SessionSpec, state: PassState, candidate: Candidate, reason: string) {
+  const index = state.placed.length
   for (let i = candidate.bufStart; i < candidate.bufEnd; i++) {
     state.occupied[i] = 1
+    state.occupantAt[i] = index
     state.usageByTimeOfDay[slotOfDay(i)] += 1
   }
   state.allocatedByDay[candidate.day] += candidate.bufEnd - candidate.bufStart
@@ -468,7 +476,12 @@ function describe(session: SessionSpec, candidate: Candidate): string {
   return `Earliest good fit at ${at}`
 }
 
-function summariseUnplaced(unplaced: SessionSpec[], activities: Activity[]): Unplaced[] {
+function summariseUnplaced(
+  unplaced: SessionSpec[],
+  activities: Activity[],
+  state: PassState,
+  windows: DayWindow[],
+): Unplaced[] {
   const byActivity = new Map<string, number>()
   for (const s of unplaced) byActivity.set(s.activity.id, (byActivity.get(s.activity.id) ?? 0) + 1)
 
@@ -480,9 +493,96 @@ function summariseUnplaced(unplaced: SessionSpec[], activities: Activity[]): Unp
       name: activity.name,
       sessionsRequested: requested,
       sessionsPlaced: requested - missed,
-      why: activity.fixedAt
-        ? `No free day left at ${activity.fixedAt.start}`
-        : `No ${activity.durationMinutes}-minute gap left on the allowed days`,
+      ...diagnose(activity, state, windows),
     }
   })
+}
+
+/**
+ * Works out why an activity could not be placed, by looking at the finished
+ * week. "It did not fit" is useless on its own — what the user needs is the
+ * name of the thing sitting in the way.
+ */
+function diagnose(
+  activity: Activity,
+  state: PassState,
+  windows: DayWindow[],
+): { why: string; blockedBy?: string[] } {
+  const days = allowedDaysOf(activity)
+  const slots = slotsFor(activity.durationMinutes)
+  const bufferSlots = activity.bufferMinutes ? slotsFor(activity.bufferMinutes) : 0
+
+  if (activity.fixedAt) {
+    const wakeOffset = windows[0].startAbs
+    let anchor = timeToSlot(activity.fixedAt.start)
+    if (anchor < wakeOffset) anchor += SLOTS_PER_DAY
+
+    const first = windows[0]
+    if (anchor < first.startAbs || anchor + slots > first.endAbs) {
+      return { why: `${activity.fixedAt.start} doesn't fit between waking up and going to sleep` }
+    }
+
+    const candidateDays = (activity.fixedAt.days ?? days).filter((d) => days.includes(d))
+    const blockedBy = namesInTheWay(state, candidateDays, windows, (win) => {
+      const start = win.day * SLOTS_PER_DAY + anchor
+      return [Math.max(win.startAbs, start - bufferSlots), Math.min(win.endAbs, start + slots + bufferSlots)]
+    })
+
+    if (blockedBy.length > 0) {
+      // One sentence that names the culprit: "08:00 clashes with Breakfast at 09:00".
+      return { why: `${activity.fixedAt.start} clashes with ${blockedBy.join(", ")}`, blockedBy }
+    }
+    return { why: `No day left free at ${activity.fixedAt.start}` }
+  }
+
+  // Flexible: say how much room there actually was, which is what they can act on.
+  let longest = 0
+  for (const day of days) {
+    const win = windows[day]
+    let run = 0
+    for (let i = win.startAbs; i < win.endAbs; i++) {
+      run = state.occupied[i] ? 0 : run + 1
+      if (run > longest) longest = run
+    }
+  }
+
+  const needed = slots + bufferSlots * 2
+  if (longest < needed) {
+    const gap = longest * SLOT_MINUTES
+    return {
+      why: `Needs ${describeMinutes(activity.durationMinutes + (activity.bufferMinutes ?? 0) * 2)} in a row, and the longest gap left is ${describeMinutes(gap)}`,
+    }
+  }
+  return { why: "The days it is allowed on are already full" }
+}
+
+/** Distinct names of blocks sitting inside the ranges an activity needed. */
+function namesInTheWay(
+  state: PassState,
+  days: Day[],
+  windows: DayWindow[],
+  rangeFor: (win: DayWindow) => [number, number],
+): string[] {
+  const seen = new Map<string, number>()
+  for (const day of days) {
+    const [from, to] = rangeFor(windows[day])
+    for (let i = from; i < to; i++) {
+      const index = state.occupantAt[i]
+      if (index < 0) continue
+      const block = state.placed[index]
+      const label = `${block.name} at ${formatTime(block.startMinute)}`
+      seen.set(label, (seen.get(label) ?? 0) + 1)
+    }
+  }
+  return [...seen.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([label]) => label)
+}
+
+function describeMinutes(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, "0")}`
 }

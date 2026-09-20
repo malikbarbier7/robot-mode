@@ -4,6 +4,8 @@
   /* One ink colour on paper. Everything else is an alpha of it. */
   --color-ink: #1d2be0;
   --color-paper: #ffffff;
+  /* The one exception to a single ink colour: a conflict has to be noticed. */
+  --color-alert: #d81f2a;
 
   --font-display: var(--font-display), Georgia, "Times New Roman", serif;
   --font-sans: var(--font-sans-ui), ui-sans-serif, system-ui, sans-serif;

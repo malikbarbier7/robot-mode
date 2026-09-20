@@ -69,7 +69,10 @@ export type Unplaced = {
   name: string
   sessionsRequested: number
   sessionsPlaced: number
+  /** One line saying what went wrong, in the user's terms. */
   why: string
+  /** The blocks that were sitting in the way, when the engine can name them. */
+  blockedBy?: string[]
 }
 
 export type BudgetReport = {

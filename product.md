@@ -136,6 +136,21 @@ As activities are added, a live bar shows the week filling up:
 
 There is no separate "impossible schedule" error screen. Infeasibility is simply the bar going past 100%, with the lowest-priority offender named.
 
+A budget that fits is not the same as a week that fits: hours can be available and
+still be in the wrong places. When the solver cannot place something, a red panel
+lists every conflict and says why each one happened, naming what was in the way:
+
+```text
+3 CONFLICTS
+Gym       0/4  — 08:00 clashes with Breakfast at 09:00
+Standup   0/5  — 13:15 clashes with Lunch at 13:00
+Dawn run  0/2  — 05:00 doesn't fit between waking up and going to sleep
+```
+
+Red is the one exception to a single ink colour, and it appears only when there is
+a conflict. "It did not fit" on its own is useless — the name of the block sitting
+in the way is what makes it fixable.
+
 ## Step 4 — Generate
 
 **GENERATE MY WEEK** is the moment the product exists for. The solver finishes in

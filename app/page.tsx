@@ -151,14 +151,23 @@ export default function Page() {
             <BudgetBar budget={rm.budget} />
           </div>
           {rm.schedule.unplaced.length > 0 && (
-            <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 border-b border-ink/20 bg-ink/[0.04] px-6 py-2">
-              <span className="label text-ink/55">Did not fit</span>
-              {rm.schedule.unplaced.map((u) => (
-                <span key={u.activityId} className="font-mono text-[11px]">
-                  {u.name} {u.sessionsPlaced}/{u.sessionsRequested}
-                  <span className="text-ink/45"> — {u.why}</span>
-                </span>
-              ))}
+            <div className="border-b-2 border-alert bg-alert/[0.07] px-6 py-3 text-alert">
+              <div className="label mb-1.5">
+                {rm.schedule.unplaced.length === 1
+                  ? "1 conflict"
+                  : `${rm.schedule.unplaced.length} conflicts`}
+              </div>
+              <ul className="space-y-1">
+                {rm.schedule.unplaced.map((u) => (
+                  <li key={u.activityId} className="font-mono text-[11px] leading-relaxed">
+                    <span className="font-sans text-[12px] font-medium">{u.name}</span>{" "}
+                    <span className="tabular-nums opacity-70">
+                      {u.sessionsPlaced}/{u.sessionsRequested}
+                    </span>{" "}
+                    — {u.why}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </>
