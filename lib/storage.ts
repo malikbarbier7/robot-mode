@@ -11,6 +11,8 @@ export type SavedState = {
   exportSequence: number
   /** The template this week started from, so edits can be rolled back to it. */
   templateId?: string
+  /** True once the user has pressed Generate. Before that, the list is the app. */
+  generated?: boolean
 }
 
 export const emptySettings: Settings = {
@@ -44,6 +46,7 @@ export function load(): SavedState {
       skipped: parsed.skipped ?? [],
       exportSequence: parsed.exportSequence ?? 0,
       templateId: parsed.templateId,
+      generated: parsed.generated ?? false,
     }
   } catch {
     return initialState
@@ -74,6 +77,7 @@ export function fromJson(text: string): SavedState | null {
       skipped: parsed.skipped ?? [],
       exportSequence: parsed.exportSequence ?? 0,
       templateId: parsed.templateId,
+      generated: parsed.generated ?? false,
     }
   } catch {
     return null

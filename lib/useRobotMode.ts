@@ -135,6 +135,16 @@ export function useRobotMode() {
     setNotBefore(null)
   }, [])
 
+  /** Flipped by the Generate button. The week view only exists after this. */
+  const markGenerated = useCallback(() => {
+    setStored((s) => ({ ...s, generated: true }))
+  }, [])
+
+  /** Back to the list, without throwing the schedule away. */
+  const unmarkGenerated = useCallback(() => {
+    setStored((s) => ({ ...s, generated: false }))
+  }, [])
+
   /** The template this week came from, if it is still a known one. */
   const activeTemplate = useMemo(() => templateById(state.templateId), [state.templateId])
 
@@ -188,6 +198,8 @@ export function useRobotMode() {
     markMissed,
     shuffle,
     applyTemplate,
+    markGenerated,
+    unmarkGenerated,
     activeTemplate,
     templateEdited,
     resetToTemplate,

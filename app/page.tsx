@@ -3,7 +3,9 @@
 import { useRef, useState } from "react"
 import { BlockBar } from "@/components/BlockBar"
 import { BudgetBar } from "@/components/BudgetBar"
+import { BuildScreen } from "@/components/BuildScreen"
 import { DefinePanel } from "@/components/DefinePanel"
+import { Generating } from "@/components/Generating"
 import { NowCard } from "@/components/NowCard"
 import { Templates } from "@/components/Templates"
 import { WeekGrid } from "@/components/WeekGrid"
@@ -12,93 +14,111 @@ import { downloadIcs, downloadText } from "@/lib/ics"
 import { fromJson, toJson } from "@/lib/storage"
 import { useRobotMode } from "@/lib/useRobotMode"
 
+type View = "list" | "week" | "now" | "templates" | "generating"
+
 export default function Page() {
   const rm = useRobotMode()
-  const [view, setView] = useState<"week" | "now" | "templates">("week")
+  // Null until the user navigates, so the landing screen can follow the saved
+  // state once it hydrates: the list before a week exists, the week after.
+  const [chosenView, setView] = useState<View | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const empty = rm.state.settings.activities.length === 0
-  // A blank week is a started week. Without this, choosing "Blank week" would
-  // bounce straight back to the picker, and deleting your last activity would
-  // yank you out of the week you were building.
-  const started = rm.state.templateId !== undefined || !empty
-  const selected = rm.schedule.blocks.find((b) => b.id === selectedId) ?? null
+  const generated = rm.state.generated === true
+  const view: View = chosenView ?? (generated ? "week" : "list")
+  // Before the first Generate there is no week, so the week chrome stays hidden.
+  const showWeekChrome = generated && view !== "generating"
 
-  // "Reset week" only undoes per-week edits, so it is dead unless there are some.
+  const selected = rm.schedule.blocks.find((b) => b.id === selectedId) ?? null
   const weekEdits = rm.state.locked.length + rm.state.skipped.length + (rm.notBefore ? 1 : 0)
 
+  const generate = () => {
+    setSelectedId(null)
+    setView("generating")
+  }
+
   const pickTemplate = (template: Parameters<typeof rm.applyTemplate>[0]) => {
-    if (!empty && !window.confirm(`Replace your current week with "${template.name}"?`)) return
+    if (!empty && !window.confirm(`Replace your list with "${template.name}"?`)) return
     rm.applyTemplate(template)
     setSelectedId(null)
-    setView("week")
+    // A template with activities goes straight to the reveal; a blank one has
+    // nothing to schedule, so it drops you into the list to start writing.
+    setView(template.settings.activities.length > 0 ? "generating" : "list")
   }
 
   const importJson = async (file: File) => {
     const parsed = fromJson(await file.text())
-    if (parsed) rm.replaceState(parsed)
-    else window.alert("That file isn't a Robot Mode export.")
+    if (!parsed) {
+      window.alert("That file isn't a Robot Mode export.")
+      return
+    }
+    rm.replaceState(parsed)
+    setView(parsed.generated ? "week" : "list")
   }
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <header className="flex items-end justify-between gap-6 border-b-2 border-ink px-6 pb-3 pt-5">
-        <div>
+        <button type="button" onClick={() => setView(generated ? "week" : "list")} className="text-left">
           <h1 className="font-display text-4xl leading-none">Robot Mode</h1>
           <p className="label mt-1.5 text-ink/45">Wake · Execute · Sleep · Repeat</p>
-        </div>
+        </button>
 
         <div className="flex items-center gap-2 pb-0.5">
-          <div className="flex">
-            {(["week", "now"] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setView(v)}
-                className={`label border border-ink px-3 py-1 ${
-                  view === v ? "bg-ink text-paper" : "hover:bg-ink/10"
-                } ${v === "now" ? "border-l-0" : ""}`}
-                aria-pressed={view === v}
+          {showWeekChrome && (
+            <>
+              <div className="flex">
+                {(
+                  [
+                    ["list", "List"],
+                    ["week", "Week"],
+                    ["now", "Now"],
+                  ] as const
+                ).map(([v, label], i) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setView(v)}
+                    aria-pressed={view === v}
+                    className={`label border border-ink px-3 py-1 ${i > 0 ? "border-l-0" : ""} ${
+                      view === v ? "bg-ink text-paper" : "hover:bg-ink/10"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <Button onClick={rm.shuffle} disabled={empty} title="Same constraints, different arrangement">
+                Shuffle
+              </Button>
+              <Button
+                onClick={rm.freshWeek}
+                disabled={weekEdits === 0}
+                title={
+                  weekEdits === 0
+                    ? "Nothing to clear: no locked blocks, removed blocks or missed sessions"
+                    : `Unlock ${rm.state.locked.length} block(s), restore ${rm.state.skipped.length} removed, and undo today's replan`
+                }
               >
-                {v}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setView("templates")}
-              disabled={view === "templates"}
-              aria-pressed={view === "templates"}
-              title="Back to the template picker"
-              className={`label border border-l-0 border-ink px-3 py-1 disabled:opacity-30 ${
-                view === "templates" ? "bg-ink text-paper" : "hover:bg-ink/10"
-              }`}
-            >
-              Home
-            </button>
-          </div>
-          <Button onClick={rm.shuffle} disabled={empty} title="Same constraints, different arrangement">
-            Shuffle
-          </Button>
+                Clear edits{weekEdits > 0 ? ` (${weekEdits})` : ""}
+              </Button>
+              <Button
+                variant="solid"
+                disabled={empty}
+                onClick={() => downloadIcs(rm.schedule.blocks, { sequence: rm.bumpExport() })}
+              >
+                Export .ics
+              </Button>
+            </>
+          )}
+
           <Button
-            onClick={rm.freshWeek}
-            disabled={weekEdits === 0}
-            title={
-              weekEdits === 0
-                ? "Nothing to clear: no locked blocks, removed blocks or missed sessions"
-                : `Unlock ${rm.state.locked.length} block(s), restore ${rm.state.skipped.length} removed, and undo today's replan`
-            }
-          >
-            Clear edits{weekEdits > 0 ? ` (${weekEdits})` : ""}
-          </Button>
-          <Button
-            variant="solid"
+            onClick={() => downloadText(toJson(rm.state), "robot-mode.json")}
             disabled={empty}
-            onClick={() => downloadIcs(rm.schedule.blocks, { sequence: rm.bumpExport() })}
+            title="Back up your setup"
           >
-            Export .ics
-          </Button>
-          <Button onClick={() => downloadText(toJson(rm.state), "robot-mode.json")} disabled={empty} title="Back up your setup">
             Save
           </Button>
           <Button onClick={() => fileInput.current?.click()}>Load</Button>
@@ -116,7 +136,7 @@ export default function Page() {
         </div>
       </header>
 
-      {started && (
+      {showWeekChrome && view !== "list" && (
         <>
           <div className="border-b border-ink/20">
             <BudgetBar budget={rm.budget} />
@@ -136,8 +156,8 @@ export default function Page() {
       )}
 
       <div className="flex min-h-0 flex-1">
-        <aside className="w-[340px] shrink-0 border-r border-ink/20">
-          {rm.hydrated && (
+        {showWeekChrome && view !== "list" && (
+          <aside className="w-[340px] shrink-0 border-r border-ink/20">
             <DefinePanel
               settings={rm.state.settings}
               schedule={rm.schedule}
@@ -149,26 +169,47 @@ export default function Page() {
               templateEdited={rm.templateEdited}
               onResetToTemplate={rm.resetToTemplate}
             />
-          )}
-        </aside>
+          </aside>
+        )}
 
         <main className="min-w-0 flex-1 overflow-auto">
-          {!rm.hydrated ? null : !started || view === "templates" ? (
-            <Templates onPick={pickTemplate} onCancel={started ? () => setView("week") : undefined} />
-          ) : view === "week" ? (
+          {!rm.hydrated ? null : view === "generating" ? (
+            <Generating
+              settings={rm.state.settings}
+              schedule={rm.schedule}
+              onDone={() => {
+                rm.markGenerated()
+                setView("week")
+              }}
+            />
+          ) : view === "templates" ? (
+            <Templates onPick={pickTemplate} onCancel={() => setView(generated ? "week" : "list")} />
+          ) : view === "week" && generated ? (
             <WeekGrid
               settings={rm.state.settings}
               schedule={rm.schedule}
               selectedId={selectedId}
               onSelect={setSelectedId}
             />
-          ) : (
+          ) : view === "now" && generated ? (
             <NowCard schedule={rm.schedule} onMissed={rm.markMissed} />
+          ) : (
+            <BuildScreen
+              settings={rm.state.settings}
+              budget={rm.budget}
+              generated={generated}
+              onPatchSettings={rm.patchSettings}
+              onAddActivity={rm.addActivity}
+              onRemoveActivity={rm.removeActivity}
+              onGenerate={generate}
+              onOpenTemplates={() => setView("templates")}
+              onBackToWeek={() => setView("week")}
+            />
           )}
         </main>
       </div>
 
-      {selected && (
+      {showWeekChrome && view === "week" && selected && (
         <BlockBar
           block={selected}
           onToggleLock={() => rm.toggleLock(selected.id)}

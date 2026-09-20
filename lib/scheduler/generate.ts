@@ -22,6 +22,18 @@ const P_LATE_NIGHT = 60
 const P_ORPHAN_GAP = 40
 /** Charged for squatting on slots that windowed activities are competing for. */
 const P_CONTENTION = 100
+/**
+ * Charged to an activity's FIRST session for choosing a time of day that other
+ * activities already occupy. Only the anchor pays it; later sessions follow it
+ * by consistency, so "same time every day" still holds.
+ *
+ * It has to be measured by time of day across the whole week, not per day: an
+ * anchor can always find an empty day, so a per-day measure left everything
+ * sitting at wake time and the evenings empty.
+ */
+const P_ANCHOR_SPREAD = 1.5
+/** Slots either side of a candidate that still count as the same time of day. */
+const SPREAD_RADIUS = 2
 /** Tiny nudge so equal-scoring slots resolve to the earliest one, deterministically. */
 const P_EARLY_BIAS = 0.01
 /**
@@ -63,6 +75,8 @@ type SessionSpec = {
 
 type PassState = {
   occupied: Uint8Array
+  /** How many blocks already sit at each of the 96 times of day, across all seven days. */
+  usageByTimeOfDay: Float64Array
   allocatedByDay: number[]
   placed: PlacedBlock[]
   anchorByActivity: Map<string, number>
@@ -181,6 +195,7 @@ function expandSessions(activities: Activity[]): SessionSpec[] {
 function seedState(settings: Settings, windows: DayWindow[], options: GenerateOptions): PassState {
   const state: PassState = {
     occupied: new Uint8Array(GRID_SLOTS),
+    usageByTimeOfDay: new Float64Array(SLOTS_PER_DAY),
     allocatedByDay: new Array(7).fill(0),
     placed: [],
     anchorByActivity: new Map(),
@@ -197,7 +212,10 @@ function seedState(settings: Settings, windows: DayWindow[], options: GenerateOp
   for (const block of options.locked ?? []) {
     const startAbs = block.day * SLOTS_PER_DAY + Math.floor(block.startMinute / SLOT_MINUTES)
     const endAbs = block.day * SLOTS_PER_DAY + Math.ceil(block.endMinute / SLOT_MINUTES)
-    for (let i = startAbs; i < endAbs && i < GRID_SLOTS; i++) state.occupied[i] = 1
+    for (let i = startAbs; i < endAbs && i < GRID_SLOTS; i++) {
+      state.occupied[i] = 1
+      state.usageByTimeOfDay[slotOfDay(i)] += 1
+    }
     state.allocatedByDay[block.day] += endAbs - startAbs
     state.placed.push({ ...block, locked: true })
     notePlacement(state, block.activityId, block.day, startAbs)
@@ -307,6 +325,13 @@ function scoreCandidate(
     const drift = circularSlotDistance(slotOfDay(startAbs), anchor)
     score += Math.min(drift, 48) * P_INCONSISTENT_PER_SLOT
     consistent = drift === 0
+  } else {
+    // Placing the anchor: prefer a time of day the rest of the week is not using.
+    let crowding = 0
+    for (let i = bufStart - SPREAD_RADIUS; i < bufEnd + SPREAD_RADIUS; i++) {
+      crowding += state.usageByTimeOfDay[slotOfDay(i)]
+    }
+    score += crowding * P_ANCHOR_SPREAD
   }
 
   if (activity.priority === "critical" || activity.priority === "high") {
@@ -325,7 +350,10 @@ function scoreCandidate(
 }
 
 function commit(session: SessionSpec, state: PassState, candidate: Candidate, reason: string) {
-  for (let i = candidate.bufStart; i < candidate.bufEnd; i++) state.occupied[i] = 1
+  for (let i = candidate.bufStart; i < candidate.bufEnd; i++) {
+    state.occupied[i] = 1
+    state.usageByTimeOfDay[slotOfDay(i)] += 1
+  }
   state.allocatedByDay[candidate.day] += candidate.bufEnd - candidate.bufStart
 
   const dayStart = candidate.day * SLOTS_PER_DAY

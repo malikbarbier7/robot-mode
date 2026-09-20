@@ -61,9 +61,16 @@ DEFINE  →  GENERATE  →  LOCK / ADJUST  →  EXPORT  →  LIVE IT
 
 # 4. Core experience
 
-## Step 1 — Your day
+## Step 1 — Your list
 
-**Wake:** 07:30 **Sleep:** 23:30
+The first screen is the list, and nothing else. A single line — name, duration,
+how many times a week — and everything you add stacks up beneath it, numbered.
+
+The list is the product. Anything that competes with it on the first screen,
+templates included, is pushing the user away from the thing they came to do.
+
+Underneath, quietly: **Wake** 07:30, **Sleep** 23:30, and how much free time a day
+to protect.
 
 ## Step 2 — Add activities
 
@@ -89,22 +96,29 @@ There is no separate "impossible schedule" error screen. Infeasibility is simply
 
 ## Step 4 — Generate
 
-The schedule regenerates continuously as you type. **GENERATE MY WEEK** is a confirmation, not a reveal.
+**GENERATE MY WEEK** is the moment the product exists for. The solver finishes in
+about 30ms, but the reveal is paced over roughly four seconds, showing what it is
+actually doing — protecting sleep, placing sessions by priority, spreading them
+across seven days, reserving free time, comparing twenty arrangements. A click
+skips it.
+
+After that first reveal the week re-solves live on every edit, with locked blocks
+held in place. The pause belongs to the reveal, not to editing.
 
 Example Monday:
 
 | Time | |
 |---|---|
-| 07:30–08:00 | Breakfast |
-| 08:00–10:00 | Reading |
-| 10:00–11:00 | Language |
-| 11:00–12:00 | Work |
-| 12:00–13:00 | Lunch |
-| 13:00–16:00 | Work |
-| 16:00–17:15 | Gym |
-| 17:15–18:15 | Class study |
-| 18:15–19:15 | Dinner |
-| 19:15–23:30 | Free |
+| 07:30-08:00 | Breakfast |
+| 08:00-10:00 | Reading |
+| 10:00-11:00 | Language |
+| 11:00-12:00 | Work |
+| 12:00-13:00 | Lunch |
+| 13:00-16:00 | Work |
+| 16:00-17:15 | Gym |
+| 17:15-18:15 | Class study |
+| 18:15-19:15 | Dinner |
+| 19:15-23:30 | Free |
 
 ---
 
@@ -297,11 +311,14 @@ The failure mode of any rigid schedule is that a single miss makes the whole pla
 
 # 12. Templates
 
-The cold-start problem is real. A blank activity list is a bad first screen.
+Templates are a shortcut for people who want one, not the front door. They live
+behind a single line under the list — *"Not sure where to start? Use a template →"* —
+and picking one fills the list and goes straight to the reveal.
 
-Templates are the empty state — static JSON, pre-filled and then edited. They stay
-reachable afterwards from **Home**, and the define panel can roll the activity list
-back to the template it came from:
+They must never take the first screen. Putting them there inverts the whole
+product: it turns "tell me what you want to do" into "pick one of ours".
+
+The define panel can roll the activity list back to the template it came from:
 
 - Student
 - Entrepreneur
