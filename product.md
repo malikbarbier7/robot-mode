@@ -81,8 +81,10 @@ Adding an activity takes **three fields**:
 Gym, 1h15, 4×
 ```
 
-**Add** commits it there and then. **Next** opens a one-row stepper above the input
-that walks through the rest, one question at a time:
+**Add** commits it there and then. **Next** hands the same row over to a stepper
+that walks through the rest, one question at a time. It replaces the inputs rather
+than stacking above them, so the block never changes height and the eye stays in
+one place:
 
 ```text
 1/4  Days     2/4  Priority     3/4  Travel buffer
@@ -90,8 +92,9 @@ that walks through the rest, one question at a time:
 ```
 
 A preferred window and a fixed time are one question answered two ways, so they
-share the last step: picking one clears the other, and only the relevant control
-is shown.
+share the last step. The presets set a window directly — there is no mode to pick
+first — and choosing **Always at** hides them, since a fixed time makes a window
+meaningless. Custom start and end times live in the row editor, which has room.
 
 Every step can be skipped, which stores nothing and leaves the choice to the
 engine. The wording matters — **Decide for me** on days, priority and when, but

@@ -13,6 +13,8 @@ import {
 } from "@/lib/draft"
 
 const FIELD = "border-0 border-b border-ink/25 bg-transparent px-0 py-2 text-[18px] placeholder:text-ink/30"
+const CHIP = "label h-8 border px-2.5"
+const TIME = "border-b border-ink/30 bg-transparent py-1 font-mono text-[13px] tabular-nums"
 const DAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"] as const
 const ALL_DAYS: Day[] = [0, 1, 2, 3, 4, 5, 6]
 const PRIORITIES: Priority[] = ["critical", "high", "medium", "low"]
@@ -20,8 +22,11 @@ const BUFFERS = [15, 30, 45, 60]
 
 /**
  * Name, duration and frequency, then an optional walk through the constraints.
- * Capturing them here is the point: preferences the engine knows up front don't
- * have to be fixed by hand after the week is generated.
+ * The steps take over the same row rather than stacking above it, so the block
+ * never grows and the eye stays in one place.
+ *
+ * Capturing constraints here is the point: preferences the engine knows up front
+ * don't have to be fixed by hand after the week is generated.
  */
 export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "id">) => void }) {
   const [name, setName] = useState("")
@@ -29,7 +34,7 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
   const [sessionsText, setSessionsText] = useState("")
   const [draft, setDraft] = useState<Draft>({ name: "", durationMinutes: 0, sessionsPerWeek: 1 })
   const [step, setStep] = useState<number | null>(null)
-  const [whenMode, setWhenMode] = useState<"any" | "window" | "at">("any")
+  const [atMode, setAtMode] = useState(false)
 
   const minutes = parseDuration(durationText)
   const current: Draft = {
@@ -47,7 +52,7 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
     setSessionsText("")
     setDraft({ name: "", durationMinutes: 0, sessionsPerWeek: 1 })
     setStep(null)
-    setWhenMode("any")
+    setAtMode(false)
   }
 
   const add = () => {
@@ -62,15 +67,48 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
   }
 
   const chosen = describeDraft(current)
+  const fixedTime = atMode || draft.fixedAt !== undefined
   const onLastStep = step === STEPS.length - 1
 
   return (
-    <div className="mt-8 border-y-2 border-ink">
-      {step !== null && (
-        <div className="flex min-h-[64px] flex-wrap items-center gap-x-4 gap-y-2 border-b border-ink/20 px-1 py-3">
-          <span className="label w-20 shrink-0 text-ink/45">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        add()
+      }}
+      className="mt-8 flex min-h-[80px] flex-wrap items-center gap-x-2 gap-y-2 border-y-2 border-ink py-4"
+    >
+      {step === null ? (
+        <>
+          <input
+            className={`${FIELD} min-w-0 flex-1 font-sans`}
+            placeholder="Gym"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <input
+            className={`${FIELD} w-24 shrink-0 font-mono tabular-nums`}
+            placeholder="1h15"
+            value={durationText}
+            onChange={(e) => setDurationText(e.target.value)}
+          />
+          <input
+            className={`${FIELD} w-16 shrink-0 font-mono tabular-nums`}
+            placeholder="4×"
+            value={sessionsText}
+            onChange={(e) => setSessionsText(e.target.value)}
+          />
+        </>
+      ) : (
+        <>
+          <span className="label shrink-0">
             {step + 1}/{STEPS.length} {STEPS[step]}
           </span>
+          {chosen.length > 0 && (
+            <span className="label max-w-[140px] shrink-0 truncate text-ink/35" title={chosen.join(" · ")}>
+              {chosen.join(" · ")}
+            </span>
+          )}
 
           {step === 0 && (
             <>
@@ -83,10 +121,9 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
                       type="button"
                       onClick={() => {
                         const base = draft.allowedDays ?? []
-                        const nextDays = on ? base.filter((d) => d !== day) : [...base, day]
-                        patch({ allowedDays: nextDays })
+                        patch({ allowedDays: on ? base.filter((d) => d !== day) : [...base, day] })
                       }}
-                      className={`label h-8 w-8 border border-ink/40 ${on ? "bg-ink text-paper" : "text-ink/50"}`}
+                      className={`${CHIP} w-8 border-ink/40 px-0 ${on ? "bg-ink text-paper" : "text-ink/50"}`}
                     >
                       {DAY_INITIALS[day]}
                     </button>
@@ -105,7 +142,7 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
                     key={p}
                     type="button"
                     onClick={() => patch({ priority: p })}
-                    className={`label h-8 border border-ink/40 px-2.5 ${
+                    className={`${CHIP} border-ink/40 ${
                       draft.priority === p ? "bg-ink text-paper" : "text-ink/55"
                     }`}
                   >
@@ -125,7 +162,7 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
                     key={b}
                     type="button"
                     onClick={() => patch({ bufferMinutes: draft.bufferMinutes === b ? undefined : b })}
-                    className={`label h-8 border border-ink/40 px-2.5 ${
+                    className={`${CHIP} border-ink/40 ${
                       draft.bufferMinutes === b ? "bg-ink text-paper" : "text-ink/55"
                     }`}
                   >
@@ -133,7 +170,6 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
                   </button>
                 ))}
               </div>
-              <span className="label text-ink/35">each side</span>
               <Skip
                 active={!draft.bufferMinutes}
                 onClick={() => patch({ bufferMinutes: undefined })}
@@ -144,127 +180,61 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
 
           {step === 3 && (
             <>
-              <div className="flex gap-1">
-                {(
-                  [
-                    ["any", "Decide for me"],
-                    ["window", "Preferred window"],
-                    ["at", "Always at"],
-                  ] as const
-                ).map(([mode, label]) => (
+              <Skip
+                active={!draft.window && !draft.fixedAt}
+                onClick={() => {
+                  setAtMode(false)
+                  patch({ window: undefined, fixedAt: undefined })
+                }}
+              />
+              {/* A fixed time and a window are exclusive, so the presets step aside. */}
+              {!fixedTime &&
+                WINDOW_PRESETS.map((w) => (
                   <button
-                    key={mode}
+                    key={w.label}
                     type="button"
-                    onClick={() => {
-                      setWhenMode(mode)
-                      // The two are exclusive, so picking one clears the other.
-                      if (mode === "any") patch({ window: undefined, fixedAt: undefined })
-                      if (mode === "window") patch({ fixedAt: undefined })
-                      if (mode === "at") patch({ window: undefined })
-                    }}
-                    className={`label h-8 border px-2.5 ${
-                      whenMode === mode ? "border-ink bg-ink text-paper" : "border-ink/30 text-ink/50"
+                    onClick={() => patch({ window: { start: w.start, end: w.end }, fixedAt: undefined })}
+                    className={`${CHIP} border-ink/40 ${
+                      draft.window?.start === w.start ? "bg-ink text-paper" : "text-ink/55"
                     }`}
                   >
-                    {label}
+                    {w.label}
                   </button>
                 ))}
-              </div>
-
-              {whenMode === "window" && (
-                <>
-                  <div className="flex gap-1">
-                    {WINDOW_PRESETS.map((w) => (
-                      <button
-                        key={w.label}
-                        type="button"
-                        onClick={() => patch({ window: { start: w.start, end: w.end } })}
-                        className={`label h-8 border border-ink/40 px-2.5 ${
-                          draft.window?.start === w.start && draft.window?.end === w.end
-                            ? "bg-ink text-paper"
-                            : "text-ink/55"
-                        }`}
-                      >
-                        {w.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="time"
-                      value={draft.window?.start ?? ""}
-                      onChange={(e) =>
-                        patch({ window: { start: e.target.value, end: draft.window?.end ?? "23:00" } })
-                      }
-                      className="border-b border-ink/30 bg-transparent py-1 font-mono text-[13px] tabular-nums"
-                    />
-                    <span className="text-ink/35">–</span>
-                    <input
-                      type="time"
-                      value={draft.window?.end ?? ""}
-                      onChange={(e) =>
-                        patch({ window: { start: draft.window?.start ?? "08:00", end: e.target.value } })
-                      }
-                      className="border-b border-ink/30 bg-transparent py-1 font-mono text-[13px] tabular-nums"
-                    />
-                  </div>
-                </>
-              )}
-
-              {whenMode === "at" && (
-                <>
-                  <input
-                    type="time"
-                    value={draft.fixedAt?.start ?? ""}
-                    onChange={(e) =>
-                      patch({ fixedAt: e.target.value ? { start: e.target.value } : undefined })
-                    }
-                    className="border-b border-ink/30 bg-transparent py-1 font-mono text-[15px] tabular-nums"
-                  />
-                  <span className="label text-ink/35">same time every day</span>
-                </>
+              <button
+                type="button"
+                onClick={() => {
+                  // Clicking it again goes back to the window presets.
+                  setAtMode(!fixedTime)
+                  patch({ fixedAt: undefined, window: undefined })
+                }}
+                className={`${CHIP} border-ink/40 ${fixedTime ? "bg-ink text-paper" : "text-ink/55"}`}
+              >
+                Always at
+              </button>
+              {fixedTime && (
+                <input
+                  type="time"
+                  value={draft.fixedAt?.start ?? ""}
+                  onChange={(e) => patch({ fixedAt: e.target.value ? { start: e.target.value } : undefined })}
+                  className={`${TIME} text-[15px]`}
+                />
               )}
             </>
           )}
-
-          <div className="ml-auto flex items-center gap-2">
-            {chosen.length > 0 && <span className="label text-ink/35">{chosen.join(" · ")}</span>}
-            <button
-              type="button"
-              onClick={() => setStep((s) => (s !== null && s > 0 ? s - 1 : null))}
-              className="label border border-ink/40 px-2 py-1 text-ink/55 hover:bg-ink hover:text-paper"
-            >
-              Back
-            </button>
-          </div>
-        </div>
+        </>
       )}
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          add()
-        }}
-        className="flex gap-2 py-4"
-      >
-        <input
-          className={`${FIELD} min-w-0 flex-1 font-sans`}
-          placeholder="Gym"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          className={`${FIELD} w-24 shrink-0 font-mono tabular-nums`}
-          placeholder="1h15"
-          value={durationText}
-          onChange={(e) => setDurationText(e.target.value)}
-        />
-        <input
-          className={`${FIELD} w-16 shrink-0 font-mono tabular-nums`}
-          placeholder="4×"
-          value={sessionsText}
-          onChange={(e) => setSessionsText(e.target.value)}
-        />
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        {step !== null && (
+          <button
+            type="button"
+            onClick={() => setStep((s) => (s !== null && s > 0 ? s - 1 : null))}
+            className="label border border-ink/40 px-2 py-1 text-ink/55 hover:bg-ink hover:text-paper"
+          >
+            Back
+          </button>
+        )}
         {!onLastStep && (
           <button
             type="button"
@@ -283,8 +253,8 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
         >
           Add
         </button>
-      </form>
-    </div>
+      </div>
+    </form>
   )
 }
 
@@ -302,12 +272,9 @@ function Skip({
     <button
       type="button"
       onClick={onClick}
-      className={`label h-8 border px-2.5 ${
-        active ? "border-ink bg-ink/10 text-ink" : "border-ink/25 text-ink/45 hover:border-ink"
-      }`}
+      className={`${CHIP} ${active ? "border-ink bg-ink/10 text-ink" : "border-ink/25 text-ink/45 hover:border-ink"}`}
     >
       {label}
     </button>
   )
 }
-

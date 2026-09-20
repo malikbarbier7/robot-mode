@@ -53,7 +53,7 @@ export function BuildScreen({
   const unusedSuggestions = SUGGESTIONS.filter((s) => !used.includes(s.name.toLowerCase()))
 
   return (
-    <div className="mx-auto w-full max-w-[760px] px-6 py-12">
+    <div className="mx-auto w-full max-w-[900px] px-6 py-12">
       <h2 className="font-display text-6xl leading-[0.95]">What do you want to do?</h2>
       <p className="mt-4 max-w-lg text-[14px] leading-relaxed text-ink/65">
         List everything, with how long each one takes and how often you want it. Robot Mode works
