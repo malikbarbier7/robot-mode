@@ -3,17 +3,8 @@
 import type { Activity, BudgetReport, Schedule, Settings } from "@/lib/types"
 import { ActivityRow } from "./ActivityRow"
 import { AddActivityFlow } from "./AddActivityFlow"
-import { formatHours, parseDuration } from "@/lib/duration"
+import { formatHours } from "@/lib/duration"
 
-/** One-click starters, so an empty list is never a blank page. */
-const SUGGESTIONS = [
-  { name: "Gym", duration: "1h15", sessions: 4 },
-  { name: "Reading", duration: "1h", sessions: 7 },
-  { name: "Deep work", duration: "2h", sessions: 5 },
-  { name: "Language", duration: "45m", sessions: 5 },
-  { name: "Cooking", duration: "45m", sessions: 7 },
-  { name: "Walk", duration: "30m", sessions: 7 },
-]
 
 export function BuildScreen({
   settings,
@@ -37,20 +28,6 @@ export function BuildScreen({
   onOpenTemplates: () => void
 }) {
   const activities = settings.activities
-
-  const add = (activityName: string, durationText: string, perWeek: number) => {
-    const parsed = parseDuration(durationText)
-    if (!parsed) return
-    onAddActivity({
-      name: activityName.trim(),
-      durationMinutes: parsed,
-      sessionsPerWeek: perWeek,
-      priority: "medium",
-    })
-  }
-
-  const used = activities.map((a) => a.name.toLowerCase())
-  const unusedSuggestions = SUGGESTIONS.filter((s) => !used.includes(s.name.toLowerCase()))
 
   return (
     <div className="mx-auto w-full max-w-[900px] px-6 py-12">
@@ -92,60 +69,23 @@ export function BuildScreen({
 
       <AddActivityFlow onAdd={onAddActivity} />
 
-      {activities.length === 0 ? (
-        <div className="py-10">
-          <div className="label mb-3 text-ink/45">Or start with one of these</div>
-          <div className="flex flex-wrap gap-2">
-            {SUGGESTIONS.map((s) => (
-              <button
-                key={s.name}
-                type="button"
-                onClick={() => add(s.name, s.duration, s.sessions)}
-                className="border border-ink/35 px-3 py-1.5 text-[13px] hover:bg-ink hover:text-paper"
-              >
-                {s.name}{" "}
-                <span className="font-mono text-[11px] opacity-60">
-                  {s.duration} · {s.sessions}×
-                </span>
-              </button>
-            ))}
-          </div>
+      {activities.length > 0 && (
+        <div className="mt-2">
+          {activities.map((activity, i) => (
+            <ActivityRow
+              key={activity.id}
+              activity={activity}
+              index={i}
+              variant="page"
+              placed={schedule.blocks.filter((b) => b.activityId === activity.id).length}
+              onChange={(patch) => onUpdateActivity(activity.id, patch)}
+              onRemove={() => onRemoveActivity(activity.id)}
+            />
+          ))}
+          <p className="label mt-3 text-ink/35">
+            Click an activity to set priority, days, preferred time or travel buffer
+          </p>
         </div>
-      ) : (
-        <>
-          <div className="mt-2">
-            {activities.map((activity, i) => (
-              <ActivityRow
-                key={activity.id}
-                activity={activity}
-                index={i}
-                variant="page"
-                placed={schedule.blocks.filter((b) => b.activityId === activity.id).length}
-                onChange={(patch) => onUpdateActivity(activity.id, patch)}
-                onRemove={() => onRemoveActivity(activity.id)}
-              />
-            ))}
-            <p className="label mt-3 text-ink/35">
-              Click an activity to set priority, days, preferred time or travel buffer
-            </p>
-          </div>
-
-          {unusedSuggestions.length > 0 && (
-            <div className="mt-5 flex flex-wrap items-center gap-2">
-              <span className="label text-ink/40">Add</span>
-              {unusedSuggestions.slice(0, 4).map((s) => (
-                <button
-                  key={s.name}
-                  type="button"
-                  onClick={() => add(s.name, s.duration, s.sessions)}
-                  className="label border border-ink/25 px-2 py-1 text-ink/60 hover:bg-ink hover:text-paper"
-                >
-                  + {s.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </>
       )}
 
       {activities.length > 0 && (

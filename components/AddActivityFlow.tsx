@@ -7,7 +7,6 @@ import {
   STEPS,
   WINDOW_PRESETS,
   draftToActivity,
-  recapBefore,
   isDraftValid,
   type Draft,
 } from "@/lib/draft"
@@ -66,8 +65,6 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
     setStep((s) => (s === null ? 0 : Math.min(s + 1, STEPS.length - 1)))
   }
 
-  // Only what earlier steps decided; the current step shows its own state.
-  const chosen = step === null ? [] : recapBefore(current, step)
   const fixedTime = atMode || draft.fixedAt !== undefined
   const onLastStep = step === STEPS.length - 1
 
@@ -105,11 +102,6 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
           <span className="label shrink-0">
             {step + 1}/{STEPS.length} {STEPS[step]}
           </span>
-          {chosen.length > 0 && (
-            <span className="label max-w-[140px] shrink-0 truncate text-ink/35" title={chosen.join(" · ")}>
-              {chosen.join(" · ")}
-            </span>
-          )}
 
           {step === 0 && (
             <>
