@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import type { Activity, BudgetReport, Settings } from "@/lib/types"
-import { formatDuration, formatHours, parseDuration } from "@/lib/duration"
+import type { Activity, BudgetReport, Schedule, Settings } from "@/lib/types"
+import { ActivityRow } from "./ActivityRow"
+import { formatHours, parseDuration } from "@/lib/duration"
 import { Button } from "./ui"
 
 const FIELD =
@@ -21,23 +22,23 @@ const SUGGESTIONS = [
 export function BuildScreen({
   settings,
   budget,
-  generated,
+  schedule,
   onPatchSettings,
   onAddActivity,
+  onUpdateActivity,
   onRemoveActivity,
   onGenerate,
   onOpenTemplates,
-  onBackToWeek,
 }: {
   settings: Settings
   budget: BudgetReport
-  generated: boolean
+  schedule: Schedule
   onPatchSettings: (patch: Partial<Settings>) => void
   onAddActivity: (activity: Activity) => void
+  onUpdateActivity: (id: string, patch: Partial<Activity>) => void
   onRemoveActivity: (id: string) => void
   onGenerate: () => void
   onOpenTemplates: () => void
-  onBackToWeek: () => void
 }) {
   const [name, setName] = useState("")
   const [duration, setDuration] = useState("")
@@ -73,16 +74,6 @@ export function BuildScreen({
 
   return (
     <div className="mx-auto w-full max-w-[760px] px-6 py-12">
-      {generated && (
-        <button
-          type="button"
-          onClick={onBackToWeek}
-          className="label mb-8 border border-ink px-2.5 py-1 hover:bg-ink hover:text-paper"
-        >
-          ← Back to my week
-        </button>
-      )}
-
       <h2 className="font-display text-6xl leading-[0.95]">What do you want to do?</h2>
       <p className="mt-4 max-w-lg text-[14px] leading-relaxed text-ink/65">
         List everything, with how long each one takes and how often you want it. Robot Mode works
@@ -141,30 +132,22 @@ export function BuildScreen({
         </div>
       ) : (
         <>
-          <ol className="mt-2">
+          <div className="mt-2">
             {activities.map((activity, i) => (
-              <li
+              <ActivityRow
                 key={activity.id}
-                className="group flex items-baseline gap-4 border-b border-ink/15 py-3"
-              >
-                <span className="label w-6 shrink-0 text-ink/35 tabular-nums">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span className="flex-1 truncate text-[17px]">{activity.name}</span>
-                <span className="font-mono text-[13px] tabular-nums text-ink/60">
-                  {formatDuration(activity.durationMinutes)} · {activity.sessionsPerWeek}×
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onRemoveActivity(activity.id)}
-                  title={`Remove ${activity.name}`}
-                  className="label w-5 text-ink/0 transition-colors group-hover:text-ink/45 hover:!text-ink"
-                >
-                  ✕
-                </button>
-              </li>
+                activity={activity}
+                index={i}
+                variant="page"
+                placed={schedule.blocks.filter((b) => b.activityId === activity.id).length}
+                onChange={(patch) => onUpdateActivity(activity.id, patch)}
+                onRemove={() => onRemoveActivity(activity.id)}
+              />
             ))}
-          </ol>
+            <p className="label mt-3 text-ink/35">
+              Click an activity to set priority, days, preferred time or travel buffer
+            </p>
+          </div>
 
           {unusedSuggestions.length > 0 && (
             <div className="mt-5 flex flex-wrap items-center gap-2">

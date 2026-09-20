@@ -68,10 +68,19 @@ export default function Page() {
         <div className="flex items-center gap-2 pb-0.5">
           {showWeekChrome && (
             <>
+              <button
+                type="button"
+                onClick={() => setView("list")}
+                aria-pressed={view === "list"}
+                title="Your activity list"
+                className="label mr-1 border border-ink bg-ink px-3 py-1 text-paper hover:bg-paper hover:text-ink"
+              >
+                Home page
+              </button>
+
               <div className="flex">
                 {(
                   [
-                    ["list", "List"],
                     ["week", "Week"],
                     ["now", "Now"],
                   ] as const
@@ -197,13 +206,13 @@ export default function Page() {
             <BuildScreen
               settings={rm.state.settings}
               budget={rm.budget}
-              generated={generated}
+              schedule={rm.schedule}
               onPatchSettings={rm.patchSettings}
               onAddActivity={rm.addActivity}
+              onUpdateActivity={rm.updateActivity}
               onRemoveActivity={rm.removeActivity}
               onGenerate={generate}
               onOpenTemplates={() => setView("templates")}
-              onBackToWeek={() => setView("week")}
             />
           )}
         </main>
