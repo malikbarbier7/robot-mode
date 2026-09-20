@@ -64,6 +64,13 @@ export type PlacedBlock = {
   reason: string
 }
 
+/** Something already placed that stood where an activity needed to go. */
+export type Blocker = {
+  activityId: string
+  name: string
+  startMinute: number
+}
+
 export type Unplaced = {
   activityId: string
   name: string
@@ -72,7 +79,7 @@ export type Unplaced = {
   /** One line saying what went wrong, in the user's terms. */
   why: string
   /** The blocks that were sitting in the way, when the engine can name them. */
-  blockedBy?: string[]
+  blockedBy?: Blocker[]
 }
 
 export type BudgetReport = {

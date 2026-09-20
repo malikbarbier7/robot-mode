@@ -1,4 +1,13 @@
-import type { Activity, Day, PlacedBlock, Priority, Schedule, Settings, Unplaced } from "@/lib/types"
+import type {
+  Activity,
+  Blocker,
+  Day,
+  PlacedBlock,
+  Priority,
+  Schedule,
+  Settings,
+  Unplaced,
+} from "@/lib/types"
 import { allActivities } from "@/lib/meals"
 import { computeBudget } from "./budget"
 import { makeRng, shuffled } from "./rng"
@@ -507,7 +516,7 @@ function diagnose(
   activity: Activity,
   state: PassState,
   windows: DayWindow[],
-): { why: string; blockedBy?: string[] } {
+): { why: string; blockedBy?: Blocker[] } {
   const days = allowedDaysOf(activity)
   const slots = slotsFor(activity.durationMinutes)
   const bufferSlots = activity.bufferMinutes ? slotsFor(activity.bufferMinutes) : 0
@@ -523,14 +532,15 @@ function diagnose(
     }
 
     const candidateDays = (activity.fixedAt.days ?? days).filter((d) => days.includes(d))
-    const blockedBy = namesInTheWay(state, candidateDays, windows, (win) => {
+    const blockedBy = blockersInTheWay(state, candidateDays, windows, (win) => {
       const start = win.day * SLOTS_PER_DAY + anchor
       return [Math.max(win.startAbs, start - bufferSlots), Math.min(win.endAbs, start + slots + bufferSlots)]
     })
 
     if (blockedBy.length > 0) {
       // One sentence that names the culprit: "08:00 clashes with Breakfast at 09:00".
-      return { why: `${activity.fixedAt.start} clashes with ${blockedBy.join(", ")}`, blockedBy }
+      const labels = blockedBy.map((b) => `${b.name} at ${formatTime(b.startMinute)}`)
+      return { why: `${activity.fixedAt.start} clashes with ${labels.join(", ")}`, blockedBy }
     }
     return { why: `No day left free at ${activity.fixedAt.start}` }
   }
@@ -556,28 +566,34 @@ function diagnose(
   return { why: "The days it is allowed on are already full" }
 }
 
-/** Distinct names of blocks sitting inside the ranges an activity needed. */
-function namesInTheWay(
+/** Distinct blocks sitting inside the ranges an activity needed, most frequent first. */
+function blockersInTheWay(
   state: PassState,
   days: Day[],
   windows: DayWindow[],
   rangeFor: (win: DayWindow) => [number, number],
-): string[] {
-  const seen = new Map<string, number>()
+): Blocker[] {
+  const seen = new Map<string, { blocker: Blocker; hits: number }>()
   for (const day of days) {
     const [from, to] = rangeFor(windows[day])
     for (let i = from; i < to; i++) {
       const index = state.occupantAt[i]
       if (index < 0) continue
       const block = state.placed[index]
-      const label = `${block.name} at ${formatTime(block.startMinute)}`
-      seen.set(label, (seen.get(label) ?? 0) + 1)
+      const found = seen.get(block.activityId)
+      if (found) found.hits++
+      else {
+        seen.set(block.activityId, {
+          hits: 1,
+          blocker: { activityId: block.activityId, name: block.name, startMinute: block.startMinute },
+        })
+      }
     }
   }
-  return [...seen.entries()]
-    .sort((a, b) => b[1] - a[1])
+  return [...seen.values()]
+    .sort((a, b) => b.hits - a.hits)
     .slice(0, 3)
-    .map(([label]) => label)
+    .map((entry) => entry.blocker)
 }
 
 function describeMinutes(minutes: number): string {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { BlockBar } from "@/components/BlockBar"
 import { BudgetBar } from "@/components/BudgetBar"
 import { BuildScreen } from "@/components/BuildScreen"
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui"
 import { downloadIcs, downloadText } from "@/lib/ics"
 import { fromJson, toJson } from "@/lib/storage"
 import { useRobotMode } from "@/lib/useRobotMode"
+import { suggestFixes } from "@/lib/suggest"
 
 type View = "list" | "week" | "now" | "templates" | "generating"
 
@@ -23,6 +24,7 @@ export default function Page() {
   const [chosenView, setView] = useState<View | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  const [fixing, setFixing] = useState<string | null>(null)
 
   const empty = rm.state.settings.activities.length === 0
   const generated = rm.state.generated === true
@@ -32,6 +34,12 @@ export default function Page() {
 
   const selected = rm.schedule.blocks.find((b) => b.id === selectedId) ?? null
   const weekEdits = rm.state.locked.length + rm.state.skipped.length + (rm.notBefore ? 1 : 0)
+
+  // Only worked out when asked: each suggestion costs a trial solve to verify.
+  const suggestions = useMemo(() => {
+    const conflict = rm.schedule.unplaced.find((u) => u.activityId === fixing)
+    return conflict ? suggestFixes(rm.state.settings, conflict) : []
+  }, [fixing, rm.schedule.unplaced, rm.state.settings])
 
   const generate = () => {
     setSelectedId(null)
@@ -157,14 +165,49 @@ export default function Page() {
                   ? "1 conflict"
                   : `${rm.schedule.unplaced.length} conflicts`}
               </div>
-              <ul className="space-y-1">
+              <ul className="space-y-1.5">
                 {rm.schedule.unplaced.map((u) => (
-                  <li key={u.activityId} className="font-mono text-[11px] leading-relaxed">
-                    <span className="font-sans text-[12px] font-medium">{u.name}</span>{" "}
-                    <span className="tabular-nums opacity-70">
-                      {u.sessionsPlaced}/{u.sessionsRequested}
-                    </span>{" "}
-                    — {u.why}
+                  <li key={u.activityId}>
+                    <div className="flex items-baseline gap-2 font-mono text-[11px] leading-relaxed">
+                      <span className="min-w-0 flex-1">
+                        <span className="font-sans text-[12px] font-medium">{u.name}</span>{" "}
+                        <span className="tabular-nums opacity-70">
+                          {u.sessionsPlaced}/{u.sessionsRequested}
+                        </span>{" "}
+                        — {u.why}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setFixing(fixing === u.activityId ? null : u.activityId)}
+                        className="label shrink-0 border border-alert px-2 py-0.5 hover:bg-alert hover:text-paper"
+                      >
+                        {fixing === u.activityId ? "Close" : "Fix"}
+                      </button>
+                    </div>
+
+                    {fixing === u.activityId && (
+                      <div className="mt-1.5 space-y-1 border-l-2 border-alert/40 pl-3">
+                        {suggestions.length === 0 ? (
+                          <p className="font-mono text-[11px] opacity-70">
+                            No single change fixes this one.
+                          </p>
+                        ) : (
+                          suggestions.map((fix) => (
+                            <button
+                              key={fix.id}
+                              type="button"
+                              onClick={() => {
+                                rm.patchSettings(fix.settings)
+                                setFixing(null)
+                              }}
+                              className="block w-full border border-alert/40 px-2 py-1 text-left font-mono text-[11px] hover:bg-alert hover:text-paper"
+                            >
+                              {fix.label}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -151,6 +151,29 @@ Red is the one exception to a single ink colour, and it appears only when there 
 a conflict. "It did not fit" on its own is useless — the name of the block sitting
 in the way is what makes it fixable.
 
+Each conflict has a **Fix** button offering up to three ways out:
+
+```text
+Move Gym to 07:30
+Move Breakfast to 09:30
+Let Robot Mode choose when Gym happens
+```
+
+These are not guesses. A short catalogue of small tweaks is generated from the
+conflict, each one is tried by re-running the solver, and only those that genuinely
+resolve it — without breaking more than they fix — are shown. The solver takes
+about 30ms, so trying two dozen is affordable on demand. Nothing is ever offered
+that has not been shown to work, which is exactly what a clever guess would get
+wrong.
+
+They are ranked by how little they disturb what was asked for: nudging one block
+beats changing wake time, which beats shortening an activity or dropping a session.
+Only the cheapest of each kind is shown, so three suggestions are three genuinely
+different moves rather than the same one at 15, 30 and 45 minutes.
+
+Applying one is the user's choice, never automatic, and one change at a time.
+When nothing small helps, the panel says so instead of offering something weak.
+
 ## Step 4 — Generate
 
 **GENERATE MY WEEK** is the moment the product exists for. The solver finishes in

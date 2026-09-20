@@ -35,7 +35,9 @@ describe("conflict reporting", () => {
     expect(conflict.name).toBe("Gym")
     expect(conflict.sessionsPlaced).toBe(0)
     expect(conflict.why).toBe("08:00 clashes with Breakfast at 09:00")
-    expect(conflict.blockedBy).toEqual(["Breakfast at 09:00"])
+    expect(conflict.blockedBy).toEqual([
+      { activityId: "meal-breakfast", name: "Breakfast", startMinute: 9 * 60 },
+    ])
   })
 
   it("says so when a fixed time falls outside waking hours", () => {
