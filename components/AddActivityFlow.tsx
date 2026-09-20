@@ -72,7 +72,8 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
     <form
       onSubmit={(e) => {
         e.preventDefault()
-        add()
+        if (step !== null && !onLastStep) next()
+        else add()
       }}
       className="mt-8 flex min-h-[80px] flex-wrap items-center gap-x-2 gap-y-2 border-y-2 border-ink py-4"
     >
@@ -239,13 +240,15 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
             Next
           </button>
         )}
-        <button
-          type="submit"
-          disabled={!valid}
-          className="label border border-ink bg-ink px-3 py-1 text-paper hover:bg-paper hover:text-ink disabled:border-ink/25 disabled:bg-transparent disabled:text-ink/30"
-        >
-          Add
-        </button>
+        {(step === null || onLastStep) && (
+          <button
+            type="submit"
+            disabled={!valid}
+            className="label border border-ink bg-ink px-3 py-1 text-paper hover:bg-paper hover:text-ink disabled:border-ink/25 disabled:bg-transparent disabled:text-ink/30"
+          >
+            Add
+          </button>
+        )}
       </div>
     </form>
   )

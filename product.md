@@ -96,6 +96,10 @@ share the last step. The presets set a window directly — there is no mode to p
 first — and choosing **Always at** hides them, since a fixed time makes a window
 meaningless. Custom start and end times live in the row editor, which has room.
 
+Once the stepper starts it carries only **Back** and **Next**, with **Next**
+becoming **Add** on the last step. Offering Add throughout invited adding an
+activity half-configured by mistake, which is the opposite of the point.
+
 Every step can be skipped, which stores nothing and leaves the choice to the
 engine. The wording matters — **Decide for me** on days, priority and when, but
 **No buffer** on travel time, because skipping that means zero rather than a
