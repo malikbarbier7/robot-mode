@@ -1,4 +1,4 @@
-import { defaultMeals, noMeals } from "./meals"
+import { defaultMeals } from "./meals"
 import type { PlacedBlock, Settings } from "./types"
 
 const KEY = "robot-mode:v1"
@@ -46,7 +46,7 @@ export function load(): SavedState {
       settings: {
         ...emptySettings,
         ...parsed.settings,
-        meals: parsed.settings.meals ?? noMeals,
+        meals: parsed.settings.meals ?? defaultMeals,
       },
       locked: parsed.locked ?? [],
       skipped: parsed.skipped ?? [],
@@ -81,7 +81,7 @@ export function fromJson(text: string): SavedState | null {
       settings: {
         ...emptySettings,
         ...parsed.settings,
-        meals: parsed.settings.meals ?? noMeals,
+        meals: parsed.settings.meals ?? defaultMeals,
       },
       locked: parsed.locked ?? [],
       skipped: parsed.skipped ?? [],

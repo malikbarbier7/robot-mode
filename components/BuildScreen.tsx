@@ -1,7 +1,7 @@
 "use client"
 
 import type { Activity, BudgetReport, Meal, Schedule, Settings } from "@/lib/types"
-import { defaultMeals } from "@/lib/meals"
+import { mealsOf } from "@/lib/meals"
 import { ActivityRow } from "./ActivityRow"
 import { AddActivityFlow } from "./AddActivityFlow"
 import { formatHours } from "@/lib/duration"
@@ -69,15 +69,13 @@ export function BuildScreen({
 
         <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
           <span className="label w-10 shrink-0 text-ink/45">Meals</span>
-          {(settings.meals ?? defaultMeals).map((meal) => (
+          {mealsOf(settings).map((meal) => (
             <MealField
               key={meal.id}
               meal={meal}
               onChange={(patch) =>
                 onPatchSettings({
-                  meals: (settings.meals ?? defaultMeals).map((m) =>
-                    m.id === meal.id ? { ...m, ...patch } : m,
-                  ),
+                  meals: mealsOf(settings).map((m) => (m.id === meal.id ? { ...m, ...patch } : m)),
                 })
               }
             />

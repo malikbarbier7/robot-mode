@@ -1,4 +1,4 @@
-import { defaultMeals } from "./meals"
+import { defaultMeals, mealsOf } from "./meals"
 import type { Settings } from "./types"
 
 export type Template = { id: string; name: string; blurb: string; settings: Settings }
@@ -171,7 +171,7 @@ export function matchesTemplate(settings: Settings, template: Template): boolean
       wakeTime: s.wakeTime,
       sleepTime: s.sleepTime,
       minFreeMinutesPerDay: s.minFreeMinutesPerDay,
-      meals: s.meals,
+      meals: mealsOf(s),
       activities: s.activities,
     })
   return shape(settings) === shape(template.settings)

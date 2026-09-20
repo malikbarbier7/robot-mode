@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { allActivities, defaultMeals, mealActivities, noMeals } from "./meals"
+import { allActivities, defaultMeals, mealActivities, mealsOf } from "./meals"
 import { generate } from "./scheduler/generate"
 import { computeBudget } from "./scheduler/budget"
 import type { Meal, Settings } from "./types"
+
+/** Every slot switched on, for tests about what happens once they are. */
+const allOn = defaultMeals.map((m) => ({ ...m, enabled: true }))
 
 const base: Settings = {
   wakeTime: "07:30",
@@ -10,12 +13,12 @@ const base: Settings = {
   minFreeMinutesPerDay: 60,
   seed: 1,
   activities: [],
-  meals: defaultMeals,
+  meals: allOn,
 }
 
 describe("mealActivities", () => {
   it("makes each enabled meal a fixed, critical, daily activity", () => {
-    const [breakfast] = mealActivities([defaultMeals[0]])
+    const [breakfast] = mealActivities([allOn[0]])
     expect(breakfast).toEqual({
       id: "meal-breakfast",
       name: "Breakfast",
@@ -27,17 +30,21 @@ describe("mealActivities", () => {
   })
 
   it("leaves out disabled meals", () => {
-    expect(mealActivities(noMeals)).toEqual([])
+    expect(mealActivities(defaultMeals)).toEqual([])
+  })
+
+  it("starts every slot switched off", () => {
+    expect(defaultMeals.every((m) => !m.enabled)).toBe(true)
+    expect(allActivities({ ...base, meals: undefined })).toEqual([])
   })
 
   it("leaves out a meal with no duration", () => {
-    const empty: Meal = { ...defaultMeals[0], durationMinutes: 0 }
+    const empty: Meal = { ...allOn[0], durationMinutes: 0 }
     expect(mealActivities([empty])).toEqual([])
   })
 
   it("copes with meals being absent entirely", () => {
     expect(mealActivities(undefined)).toEqual([])
-    expect(allActivities({ ...base, meals: undefined })).toEqual([])
   })
 })
 
@@ -45,9 +52,9 @@ describe("meals in the schedule", () => {
   it("places every meal at its time, every day", () => {
     const schedule = generate(base)
     expect(schedule.unplaced).toEqual([])
-    expect(schedule.blocks).toHaveLength(21)
+    expect(schedule.blocks).toHaveLength(defaultMeals.length * 7)
 
-    for (const meal of defaultMeals) {
+    for (const meal of allOn) {
       const blocks = schedule.blocks.filter((b) => b.activityId === `meal-${meal.id}`)
       expect(blocks, meal.name).toHaveLength(7)
       const [h, m] = meal.start.split(":").map(Number)
@@ -57,9 +64,9 @@ describe("meals in the schedule", () => {
 
   it("counts towards the budget", () => {
     const withMeals = computeBudget(base)
-    const without = computeBudget({ ...base, meals: noMeals })
-    // 30 + 45 + 60 minutes a day, seven days.
-    expect(withMeals.requestedMinutes - without.requestedMinutes).toBe((30 + 45 + 60) * 7)
+    const without = computeBudget({ ...base, meals: defaultMeals })
+    const perDay = allOn.reduce((n, m) => n + m.durationMinutes, 0)
+    expect(withMeals.requestedMinutes - without.requestedMinutes).toBe(perDay * 7)
   })
 
   it("keeps other activities from overlapping them", () => {
@@ -82,12 +89,30 @@ describe("meals in the schedule", () => {
   it("does not put meals in the user's activity list", () => {
     // They belong to the shape of the day, not to "what do you want to do".
     expect(base.activities).toEqual([])
-    expect(allActivities(base)).toHaveLength(3)
+    expect(allActivities(base)).toHaveLength(defaultMeals.length)
   })
 
   it("moves everything when a meal time changes", () => {
-    const early = generate({ ...base, meals: defaultMeals.map((m) => ({ ...m, start: "12:00" })) })
+    const early = generate({ ...base, meals: allOn.map((m) => ({ ...m, start: "12:00" })) })
     const noon = early.blocks.filter((b) => b.startMinute === 12 * 60)
     expect(noon.length).toBeGreaterThan(0)
+  })
+})
+
+describe("mealsOf", () => {
+  it("fills in a slot the saved settings never had", () => {
+    const old = mealsOf({ meals: [{ ...allOn[0] }, { ...allOn[1] }] })
+    expect(old.map((m) => m.id)).toEqual(defaultMeals.map((m) => m.id))
+    expect(old.find((m) => m.id === "snack")?.enabled).toBe(false)
+  })
+
+  it("keeps what was saved", () => {
+    const saved = mealsOf({ meals: [{ ...allOn[3], start: "21:00", durationMinutes: 90 }] })
+    const dinner = saved.find((m) => m.id === "dinner")!
+    expect(dinner).toMatchObject({ start: "21:00", durationMinutes: 90, enabled: true })
+  })
+
+  it("returns every slot when nothing is saved", () => {
+    expect(mealsOf({ meals: undefined })).toEqual(defaultMeals)
   })
 })

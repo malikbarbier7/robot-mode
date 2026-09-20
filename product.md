@@ -70,9 +70,15 @@ The list is the product. Anything that competes with it on the first screen,
 templates included, is pushing the user away from the thing they came to do.
 
 Above the input, the frame it all has to fit inside: **Wake** 07:30, **Sleep** 23:30,
-how much free time a day to protect, and **meals** — each one on or off, at a time,
-for a length. Meals are part of the shape of a day rather than things you want to
-get done, so they belong here and never appear in the list. The hours come first — you decide how big
+how much free time a day to protect, and **meals** — breakfast, lunch, snack and
+dinner, each at a time, for a length.
+
+Every meal starts **off**. Reserving someone's evening for a dinner they never
+asked for is a worse default than asking for one click, and it would quietly make
+the week look fuller than their own list.
+
+Meals are part of the shape of a day rather than things you want to get done, so
+they belong here and never appear in the list. The hours come first — you decide how big
 the container is before you decide what goes in it.
 
 ## Step 2 — Add activities
@@ -190,7 +196,7 @@ type Settings = {
   wakeTime: string
   sleepTime: string
   activities: Activity[]
-  meals?: Meal[]                 // breakfast, lunch, dinner
+  meals?: Meal[]                 // breakfast, lunch, snack, dinner; all off by default
   minFreeMinutesPerDay: number   // protected unscheduled time
   seed: number
 }
