@@ -66,16 +66,32 @@ export function draftToActivity(draft: Draft): Omit<Activity, "id"> {
   return activity
 }
 
-/** Short summary of the choices made so far, for the stepper's recap line. */
-export function describeDraft(draft: Draft): string[] {
-  const out: string[] = []
+/** A summary line tagged with the step it came from. */
+export type DraftSummaryItem = { step: number; text: string }
+
+/**
+ * Choices made so far. Each is tagged with its step so the stepper can leave out
+ * the one being edited — the controls already show that, and repeating it back
+ * is just noise.
+ */
+export function describeDraft(draft: Draft): DraftSummaryItem[] {
+  const out: DraftSummaryItem[] = []
   if (draft.allowedDays && draft.allowedDays.length > 0 && draft.allowedDays.length < 7) {
     const names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    out.push(draft.allowedDays.map((d) => names[d]).join(" "))
+    // Sorted, because they are stored in the order they were clicked.
+    const days = [...draft.allowedDays].sort((a, b) => a - b)
+    out.push({ step: 0, text: days.map((d) => names[d]).join(" ") })
   }
-  if (draft.priority) out.push(draft.priority)
-  if (draft.bufferMinutes) out.push(`+${draft.bufferMinutes}m travel`)
-  if (draft.fixedAt?.start) out.push(`always ${draft.fixedAt.start}`)
-  else if (draft.window) out.push(`${draft.window.start}–${draft.window.end}`)
+  if (draft.priority) out.push({ step: 1, text: draft.priority })
+  if (draft.bufferMinutes) out.push({ step: 2, text: `+${draft.bufferMinutes}m travel` })
+  if (draft.fixedAt?.start) out.push({ step: 3, text: `always ${draft.fixedAt.start}` })
+  else if (draft.window) out.push({ step: 3, text: `${draft.window.start}–${draft.window.end}` })
   return out
+}
+
+/** Only the steps already passed, as display text. */
+export function recapBefore(draft: Draft, step: number): string[] {
+  return describeDraft(draft)
+    .filter((item) => item.step < step)
+    .map((item) => item.text)
 }

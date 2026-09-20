@@ -99,7 +99,8 @@ meaningless. Custom start and end times live in the row editor, which has room.
 Every step can be skipped, which stores nothing and leaves the choice to the
 engine. The wording matters — **Decide for me** on days, priority and when, but
 **No buffer** on travel time, because skipping that means zero rather than a
-decision handed to the scheduler. A recap line shows what has been chosen so far.
+decision handed to the scheduler. A recap line shows what earlier steps decided — never the step being edited,
+since its own controls already show that and repeating it back is just noise.
 
 This is where preferences belong. Collected up front, the first generated week is
 one you can live with; collected afterwards, every week starts as something to fix

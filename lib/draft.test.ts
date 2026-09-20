@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest"
-import { STEPS, describeDraft, draftToActivity, emptyDraft, isDraftValid, type Draft } from "./draft"
+import {
+  STEPS,
+  describeDraft,
+  draftToActivity,
+  emptyDraft,
+  isDraftValid,
+  recapBefore,
+  type Draft,
+} from "./draft"
 
 const base: Draft = { name: "Gym", durationMinutes: 75, sessionsPerWeek: 4 }
 
@@ -61,27 +69,45 @@ describe("draftToActivity", () => {
   })
 })
 
+const full: Draft = {
+  ...base,
+  allowedDays: [0, 2],
+  priority: "high",
+  bufferMinutes: 15,
+  window: { start: "06:00", end: "12:00" },
+}
+
 describe("describeDraft", () => {
   it("is empty when nothing was chosen", () => {
     expect(describeDraft(base)).toEqual([])
   })
 
-  it("summarises the choices", () => {
-    expect(
-      describeDraft({
-        ...base,
-        allowedDays: [0, 2],
-        priority: "high",
-        bufferMinutes: 15,
-        window: { start: "06:00", end: "12:00" },
-      }),
-    ).toEqual(["Mon Wed", "high", "+15m travel", "06:00–12:00"])
+  it("summarises the choices, tagged with the step each came from", () => {
+    expect(describeDraft(full)).toEqual([
+      { step: 0, text: "Mon Wed" },
+      { step: 1, text: "high" },
+      { step: 2, text: "+15m travel" },
+      { step: 3, text: "06:00–12:00" },
+    ])
+  })
+
+  it("sorts days, which are stored in click order", () => {
+    expect(describeDraft({ ...base, allowedDays: [4, 1, 0] })[0].text).toBe("Mon Tue Fri")
   })
 
   it("shows a fixed time instead of a window", () => {
-    expect(describeDraft({ ...base, window: { start: "06:00", end: "12:00" }, fixedAt: { start: "07:00" } })).toEqual([
-      "always 07:00",
-    ])
+    expect(
+      describeDraft({ ...base, window: { start: "06:00", end: "12:00" }, fixedAt: { start: "07:00" } }),
+    ).toEqual([{ step: 3, text: "always 07:00" }])
+  })
+})
+
+describe("recapBefore", () => {
+  it("leaves out the step being edited, so it is not echoed back", () => {
+    expect(recapBefore(full, 0)).toEqual([])
+    expect(recapBefore(full, 1)).toEqual(["Mon Wed"])
+    expect(recapBefore(full, 2)).toEqual(["Mon Wed", "high"])
+    expect(recapBefore(full, 3)).toEqual(["Mon Wed", "high", "+15m travel"])
   })
 })
 

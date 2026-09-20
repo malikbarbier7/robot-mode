@@ -6,8 +6,8 @@ import { parseDuration } from "@/lib/duration"
 import {
   STEPS,
   WINDOW_PRESETS,
-  describeDraft,
   draftToActivity,
+  recapBefore,
   isDraftValid,
   type Draft,
 } from "@/lib/draft"
@@ -66,7 +66,8 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
     setStep((s) => (s === null ? 0 : Math.min(s + 1, STEPS.length - 1)))
   }
 
-  const chosen = describeDraft(current)
+  // Only what earlier steps decided; the current step shows its own state.
+  const chosen = step === null ? [] : recapBefore(current, step)
   const fixedTime = atMode || draft.fixedAt !== undefined
   const onLastStep = step === STEPS.length - 1
 
