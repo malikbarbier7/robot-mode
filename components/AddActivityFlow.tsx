@@ -14,6 +14,11 @@ import {
 const FIELD = "border-0 border-b border-ink/25 bg-transparent px-0 py-2 text-[18px] placeholder:text-ink/30"
 const CHIP = "label h-8 border px-2.5"
 const TIME = "border-b border-ink/30 bg-transparent py-1 font-mono text-[13px] tabular-nums"
+/** min-w keeps the slot steady when Next turns into Add on the last step. */
+const PRIMARY =
+  "label min-w-[64px] border border-ink bg-ink px-3 py-1 text-paper hover:bg-paper hover:text-ink disabled:border-ink/25 disabled:bg-transparent disabled:text-ink/30"
+const SECONDARY =
+  "label min-w-[64px] border border-ink/40 px-3 py-1 text-ink/60 hover:bg-ink hover:text-paper disabled:opacity-30"
 const DAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"] as const
 const ALL_DAYS: Day[] = [0, 1, 2, 3, 4, 5, 6]
 const PRIORITIES: Priority[] = ["critical", "high", "medium", "low"]
@@ -220,33 +225,38 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
       )}
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        {step !== null && (
+        {/*
+         * Two fixed slots. The right one is always the forward action, so Next
+         * never moves between the opening row and the first step — clicking the
+         * same place twice used to land on Back.
+         */}
+        {step === null ? (
+          <button type="submit" disabled={!valid} className={SECONDARY}>
+            Add
+          </button>
+        ) : (
           <button
             type="button"
-            onClick={() => setStep((s) => (s !== null && s > 0 ? s - 1 : null))}
-            className="label border border-ink/40 px-2 py-1 text-ink/55 hover:bg-ink hover:text-paper"
+            onClick={() => setStep((current) => (current !== null && current > 0 ? current - 1 : null))}
+            className={SECONDARY}
           >
             Back
           </button>
         )}
-        {!onLastStep && (
+
+        {onLastStep ? (
+          <button type="submit" disabled={!valid} className={PRIMARY}>
+            Add
+          </button>
+        ) : (
           <button
             type="button"
             onClick={next}
             disabled={!valid}
             title="Set days, priority, travel buffer and preferred time"
-            className="label border border-ink px-3 py-1 hover:bg-ink hover:text-paper disabled:opacity-30"
+            className={PRIMARY}
           >
             Next
-          </button>
-        )}
-        {(step === null || onLastStep) && (
-          <button
-            type="submit"
-            disabled={!valid}
-            className="label border border-ink bg-ink px-3 py-1 text-paper hover:bg-paper hover:text-ink disabled:border-ink/25 disabled:bg-transparent disabled:text-ink/30"
-          >
-            Add
           </button>
         )}
       </div>

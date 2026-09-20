@@ -96,9 +96,14 @@ share the last step. The presets set a window directly — there is no mode to p
 first — and choosing **Always at** hides them, since a fixed time makes a window
 meaningless. Custom start and end times live in the row editor, which has room.
 
-Once the stepper starts it carries only **Back** and **Next**, with **Next**
-becoming **Add** on the last step. Offering Add throughout invited adding an
-activity half-configured by mistake, which is the opposite of the point.
+The row ends in two fixed slots. The right one is always the action that moves
+you forward — **Next**, becoming **Add** on the last step — and it never moves, so
+pressing the same place repeatedly walks the whole flow and commits at the end.
+The left slot holds **Add** before the stepper starts and **Back** once it has.
+
+Both rules came from watching it go wrong: offering Add at every step invited
+committing a half-configured activity, and letting Next shift by one slot put
+Back exactly where the last click had been.
 
 Every step can be skipped, which stores nothing and leaves the choice to the
 engine. The wording matters — **Decide for me** on days, priority and when, but
