@@ -75,15 +75,29 @@ the container is before you decide what goes in it.
 
 ## Step 2 — Add activities
 
-Adding an activity takes **two fields**:
+Adding an activity takes **three fields**:
 
 ```text
 Gym, 1h15, 4×
 ```
 
-Everything else is optional and collapsed behind **Advanced**. Priority defaults to medium, days to all, time window to waking hours.
+**Add** commits it there and then. **Next** opens a one-row stepper above the input
+that walks through the rest, one question at a time:
 
-This matters. The promise is "stop deciding" — an onboarding that demands eight decisions per activity contradicts the product before it starts.
+```text
+1/5  Days     2/5  Priority     3/5  Travel buffer
+4/5  Preferred window ( Morning | Afternoon | Evening )     5/5  Always at
+```
+
+Every step can be answered with **Decide for me**, which stores nothing and leaves
+the choice to the engine. A recap line shows what has been chosen so far.
+
+This is where preferences belong. Collected up front, the first generated week is
+one you can live with; collected afterwards, every week starts as something to fix
+by hand — which is the friction the product exists to remove.
+
+The promise is still "stop deciding", so the stepper is opt-in: three fields and
+Add remains the fast path.
 
 ## Step 3 — Watch the budget
 

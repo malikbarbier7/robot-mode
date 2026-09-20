@@ -21,7 +21,7 @@ export function DefinePanel({
   settings: Settings
   schedule: Schedule
   onPatchSettings: (patch: Partial<Settings>) => void
-  onAddActivity: (activity: Activity) => void
+  onAddActivity: (activity: Omit<Activity, "id">) => void
   onUpdateActivity: (id: string, patch: Partial<Activity>) => void
   onRemoveActivity: (id: string) => void
   template?: Template
@@ -102,7 +102,7 @@ export function DefinePanel({
 }
 
 /** Two fields and a count. Everything else has a default and lives in the row. */
-function QuickAdd({ onAdd }: { onAdd: (activity: Activity) => void }) {
+function QuickAdd({ onAdd }: { onAdd: (activity: Omit<Activity, "id">) => void }) {
   const [name, setName] = useState("")
   const [duration, setDuration] = useState("")
   const [sessions, setSessions] = useState("")
@@ -114,7 +114,6 @@ function QuickAdd({ onAdd }: { onAdd: (activity: Activity) => void }) {
   const submit = () => {
     if (!valid) return
     onAdd({
-      id: `${slug(name)}-${Math.random().toString(36).slice(2, 6)}`,
       name: name.trim(),
       durationMinutes: minutes,
       sessionsPerWeek: count,
@@ -161,6 +160,3 @@ function QuickAdd({ onAdd }: { onAdd: (activity: Activity) => void }) {
   )
 }
 
-function slug(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "activity"
-}

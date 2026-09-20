@@ -15,6 +15,10 @@ export function nowMarker(date = new Date()): NotBefore {
 
 const subscribe = () => () => {}
 
+function slugify(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "activity"
+}
+
 export function useRobotMode() {
   // `load()` returns the defaults on the server, so this initialiser is SSR-safe.
   const [stored, setStored] = useState<SavedState>(load)
@@ -56,8 +60,21 @@ export function useRobotMode() {
     setStored((s) => ({ ...s, settings: { ...s.settings, ...patch } }))
   }, [])
 
-  const addActivity = useCallback((activity: Activity) => {
-    setStored((s) => ({ ...s, settings: { ...s.settings, activities: [...s.settings.activities, activity] } }))
+  /**
+   * The id is derived from the current list rather than randomised, so adding is
+   * a pure state update and ids stay readable (gym, gym-2, ...).
+   */
+  const addActivity = useCallback((activity: Omit<Activity, "id">) => {
+    setStored((s) => {
+      const base = slugify(activity.name)
+      const used = new Set(s.settings.activities.map((a) => a.id))
+      let id = base
+      for (let n = 2; used.has(id); n++) id = `${base}-${n}`
+      return {
+        ...s,
+        settings: { ...s.settings, activities: [...s.settings.activities, { ...activity, id }] },
+      }
+    })
   }, [])
 
   const updateActivity = useCallback((id: string, patch: Partial<Activity>) => {

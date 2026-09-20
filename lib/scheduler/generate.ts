@@ -262,16 +262,33 @@ function gapAfter(state: PassState, endAbs: number, win: DayWindow): number {
   return gap
 }
 
-/** Window as an absolute slot range within a given day, handling past-midnight windows. */
+/**
+ * Window as an absolute slot range within a given day.
+ *
+ * A clock time is ambiguous once bedtime runs past midnight: 01:00 could mean
+ * tonight's small hours or this morning's. Rather than guess from whether the
+ * window opens before wake time — which wrongly exiled a 06:00 window to the
+ * next day for anyone waking at 07:30 — both readings are scored and the one
+ * that overlaps the waking window more wins.
+ */
 function windowRange(activity: Activity, win: DayWindow): { from: number; to: number } | null {
   if (!activity.window) return null
   const dayStart = win.day * SLOTS_PER_DAY
-  const wakeOffset = win.startAbs - dayStart
-  let from = timeToSlot(activity.window.start)
+  const from = timeToSlot(activity.window.start)
   let to = timeToSlot(activity.window.end)
-  if (from < wakeOffset) from += SLOTS_PER_DAY
   if (to <= from) to += SLOTS_PER_DAY
-  return { from: dayStart + from, to: dayStart + to }
+
+  let best = { from: dayStart + from, to: dayStart + to }
+  let bestOverlap = -Infinity
+  for (const shift of [0, SLOTS_PER_DAY]) {
+    const candidate = { from: dayStart + from + shift, to: dayStart + to + shift }
+    const overlap = Math.min(candidate.to, win.endAbs) - Math.max(candidate.from, win.startAbs)
+    if (overlap > bestOverlap) {
+      bestOverlap = overlap
+      best = candidate
+    }
+  }
+  return best
 }
 
 /** Deterministic per (pass seed, session, slot). Same seed always gives the same week. */

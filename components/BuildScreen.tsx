@@ -1,13 +1,9 @@
 "use client"
 
-import { useState } from "react"
 import type { Activity, BudgetReport, Schedule, Settings } from "@/lib/types"
 import { ActivityRow } from "./ActivityRow"
+import { AddActivityFlow } from "./AddActivityFlow"
 import { formatHours, parseDuration } from "@/lib/duration"
-import { Button } from "./ui"
-
-const FIELD =
-  "border-0 border-b border-ink/25 bg-transparent px-0 py-2 text-[18px] placeholder:text-ink/30"
 
 /** One-click starters, so an empty list is never a blank page. */
 const SUGGESTIONS = [
@@ -34,39 +30,23 @@ export function BuildScreen({
   budget: BudgetReport
   schedule: Schedule
   onPatchSettings: (patch: Partial<Settings>) => void
-  onAddActivity: (activity: Activity) => void
+  onAddActivity: (activity: Omit<Activity, "id">) => void
   onUpdateActivity: (id: string, patch: Partial<Activity>) => void
   onRemoveActivity: (id: string) => void
   onGenerate: () => void
   onOpenTemplates: () => void
 }) {
-  const [name, setName] = useState("")
-  const [duration, setDuration] = useState("")
-  const [sessions, setSessions] = useState("")
-
-  const minutes = parseDuration(duration)
-  const count = Number(sessions || "1")
-  const valid = name.trim().length > 0 && minutes !== null && minutes > 0 && count > 0
   const activities = settings.activities
 
   const add = (activityName: string, durationText: string, perWeek: number) => {
     const parsed = parseDuration(durationText)
     if (!parsed) return
     onAddActivity({
-      id: `${slug(activityName)}-${Math.random().toString(36).slice(2, 6)}`,
       name: activityName.trim(),
       durationMinutes: parsed,
       sessionsPerWeek: perWeek,
       priority: "medium",
     })
-  }
-
-  const submit = () => {
-    if (!valid) return
-    add(name, duration, count)
-    setName("")
-    setDuration("")
-    setSessions("")
   }
 
   const used = activities.map((a) => a.name.toLowerCase())
@@ -110,36 +90,7 @@ export function BuildScreen({
         </div>
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          submit()
-        }}
-        className="mt-8 flex gap-2 border-y-2 border-ink py-4"
-      >
-        <input
-          className={`${FIELD} min-w-0 flex-1 font-sans`}
-          placeholder="Gym"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoFocus
-        />
-        <input
-          className={`${FIELD} w-24 shrink-0 font-mono tabular-nums`}
-          placeholder="1h15"
-          value={duration}
-          onChange={(e) => setDuration(e.target.value)}
-        />
-        <input
-          className={`${FIELD} w-16 shrink-0 font-mono tabular-nums`}
-          placeholder="4×"
-          value={sessions}
-          onChange={(e) => setSessions(e.target.value)}
-        />
-        <Button type="submit" variant="solid" disabled={!valid}>
-          Add
-        </Button>
-      </form>
+      <AddActivityFlow onAdd={onAddActivity} />
 
       {activities.length === 0 ? (
         <div className="py-10">
@@ -282,6 +233,3 @@ function totalSessions(activities: Activity[]): number {
   return activities.reduce((n, a) => n + a.sessionsPerWeek, 0)
 }
 
-function slug(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "activity"
-}
