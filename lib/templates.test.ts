@@ -4,6 +4,23 @@ import { computeBudget } from "./scheduler/budget"
 import { generate } from "./scheduler/generate"
 
 describe("templates", () => {
+  it("is listed in the order the picker should show", () => {
+    expect(templates.map((t) => t.id)).toEqual([
+      "student",
+      "entrepreneur",
+      "worker",
+      "fitness",
+      "exam",
+      "deep-work",
+      "blank",
+    ])
+  })
+
+  it("keeps the blank one last, as the opt-out", () => {
+    expect(templates.at(-1)?.id).toBe("blank")
+    expect(templates.at(-1)?.settings.activities).toEqual([])
+  })
+
   it("has unique ids", () => {
     const ids = templates.map((t) => t.id)
     expect(new Set(ids).size).toBe(ids.length)

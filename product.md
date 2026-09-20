@@ -304,10 +304,10 @@ reachable afterwards from **Home**, and the define panel can roll the activity l
 back to the template it came from:
 
 - Student
-- Full-time worker
-- Exam preparation
-- Fitness-focused
 - Entrepreneur
+- Full-time worker
+- Fitness-focused
+- Exam preparation
 - Deep work
 - Blank week — no activities, for people who would rather start from nothing
 
