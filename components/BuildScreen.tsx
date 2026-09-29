@@ -1,7 +1,7 @@
 "use client"
 
 import type { Activity, BudgetReport, Meal, Schedule, Settings } from "@/lib/types"
-import { mealsOf } from "@/lib/meals"
+import { isDefaultMeal, mealsOf } from "@/lib/meals"
 import { ActivityRow } from "./ActivityRow"
 import { AddActivityFlow } from "./AddActivityFlow"
 import { formatHours } from "@/lib/duration"
@@ -77,6 +77,11 @@ export function BuildScreen({
                 onPatchSettings({
                   meals: mealsOf(settings).map((m) => (m.id === meal.id ? { ...m, ...patch } : m)),
                 })
+              }
+              onRemove={
+                isDefaultMeal(meal.id)
+                  ? undefined
+                  : () => onPatchSettings({ meals: mealsOf(settings).filter((m) => m.id !== meal.id) })
               }
             />
           ))}
@@ -164,7 +169,16 @@ export function BuildScreen({
 }
 
 /** A meal is on or off, at a time, for a length. Off means the hour stays free. */
-function MealField({ meal, onChange }: { meal: Meal; onChange: (patch: Partial<Meal>) => void }) {
+function MealField({
+  meal,
+  onChange,
+  onRemove,
+}: {
+  meal: Meal
+  onChange: (patch: Partial<Meal>) => void
+  /** Only for meals the user added; the fixed slots are switched off instead. */
+  onRemove?: () => void
+}) {
   return (
     <span className="flex items-baseline gap-2">
       <button
@@ -194,6 +208,11 @@ function MealField({ meal, onChange }: { meal: Meal; onChange: (patch: Partial<M
         className="w-12 border-b border-ink/30 bg-transparent py-1 font-mono text-[15px] tabular-nums disabled:opacity-30"
       />
       <span className="label text-ink/35">min</span>
+      {onRemove && (
+        <button type="button" onClick={onRemove} title={`Remove ${meal.name}`} className="label text-ink/40 hover:text-ink">
+          ×
+        </button>
+      )}
     </span>
   )
 }

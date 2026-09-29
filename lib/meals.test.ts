@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { allActivities, defaultMeals, mealActivities, mealsOf } from "./meals"
+import { addMeal, allActivities, defaultMeals, isDefaultMeal, mealActivities, mealsOf } from "./meals"
 import { generate } from "./scheduler/generate"
 import { computeBudget } from "./scheduler/budget"
 import type { Meal, Settings } from "./types"
@@ -125,5 +125,19 @@ describe("mealsOf", () => {
 
   it("returns every slot when nothing is saved", () => {
     expect(mealsOf({ meals: undefined })).toEqual(defaultMeals)
+  })
+})
+
+describe("added meals", () => {
+  it("keeps the fixed slots first, then the user's own, with unique ids", () => {
+    const meals = addMeal(addMeal(defaultMeals))
+    expect(meals.map((m) => m.id)).toEqual(["breakfast", "lunch", "dinner", "meal-1", "meal-2"])
+    expect(mealsOf({ meals }).map((m) => m.id)).toEqual(meals.map((m) => m.id))
+    expect(isDefaultMeal("meal-1")).toBe(false)
+  })
+
+  it("schedules an added meal like any other", () => {
+    const meals = addMeal(defaultMeals)
+    expect(allActivities({ ...base, meals }).map((a) => a.id)).toEqual(["meal-meal-1"])
   })
 })

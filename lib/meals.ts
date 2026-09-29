@@ -12,13 +12,36 @@ export const defaultMeals: Meal[] = [
 ]
 
 /**
- * Every known slot, in order, taking whatever has been saved. Settings written
- * before a slot existed still get it, so a template that names three meals does
- * not make the fourth disappear from the row.
+ * Every known slot, in order, taking whatever has been saved, then any meals
+ * the user added themselves. Settings written before a slot existed still get
+ * it, so a template that names three meals does not make the fourth disappear
+ * from the row.
  */
 export function mealsOf(settings: Pick<Settings, "meals">): Meal[] {
   const saved = new Map((settings.meals ?? []).map((meal) => [meal.id, meal]))
-  return defaultMeals.map((slot) => ({ ...slot, ...saved.get(slot.id) }))
+  const slots = defaultMeals.map((slot) => ({ ...slot, ...saved.get(slot.id) }))
+  const extras = (settings.meals ?? []).filter((meal) => isAddedMeal(meal.id))
+  return [...slots, ...extras]
+}
+
+/**
+ * Meals the user added carry a `meal-` id. Anything else that is not a known
+ * slot is a slot that has since been retired (the old snack), and is dropped.
+ */
+function isAddedMeal(id: string): boolean {
+  return id.startsWith("meal-")
+}
+
+export function isDefaultMeal(id: string): boolean {
+  return defaultMeals.some((slot) => slot.id === id)
+}
+
+/** A new meal of the user's own, switched on, since adding it is asking for it. */
+export function addMeal(meals: Meal[]): Meal[] {
+  const used = new Set(meals.map((m) => m.id))
+  let n = 1
+  while (used.has(`meal-${n}`)) n++
+  return [...meals, { id: `meal-${n}`, name: "Snack", start: "16:30", durationMinutes: 15, enabled: true }]
 }
 
 /**

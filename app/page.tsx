@@ -7,6 +7,7 @@ import { BuildScreen } from "@/components/BuildScreen"
 import { DefinePanel } from "@/components/DefinePanel"
 import { Generating } from "@/components/Generating"
 import { NowCard } from "@/components/NowCard"
+import { Setup } from "@/components/Setup"
 import { Templates } from "@/components/Templates"
 import { WeekGrid } from "@/components/WeekGrid"
 import { Button } from "@/components/ui"
@@ -15,12 +16,13 @@ import { fromJson, toJson } from "@/lib/storage"
 import { useRobotMode } from "@/lib/useRobotMode"
 import { suggestFixes } from "@/lib/suggest"
 
-type View = "list" | "week" | "now" | "templates" | "generating"
+type View = "setup" | "list" | "week" | "now" | "templates" | "generating"
 
 export default function Page() {
   const rm = useRobotMode()
   // Null until the user navigates, so the landing screen can follow the saved
-  // state once it hydrates: the list before a week exists, the week after.
+  // state once it hydrates: the setup questions when there is nothing yet, the
+  // list before a week exists, the week after.
   const [chosenView, setView] = useState<View | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -28,7 +30,11 @@ export default function Page() {
 
   const empty = rm.state.settings.activities.length === 0
   const generated = rm.state.generated === true
-  const view: View = chosenView ?? (generated ? "week" : "list")
+  const home: View = generated ? "week" : empty ? "setup" : "list"
+  // Once the questions are on screen they stay there: adding the first
+  // activity makes the list non-empty, which would otherwise skip to the list.
+  if (chosenView === null && rm.hydrated && home === "setup") setView("setup")
+  const view: View = chosenView ?? home
   // Before the first Generate there is no week, so the week chrome stays hidden.
   const showWeekChrome = generated && view !== "generating"
 
@@ -51,8 +57,8 @@ export default function Page() {
     rm.applyTemplate(template)
     setSelectedId(null)
     // A template with activities goes straight to the reveal; a blank one has
-    // nothing to schedule, so it drops you into the list to start writing.
-    setView(template.settings.activities.length > 0 ? "generating" : "list")
+    // nothing to schedule, so it drops you into the questions to start writing.
+    setView(template.settings.activities.length > 0 ? "generating" : "setup")
   }
 
   const importJson = async (file: File) => {
@@ -62,13 +68,13 @@ export default function Page() {
       return
     }
     rm.replaceState(parsed)
-    setView(parsed.generated ? "week" : "list")
+    setView(parsed.generated ? "week" : parsed.settings.activities.length > 0 ? "list" : "setup")
   }
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <header className="flex items-end justify-between gap-6 border-b-2 border-ink px-6 pb-3 pt-5">
-        <button type="button" onClick={() => setView(generated ? "week" : "list")} className="text-left">
+        <button type="button" onClick={() => setView(home)} className="text-left">
           <h1 className="font-display text-4xl leading-none">Robot Mode</h1>
           <p className="label mt-1.5 text-ink/45">Wake · Execute · Sleep · Repeat</p>
         </button>
@@ -243,8 +249,19 @@ export default function Page() {
                 setView("week")
               }}
             />
+          ) : view === "setup" ? (
+            <Setup
+              settings={rm.state.settings}
+              schedule={rm.schedule}
+              onPatchSettings={rm.patchSettings}
+              onAddActivity={rm.addActivity}
+              onUpdateActivity={rm.updateActivity}
+              onRemoveActivity={rm.removeActivity}
+              onDone={() => setView("list")}
+              onOpenTemplates={() => setView("templates")}
+            />
           ) : view === "templates" ? (
-            <Templates onPick={pickTemplate} onCancel={() => setView(generated ? "week" : "list")} />
+            <Templates onPick={pickTemplate} onCancel={() => setView(home)} />
           ) : view === "week" && generated ? (
             <WeekGrid
               settings={rm.state.settings}
