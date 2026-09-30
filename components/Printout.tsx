@@ -114,13 +114,9 @@ export function Printout({
                   )
                 }
                 return (
-                  <li
-                    key={`${row.kind}-${row.minute}`}
-                    className={`flex items-baseline gap-2 ${row.kind === "free" ? "text-ink/40" : ""}`}
-                  >
+                  <li key={`${row.kind}-${row.minute}`} className="flex items-baseline gap-2">
                     {time}
-                    <span className="flex-1">{row.kind === "free" ? "Free time" : row.kind}</span>
-                    {row.kind === "free" && <span className="tabular-nums">{formatSpan(row.minutes)}</span>}
+                    <span className="flex-1">{row.kind}</span>
                   </li>
                 )
               })}

@@ -18,24 +18,20 @@ export function ActivityRow({
   onRemove,
   /** "panel" is the narrow sidebar; "terminal" is a line on one of the machine's screens. */
   variant = "panel",
+  defaultOpen = false,
 }: {
   activity: Activity
   placed: number
   onChange: (patch: Partial<Activity>) => void
   onRemove: () => void
   variant?: "panel" | "terminal"
+  /** Start with the full settings showing. */
+  defaultOpen?: boolean
 }) {
-  const { weekStart } = useDisplay()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const line = useRef<HTMLButtonElement>(null)
   const [durationText, setDurationText] = useState(formatDuration(activity.durationMinutes))
   const short = placed < activity.sessionsPerWeek
-
-  const days = activity.allowedDays ?? ALL
-  const toggleDay = (day: Day) => {
-    const next = days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort()
-    onChange({ allowedDays: next.length === 7 ? undefined : (next as Day[]) })
-  }
 
   return (
     <div
@@ -54,6 +50,7 @@ export function ActivityRow({
           ref={line}
           type="button"
           data-nav
+          data-activity={activity.id}
           onClick={() => setOpen((v) => !v)}
           onKeyDown={(e) => {
             if (e.key === "Delete" || e.key === "Backspace") {
@@ -133,94 +130,7 @@ export function ActivityRow({
             </Field>
           </div>
 
-          <Field label="Days">
-            <div className="flex gap-1">
-              {weekOrder(weekStart).map((day) => (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={() => toggleDay(day)}
-                  className={`label h-6 flex-1 border border-ink/40 ${
-                    days.includes(day) ? "bg-ink text-paper" : "text-ink/45"
-                  }`}
-                >
-                  {DAY_INITIALS[day]}
-                </button>
-              ))}
-            </div>
-          </Field>
-
-          <div className="grid grid-cols-2 gap-2">
-            <Field label="Priority">
-              <select
-                className={`${inputClass} font-sans`}
-                value={activity.priority}
-                onChange={(e) => onChange({ priority: e.target.value as Priority })}
-              >
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Travel buffer">
-              <input
-                className={inputClass}
-                type="number"
-                min={0}
-                step={15}
-                value={activity.bufferMinutes ?? 0}
-                onChange={(e) =>
-                  onChange({ bufferMinutes: Number(e.target.value) > 0 ? Number(e.target.value) : undefined })
-                }
-              />
-            </Field>
-          </div>
-
-          <Field label="Preferred window (optional)">
-            <div className="flex items-center gap-2">
-              <input
-                className={inputClass}
-                type="time"
-                value={activity.window?.start ?? ""}
-                onChange={(e) =>
-                  onChange({
-                    window: e.target.value
-                      ? { start: e.target.value, end: activity.window?.end ?? "23:00" }
-                      : undefined,
-                  })
-                }
-              />
-              <span className="text-ink/40">–</span>
-              <input
-                className={inputClass}
-                type="time"
-                value={activity.window?.end ?? ""}
-                onChange={(e) =>
-                  onChange({
-                    window: e.target.value
-                      ? { start: activity.window?.start ?? "08:00", end: e.target.value }
-                      : undefined,
-                  })
-                }
-              />
-            </div>
-          </Field>
-
-          <Field label="Always at (optional)">
-            <div className="flex items-center gap-2">
-              <input
-                className={inputClass}
-                type="time"
-                value={activity.fixedAt?.start ?? ""}
-                onChange={(e) => onChange({ fixedAt: e.target.value ? { start: e.target.value } : undefined })}
-              />
-              <Button variant="bare" onClick={() => onChange({ fixedAt: undefined })}>
-                clear
-              </Button>
-            </div>
-          </Field>
+          <ActivityConstraints activity={activity} onChange={onChange} />
 
           <div className="pt-1">
             <Button onClick={onRemove}>Remove activity</Button>
@@ -228,5 +138,117 @@ export function ActivityRow({
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * The constraints beyond length and count: which days, how much it matters,
+ * travel time, a preferred window and a fixed time. Shared by every editor.
+ */
+export function ActivityConstraints({
+  activity,
+  onChange,
+}: {
+  activity: Activity
+  onChange: (patch: Partial<Activity>) => void
+}) {
+  const { weekStart } = useDisplay()
+  const days = activity.allowedDays ?? ALL
+  const toggleDay = (day: Day) => {
+    const next = days.includes(day) ? days.filter((d) => d !== day) : [...days, day].sort()
+    onChange({ allowedDays: next.length === 7 ? undefined : (next as Day[]) })
+  }
+
+  return (
+    <>
+      <Field label="Days">
+        <div className="flex gap-1">
+          {weekOrder(weekStart).map((day) => (
+            <button
+              key={day}
+              type="button"
+              onClick={() => toggleDay(day)}
+              className={`label h-6 flex-1 border border-ink/40 ${
+                days.includes(day) ? "bg-ink text-paper" : "text-ink/45"
+              }`}
+            >
+              {DAY_INITIALS[day]}
+            </button>
+          ))}
+        </div>
+      </Field>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Priority">
+          <select
+            className={`${inputClass} font-sans`}
+            value={activity.priority}
+            onChange={(e) => onChange({ priority: e.target.value as Priority })}
+          >
+            {PRIORITIES.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Travel buffer">
+          <input
+            className={inputClass}
+            type="number"
+            min={0}
+            step={15}
+            value={activity.bufferMinutes ?? 0}
+            onChange={(e) =>
+              onChange({ bufferMinutes: Number(e.target.value) > 0 ? Number(e.target.value) : undefined })
+            }
+          />
+        </Field>
+      </div>
+
+      <Field label="Preferred window (optional)">
+        <div className="flex items-center gap-2">
+          <input
+            className={inputClass}
+            type="time"
+            value={activity.window?.start ?? ""}
+            onChange={(e) =>
+              onChange({
+                window: e.target.value
+                  ? { start: e.target.value, end: activity.window?.end ?? "23:00" }
+                  : undefined,
+              })
+            }
+          />
+          <span className="text-ink/40">–</span>
+          <input
+            className={inputClass}
+            type="time"
+            value={activity.window?.end ?? ""}
+            onChange={(e) =>
+              onChange({
+                window: e.target.value
+                  ? { start: activity.window?.start ?? "08:00", end: e.target.value }
+                  : undefined,
+              })
+            }
+          />
+        </div>
+      </Field>
+
+      <Field label="Always at (optional)">
+        <div className="flex items-center gap-2">
+          <input
+            className={inputClass}
+            type="time"
+            value={activity.fixedAt?.start ?? ""}
+            onChange={(e) => onChange({ fixedAt: e.target.value ? { start: e.target.value } : undefined })}
+          />
+          <Button variant="bare" onClick={() => onChange({ fixedAt: undefined })}>
+            clear
+          </Button>
+        </div>
+      </Field>
+    </>
   )
 }
