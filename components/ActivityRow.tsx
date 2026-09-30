@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import type { Activity, Day, Priority } from "@/lib/types"
 import { formatDuration, parseDuration } from "@/lib/duration"
 import { Button, Field, inputClass } from "./ui"
@@ -24,6 +24,7 @@ export function ActivityRow({
   variant?: "panel" | "terminal"
 }) {
   const [open, setOpen] = useState(false)
+  const line = useRef<HTMLButtonElement>(null)
   const [durationText, setDurationText] = useState(formatDuration(activity.durationMinutes))
   const short = placed < activity.sessionsPerWeek
 
@@ -34,11 +35,32 @@ export function ActivityRow({
   }
 
   return (
-    <div className="border-b border-ink/15">
+    <div
+      className="border-b border-ink/15"
+      onKeyDown={(e) => {
+        // Esc anywhere in the editor folds it back into its line.
+        if (e.key === "Escape" && open) {
+          e.preventDefault()
+          setOpen(false)
+          line.current?.focus()
+        }
+      }}
+    >
       {variant === "terminal" ? (
         <button
+          ref={line}
           type="button"
+          data-nav
           onClick={() => setOpen((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === "Delete" || e.key === "Backspace") {
+              e.preventDefault()
+              // The selection moves on to whatever follows, as in a terminal list.
+              const items = [...(e.currentTarget.closest(".crt")?.querySelectorAll<HTMLElement>("[data-nav]") ?? [])]
+              items[items.indexOf(e.currentTarget) + 1]?.focus()
+              onRemove()
+            }
+          }}
           title={open ? "Hide constraints" : "Priority, days, preferred time"}
           className="flex w-full items-baseline gap-5 py-2 text-left font-crt text-[34px] leading-tight hover:bg-ink/[0.07]"
         >

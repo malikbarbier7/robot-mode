@@ -151,10 +151,12 @@ export default function Page() {
           {showWeekChrome && (
             <Button
               onClick={() => {
+                if (!window.confirm("Erase this week and everything you entered, and start over?\n\nUse Save first if you want to keep it.")) return
+                rm.wipe()
                 setSelectedId(null)
                 setView("boot")
               }}
-              title="Go through the four input requests again, starting from what you have now"
+              title="Erase the week and everything entered, and start again from a blank machine"
             >
               Restart terminal
             </Button>

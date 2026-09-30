@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { Activity, Day, Priority } from "@/lib/types"
 import { parseDuration } from "@/lib/duration"
 import {
@@ -32,7 +32,17 @@ const BUFFERS = [15, 30, 45, 60]
  * Capturing constraints here is the point: preferences the engine knows up front
  * don't have to be fixed by hand after the week is generated.
  */
-export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "id">) => void }) {
+export function AddActivityFlow({
+  onAdd,
+  onEmptyEnter,
+}: {
+  onAdd: (activity: Omit<Activity, "id">) => void
+  /** Enter with nothing typed: the list is done. */
+  onEmptyEnter?: () => void
+}) {
+  const form = useRef<HTMLFormElement>(null)
+  const nameInput = useRef<HTMLInputElement>(null)
+  const sessionsInput = useRef<HTMLInputElement>(null)
   const [name, setName] = useState("")
   const [durationText, setDurationText] = useState("")
   const [sessionsText, setSessionsText] = useState("")
@@ -57,6 +67,10 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
     setDraft({ name: "", durationMinutes: 0, sessionsPerWeek: 1 })
     setStep(null)
     setAtMode(false)
+    // Back to the start of the line, ready for the next one. From a constraint
+    // step the name field only returns on the next render, hence the timeout.
+    nameInput.current?.focus()
+    setTimeout(() => nameInput.current?.focus(), 0)
   }
 
   const add = () => {
@@ -70,35 +84,85 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
     setStep((s) => (s === null ? 0 : Math.min(s + 1, STEPS.length - 1)))
   }
 
+  /** One constraint step back; from the first, back to the line where the count was typed. */
+  const back = () => {
+    if (step === null) return
+    if (step > 0) return setStep(step - 1)
+    setStep(null)
+    setTimeout(() => sessionsInput.current?.focus(), 0)
+  }
+
   const fixedTime = atMode || draft.fixedAt !== undefined
   const onLastStep = step === STEPS.length - 1
 
+  // Each constraint step opens on its first choice, "Decide for me", so Enter alone skips it.
+  useEffect(() => {
+    if (step !== null) form.current?.querySelector<HTMLElement>("[data-nav]:not(:disabled)")?.focus()
+  }, [step])
+
   return (
     <form
+      ref={form}
       onSubmit={(e) => {
         e.preventDefault()
         if (step !== null && !onLastStep) next()
         else add()
+      }}
+      onKeyDown={(e) => {
+        const target = e.target as HTMLElement
+        if (step === null) {
+          if (e.key !== "Enter") return
+          if (!name && !durationText && !sessionsText) {
+            // A blank line submits nothing (its Add is disabled), so Enter is read here.
+            e.preventDefault()
+            onEmptyEnter?.()
+          } else if (target === sessionsInput.current && valid) {
+            // The count is the last field: Enter goes on to the constraints, as Next would.
+            e.preventDefault()
+            next()
+          }
+        } else if (e.key === "Escape") {
+          e.preventDefault()
+          back()
+        } else if (e.key === "Enter" && !target.hasAttribute("data-flow-back")) {
+          // Enter confirms the step, whichever choice is selected; Space picks a choice.
+          e.preventDefault()
+          if (onLastStep) add()
+          else next()
+        }
       }}
       className="mt-8 flex min-h-[80px] flex-wrap items-center gap-x-2 gap-y-2 border-y-2 border-ink py-4"
     >
       {step === null ? (
         <>
           <input
+            ref={nameInput}
+            data-nav
+            data-autofocus
             className={`${FIELD} min-w-0 flex-1 font-sans`}
             placeholder="Gym"
+            aria-label="Activity name"
+            aria-invalid={!name.trim()}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <input
+            data-nav
             className={`${FIELD} w-24 shrink-0 font-mono tabular-nums`}
             placeholder="1h15"
+            aria-label="Duration of one session"
+            aria-invalid={!minutes}
             value={durationText}
             onChange={(e) => setDurationText(e.target.value)}
           />
           <input
+            data-nav
             className={`${FIELD} w-16 shrink-0 font-mono tabular-nums`}
+            ref={sessionsInput}
             placeholder="4×"
+            aria-label="Times per week"
+            // The last field: Enter moves on to the constraints, so it only accepts a complete line.
+            aria-invalid={!valid}
             value={sessionsText}
             onChange={(e) => setSessionsText(e.target.value)}
           />
@@ -111,11 +175,13 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
 
           {step === 0 && (
             <>
+              <Skip active={!draft.allowedDays?.length} onClick={() => patch({ allowedDays: undefined })} />
               <div className="flex gap-1">
                 {ALL_DAYS.map((day) => {
                   const on = draft.allowedDays?.includes(day) ?? false
                   return (
                     <button
+                      data-nav
                       key={day}
                       type="button"
                       onClick={() => {
@@ -129,15 +195,16 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
                   )
                 })}
               </div>
-              <Skip active={!draft.allowedDays?.length} onClick={() => patch({ allowedDays: undefined })} />
             </>
           )}
 
           {step === 1 && (
             <>
+              <Skip active={!draft.priority} onClick={() => patch({ priority: undefined })} />
               <div className="flex gap-1">
                 {PRIORITIES.map((p) => (
                   <button
+                    data-nav
                     key={p}
                     type="button"
                     onClick={() => patch({ priority: p })}
@@ -149,15 +216,20 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
                   </button>
                 ))}
               </div>
-              <Skip active={!draft.priority} onClick={() => patch({ priority: undefined })} />
             </>
           )}
 
           {step === 2 && (
             <>
+              <Skip
+                active={!draft.bufferMinutes}
+                onClick={() => patch({ bufferMinutes: undefined })}
+                label="No buffer"
+              />
               <div className="flex gap-1">
                 {BUFFERS.map((b) => (
                   <button
+                    data-nav
                     key={b}
                     type="button"
                     onClick={() => patch({ bufferMinutes: draft.bufferMinutes === b ? undefined : b })}
@@ -169,11 +241,6 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
                   </button>
                 ))}
               </div>
-              <Skip
-                active={!draft.bufferMinutes}
-                onClick={() => patch({ bufferMinutes: undefined })}
-                label="No buffer"
-              />
             </>
           )}
 
@@ -190,6 +257,7 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
               {!fixedTime &&
                 WINDOW_PRESETS.map((w) => (
                   <button
+                    data-nav
                     key={w.label}
                     type="button"
                     onClick={() => patch({ window: { start: w.start, end: w.end }, fixedAt: undefined })}
@@ -201,6 +269,7 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
                   </button>
                 ))}
               <button
+                data-nav
                 type="button"
                 onClick={() => {
                   // Clicking it again goes back to the window presets.
@@ -238,14 +307,16 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
          * the activity was added instead.
          */}
         {step === null ? (
-          <button key="add-now" type="submit" disabled={!valid} className={SECONDARY}>
+          <button key="add-now" type="submit" data-nav disabled={!valid} className={SECONDARY}>
             Add
           </button>
         ) : (
           <button
+            data-nav
             key="back"
             type="button"
-            onClick={() => setStep((current) => (current !== null && current > 0 ? current - 1 : null))}
+            data-flow-back
+            onClick={back}
             className={SECONDARY}
           >
             Back
@@ -253,11 +324,12 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
         )}
 
         {onLastStep ? (
-          <button key="add-done" type="button" onClick={add} disabled={!valid} className={PRIMARY}>
+          <button key="add-done" type="button" data-nav onClick={add} disabled={!valid} className={PRIMARY}>
             Add
           </button>
         ) : (
           <button
+            data-nav
             key="next"
             type="button"
             onClick={next}
@@ -273,7 +345,7 @@ export function AddActivityFlow({ onAdd }: { onAdd: (activity: Omit<Activity, "i
   )
 }
 
-/** Every step can be left unanswered; the scheduler decides instead. */
+/** Every step can be left unanswered; the scheduler decides instead. Always the leftmost choice. */
 function Skip({
   active,
   onClick,
@@ -285,6 +357,7 @@ function Skip({
 }) {
   return (
     <button
+      data-nav
       type="button"
       onClick={onClick}
       className={`${CHIP} ${active ? "border-ink bg-ink/10 text-ink" : "border-ink/25 text-ink/45 hover:border-ink"}`}

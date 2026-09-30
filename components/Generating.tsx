@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { Activity, Schedule, Settings } from "@/lib/types"
 import { mealsOf } from "@/lib/meals"
-import { Screen } from "./Machine"
+import { Command, Legend, Screen, useTerminal } from "./Machine"
 
 /** When each readout line appears, and how long its number takes to count up. */
 const LINE_MS = 200
@@ -17,8 +17,8 @@ const STAGES = ["Checking constraints", "Allocating time", "Balancing load", "Re
 /**
  * The solver finishes in about 30ms. This is deliberate theatre: the week is
  * the payoff, and it lands better with a beat before it. Every figure is read
- * from the real input and the real result. A click on the screen skips to the
- * end; the week is only shown when VIEW is pressed.
+ * from the real input and the real result. Enter or a click skips to the end;
+ * the week is only shown on a second Enter.
  */
 export function Generating({
   settings,
@@ -43,12 +43,14 @@ export function Generating({
   const total = readEnd + STAGES.length * STAGE_MS
 
   const [t, setT] = useState(0)
+  // When the clock started. Skipping moves it back, so the timer lands on the end by itself.
+  const started = useRef(0)
   const complete = t >= total
 
   useEffect(() => {
-    const started = performance.now()
+    started.current = performance.now()
     const id = setInterval(() => {
-      const elapsed = performance.now() - started
+      const elapsed = performance.now() - started.current
       setT(elapsed)
       if (elapsed >= total) clearInterval(id)
     }, 40)
@@ -57,28 +59,33 @@ export function Generating({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const root = useRef<HTMLDivElement>(null)
+  const skip = () => {
+    started.current = performance.now() - total
+    setT(total)
+  }
+  useTerminal(root, { onEnter: complete ? onDone : skip, focusKey: complete })
+
   const allocated = schedule.blocks.reduce((n, b) => n + b.endMinute - b.startMinute, 0)
   const conflicts = schedule.unplaced.length
 
   return (
-    <div className="mx-auto w-full max-w-[1000px] px-6 py-8">
+    <div ref={root} className="mx-auto w-full max-w-[1440px] px-6 py-6">
       <Screen
+        padding="px-6 py-6 sm:px-14 sm:py-12"
         caption={
           <>
             <span>Process 04</span>
-            <span>{complete ? "Output ready" : "Working — click the screen to skip"}</span>
+            <span>{complete ? `Output ready · ${schedule.blocks.length} blocks placed` : "Do not switch off the unit"}</span>
           </>
         }
       >
         <div
-          role="button"
-          tabIndex={0}
-          onClick={() => setT(total)}
-          onKeyDown={(e) => e.key === "Enter" && setT(total)}
-          className="min-h-[440px] cursor-pointer font-crt text-[20px] uppercase leading-[1.15] sm:text-[24px] tracking-[0.06em]"
+          onClick={skip}
+          className="flex min-h-[max(480px,calc(100vh-350px))] cursor-pointer flex-col font-crt text-[20px] uppercase leading-[1.15] tracking-[0.06em] sm:text-[26px]"
         >
           {complete ? (
-            <div className="flex min-h-[440px] flex-col justify-center">
+            <div className="flex flex-1 flex-col justify-center">
               <div className="text-ink/60">Process complete</div>
               <div className="mt-4 space-y-0.5">
                 <div>{allocated} minutes allocated</div>
@@ -146,17 +153,16 @@ export function Generating({
               </div>
             </>
           )}
+
+          <div className="mt-auto flex justify-end border-t border-ink/30 pt-5">
+            <Command keyName="Enter" onClick={complete ? onDone : skip} primary={complete}>
+              {complete ? "View output ▶" : "Skip"}
+            </Command>
+          </div>
         </div>
       </Screen>
 
-      <div className="mt-6 flex items-center justify-between gap-4">
-        <span className="label text-ink/60">
-          {complete ? `${schedule.blocks.length} blocks placed` : "Do not switch off the unit"}
-        </span>
-        <button type="button" onClick={onDone} disabled={!complete} className="key key-dark px-12 py-4 text-[13px]">
-          View ▶
-        </button>
-      </div>
+      <Legend keys={[["Enter", complete ? "View output" : "Skip"]]} />
     </div>
   )
 }

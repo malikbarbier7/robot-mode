@@ -137,6 +137,31 @@
     text-transform: uppercase;
   }
 
+  /* The selection: inverse video, like a highlighted line on a terminal. */
+  & [data-nav]:focus {
+    outline: none;
+    background: var(--color-phosphor);
+    color: var(--color-screen);
+    text-shadow: none;
+    caret-color: var(--color-screen);
+  }
+
+  & [data-nav]:focus * {
+    color: inherit;
+  }
+
+  /* A text field keeps its own colours and just lights up, so typing stays legible. */
+  & input[data-nav]:not([data-readout]):focus {
+    background: color-mix(in srgb, var(--color-phosphor) 16%, transparent);
+    color: var(--color-phosphor);
+    caret-color: var(--color-phosphor);
+  }
+
+  /* A refused entry: the field flashes, like a terminal that won't take it. */
+  & .reject {
+    animation: reject 0.45s steps(2) 1;
+  }
+
   & input::placeholder {
     color: color-mix(in srgb, var(--color-phosphor) 30%, transparent);
   }
@@ -211,5 +236,13 @@
 @media print {
   .no-print {
     display: none !important;
+  }
+}
+
+@keyframes reject {
+  0%,
+  100% {
+    background: var(--color-alert);
+    color: var(--color-screen);
   }
 }
