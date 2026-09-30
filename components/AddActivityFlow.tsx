@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import type { Activity, Day, Priority } from "@/lib/types"
-import { parseDuration } from "@/lib/duration"
+import type { Activity, Priority } from "@/lib/types"
 import {
   STEPS,
   WINDOW_PRESETS,
@@ -10,17 +9,19 @@ import {
   isDraftValid,
   type Draft,
 } from "@/lib/draft"
+import { reject } from "./Machine"
+import { ClockReadout, Readout } from "./Readout"
+import { useDisplay } from "./Display"
+import { weekOrder } from "@/lib/locale"
 
 const FIELD = "border-0 border-b border-ink/25 bg-transparent px-0 py-2 text-[22px] placeholder:text-ink/30"
 const CHIP = "label h-8 border px-2.5"
-const TIME = "border-b border-ink/30 bg-transparent py-1 font-mono text-[13px] tabular-nums"
 /** min-w keeps the slot steady when Next turns into Add on the last step. */
 const PRIMARY =
   "label min-w-[64px] border border-ink bg-ink px-3 py-1 text-paper hover:bg-paper hover:text-ink disabled:border-ink/25 disabled:bg-transparent disabled:text-ink/30"
 const SECONDARY =
   "label min-w-[64px] border border-ink/40 px-3 py-1 text-ink/60 hover:bg-ink hover:text-paper disabled:opacity-30"
 const DAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"] as const
-const ALL_DAYS: Day[] = [0, 1, 2, 3, 4, 5, 6]
 const PRIORITIES: Priority[] = ["critical", "high", "medium", "low"]
 const BUFFERS = [15, 30, 45, 60]
 
@@ -35,26 +36,35 @@ const BUFFERS = [15, 30, 45, 60]
 export function AddActivityFlow({
   onAdd,
   onEmptyEnter,
+  onStepChange,
 }: {
   onAdd: (activity: Omit<Activity, "id">) => void
   /** Enter with nothing typed: the list is done. */
   onEmptyEnter?: () => void
+  /** Which constraint step is showing (null on the entry line), for the screen's key legend. */
+  onStepChange?: (step: number | null) => void
 }) {
+  const { weekStart } = useDisplay()
   const form = useRef<HTMLFormElement>(null)
   const nameInput = useRef<HTMLInputElement>(null)
   const sessionsInput = useRef<HTMLInputElement>(null)
+  const timeField = useRef<HTMLSpanElement>(null)
+  const firstTimeReadout = () => timeField.current?.querySelector<HTMLElement>("[data-readout]") ?? null
   const [name, setName] = useState("")
-  const [durationText, setDurationText] = useState("")
+  // Minutes, or null until either half of the --:-- readout is touched.
+  const [duration, setDuration] = useState<number | null>(null)
   const [sessionsText, setSessionsText] = useState("")
   const [draft, setDraft] = useState<Draft>({ name: "", durationMinutes: 0, sessionsPerWeek: 1 })
   const [step, setStep] = useState<number | null>(null)
   const [atMode, setAtMode] = useState(false)
 
-  const minutes = parseDuration(durationText)
+  const minutes = duration ?? 0
+  const setHours = (h: number) => setDuration(h * 60 + (duration ?? 0) % 60)
+  const setMinutes = (m: number) => setDuration(Math.floor((duration ?? 0) / 60) * 60 + m)
   const current: Draft = {
     ...draft,
     name,
-    durationMinutes: minutes ?? 0,
+    durationMinutes: minutes,
     sessionsPerWeek: Number(sessionsText || "1"),
   }
   const valid = isDraftValid(current)
@@ -62,7 +72,7 @@ export function AddActivityFlow({
 
   const reset = () => {
     setName("")
-    setDurationText("")
+    setDuration(null)
     setSessionsText("")
     setDraft({ name: "", durationMinutes: 0, sessionsPerWeek: 1 })
     setStep(null)
@@ -98,7 +108,13 @@ export function AddActivityFlow({
   // Each constraint step opens on its first choice, "Decide for me", so Enter alone skips it.
   useEffect(() => {
     if (step !== null) form.current?.querySelector<HTMLElement>("[data-nav]:not(:disabled)")?.focus()
-  }, [step])
+    onStepChange?.(step)
+  }, [step, onStepChange])
+
+  // Switching on "Always at" hands the cursor to its time field, ready to type.
+  useEffect(() => {
+    if (atMode) firstTimeReadout()?.focus()
+  }, [atMode])
 
   return (
     <form
@@ -112,7 +128,7 @@ export function AddActivityFlow({
         const target = e.target as HTMLElement
         if (step === null) {
           if (e.key !== "Enter") return
-          if (!name && !durationText && !sessionsText) {
+          if (!name && duration === null && !sessionsText) {
             // A blank line submits nothing (its Add is disabled), so Enter is read here.
             e.preventDefault()
             onEmptyEnter?.()
@@ -125,8 +141,17 @@ export function AddActivityFlow({
           e.preventDefault()
           back()
         } else if (e.key === "Enter" && !target.hasAttribute("data-flow-back")) {
-          // Enter confirms the step, whichever choice is selected; Space picks a choice.
+          // A choice that opens a field of its own ("Always at") takes Enter like
+          // Space, and its time readouts pass Enter on field to field (to Add).
+          // Otherwise Enter confirms the step; Space picks a choice.
+          if (target.hasAttribute("data-enter-toggle") || target.hasAttribute("data-readout")) return
           e.preventDefault()
+          // "Always at" with no time given would quietly add an unpinned activity.
+          const time = firstTimeReadout()
+          if (onLastStep && fixedTime && !draft.fixedAt && time) {
+            time.focus()
+            return reject(time)
+          }
           if (onLastStep) add()
           else next()
         }
@@ -146,15 +171,27 @@ export function AddActivityFlow({
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <input
-            data-nav
-            className={`${FIELD} w-24 shrink-0 font-mono tabular-nums`}
-            placeholder="1h15"
-            aria-label="Duration of one session"
-            aria-invalid={!minutes}
-            value={durationText}
-            onChange={(e) => setDurationText(e.target.value)}
-          />
+          {/* Set like the other clocks: hours, then minutes. No units to type. */}
+          <span
+            className={`${FIELD} flex shrink-0 items-baseline font-mono tabular-nums ${duration === null ? "text-ink/30" : ""}`}
+          >
+            <Readout
+              label="Duration, hours"
+              value={duration === null ? null : Math.floor(duration / 60)}
+              max={23}
+              onChange={setHours}
+            />
+            <span className="ml-1 mr-2 text-[0.6em] opacity-60">H</span>
+            <Readout
+              label="Duration, minutes"
+              value={duration === null ? null : duration % 60}
+              max={59}
+              step={15}
+              onChange={setMinutes}
+              invalid={!minutes}
+            />
+            <span className="ml-1 text-[0.6em] opacity-60">M</span>
+          </span>
           <input
             data-nav
             className={`${FIELD} w-16 shrink-0 font-mono tabular-nums`}
@@ -177,7 +214,7 @@ export function AddActivityFlow({
             <>
               <Skip active={!draft.allowedDays?.length} onClick={() => patch({ allowedDays: undefined })} />
               <div className="flex gap-1">
-                {ALL_DAYS.map((day) => {
+                {weekOrder(weekStart).map((day) => {
                   const on = draft.allowedDays?.includes(day) ?? false
                   return (
                     <button
@@ -195,6 +232,10 @@ export function AddActivityFlow({
                   )
                 })}
               </div>
+              {/* On its own line under the whole row, after Back / Next. */}
+              <p className="order-last basis-full font-crt text-[24px] uppercase tracking-[0.12em]">
+                Space to pick day
+              </p>
             </>
           )}
 
@@ -253,6 +294,33 @@ export function AddActivityFlow({
                   patch({ window: undefined, fixedAt: undefined })
                 }}
               />
+              <button
+                data-nav
+                data-enter-toggle
+                type="button"
+                onClick={() => {
+                  // Clicking it again goes back to the window presets.
+                  setAtMode(!fixedTime)
+                  patch({ fixedAt: undefined, window: undefined })
+                }}
+                className={`${CHIP} border-ink/40 ${fixedTime ? "bg-ink text-paper" : "text-ink/55"}`}
+              >
+                Always at
+              </button>
+              {fixedTime && (
+                <span
+                  ref={timeField}
+                  className={`flex items-baseline border-b border-ink/30 py-1 font-mono text-[22px] tabular-nums ${
+                    draft.fixedAt ? "" : "text-ink/30"
+                  }`}
+                >
+                  <ClockReadout
+                    label="Always at"
+                    value={draft.fixedAt?.start ?? null}
+                    onChange={(start) => patch({ fixedAt: { start } })}
+                  />
+                </span>
+              )}
               {/* A fixed time and a window are exclusive, so the presets step aside. */}
               {!fixedTime &&
                 WINDOW_PRESETS.map((w) => (
@@ -268,26 +336,6 @@ export function AddActivityFlow({
                     {w.label}
                   </button>
                 ))}
-              <button
-                data-nav
-                type="button"
-                onClick={() => {
-                  // Clicking it again goes back to the window presets.
-                  setAtMode(!fixedTime)
-                  patch({ fixedAt: undefined, window: undefined })
-                }}
-                className={`${CHIP} border-ink/40 ${fixedTime ? "bg-ink text-paper" : "text-ink/55"}`}
-              >
-                Always at
-              </button>
-              {fixedTime && (
-                <input
-                  type="time"
-                  value={draft.fixedAt?.start ?? ""}
-                  onChange={(e) => patch({ fixedAt: e.target.value ? { start: e.target.value } : undefined })}
-                  className={`${TIME} text-[15px]`}
-                />
-              )}
             </>
           )}
         </>
@@ -316,6 +364,7 @@ export function AddActivityFlow({
             key="back"
             type="button"
             data-flow-back
+            data-enter-skip
             onClick={back}
             className={SECONDARY}
           >

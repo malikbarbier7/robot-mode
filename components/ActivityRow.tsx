@@ -3,6 +3,8 @@
 import { useRef, useState } from "react"
 import type { Activity, Day, Priority } from "@/lib/types"
 import { formatDuration, parseDuration } from "@/lib/duration"
+import { formatSpan, weekOrder } from "@/lib/locale"
+import { useDisplay } from "./Display"
 import { Button, Field, inputClass } from "./ui"
 
 const DAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"] as const
@@ -23,6 +25,7 @@ export function ActivityRow({
   onRemove: () => void
   variant?: "panel" | "terminal"
 }) {
+  const { weekStart } = useDisplay()
   const [open, setOpen] = useState(false)
   const line = useRef<HTMLButtonElement>(null)
   const [durationText, setDurationText] = useState(formatDuration(activity.durationMinutes))
@@ -71,7 +74,7 @@ export function ActivityRow({
               {placed}/{activity.sessionsPerWeek} FIT
             </span>
           )}
-          <span className="tabular-nums">{clock(activity.durationMinutes)}</span>
+          <span className="w-32 text-right tabular-nums">{formatSpan(activity.durationMinutes)}</span>
           <span className="w-32 text-right tabular-nums">
             {activity.sessionsPerWeek === 7 ? "DAILY" : `${String(activity.sessionsPerWeek).padStart(2, "0")}/WEEK`}
           </span>
@@ -86,7 +89,7 @@ export function ActivityRow({
           <span className="label w-3 shrink-0 text-ink/40">{open ? "−" : "+"}</span>
           <span className="flex-1 truncate text-[13px]">{activity.name}</span>
           <span className="font-mono text-[11px] tabular-nums text-ink/60">
-            {formatDuration(activity.durationMinutes)} · {activity.sessionsPerWeek}×
+            {formatSpan(activity.durationMinutes)} · {activity.sessionsPerWeek}×
           </span>
           {short && (
             <span className="label border border-ink px-1" title={`Only ${placed} of ${activity.sessionsPerWeek} fit`}>
@@ -132,7 +135,7 @@ export function ActivityRow({
 
           <Field label="Days">
             <div className="flex gap-1">
-              {ALL.map((day) => (
+              {weekOrder(weekStart).map((day) => (
                 <button
                   key={day}
                   type="button"
@@ -226,9 +229,4 @@ export function ActivityRow({
       )}
     </div>
   )
-}
-
-/** 75 → "01:15", the way the machine writes a duration. */
-function clock(minutes: number): string {
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`
 }

@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import type { Day, PlacedBlock, Schedule, Settings } from "@/lib/types"
-import { DAY_NAMES, formatTime, parseTime } from "@/lib/scheduler/time"
+import { DAY_NAMES, parseTime } from "@/lib/scheduler/time"
+import { formatClock, localizeTimes, weekOrder } from "@/lib/locale"
+import { useDisplay } from "./Display"
 
 const HOUR_PX = 48
-const DAYS: Day[] = [0, 1, 2, 3, 4, 5, 6]
 
 export function WeekGrid({
   settings,
@@ -18,6 +19,7 @@ export function WeekGrid({
   selectedId: string | null
   onSelect: (id: string | null) => void
 }) {
+  const { clock, weekStart } = useDisplay()
   const wake = parseTime(settings.wakeTime)
   let sleep = parseTime(settings.sleepTime)
   if (sleep <= wake) sleep += 1440
@@ -37,14 +39,14 @@ export function WeekGrid({
               className="label absolute right-2 text-ink/45 tabular-nums"
               style={{ top: ((m - wake) / 60) * HOUR_PX - 5 }}
             >
-              {formatTime(m)}
+              {formatClock(m, clock, { compact: true })}
             </div>
           ))}
         </div>
       </div>
 
       <div className="grid flex-1 grid-cols-7">
-        {DAYS.map((day) => (
+        {weekOrder(weekStart).map((day) => (
           <DayColumn
             key={day}
             day={day}
@@ -117,6 +119,7 @@ function Block({
   selected: boolean
   onSelect: (id: string | null) => void
 }) {
+  const { clock } = useDisplay()
   const top = ((block.startMinute - wake) / 60) * HOUR_PX
   const height = ((block.endMinute - block.startMinute) / 60) * HOUR_PX
 
@@ -126,14 +129,14 @@ function Block({
     <button
       type="button"
       onClick={() => onSelect(selected ? null : block.id)}
-      title={`${block.name} — ${block.reason}`}
+      title={`${block.name} — ${localizeTimes(block.reason, clock)}`}
       className={`absolute inset-x-px overflow-hidden border border-ink px-1.5 py-1 text-left ${surface}`}
       style={{ top, height: Math.max(height, 14) }}
     >
       <div className="truncate text-[11px] leading-[1.15]">{block.name}</div>
       {height >= 36 && (
         <div className="font-mono text-[9px] tabular-nums opacity-65">
-          {formatTime(block.startMinute)}–{formatTime(block.endMinute)}
+          {formatClock(block.startMinute, clock)}–{formatClock(block.endMinute, clock)}
         </div>
       )}
       {block.locked && (

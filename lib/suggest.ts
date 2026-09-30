@@ -1,7 +1,7 @@
 import type { Activity, Meal, Schedule, Settings, Unplaced } from "./types"
 import { generate } from "./scheduler/generate"
 import { formatTime, parseTime } from "./scheduler/time"
-import { formatDuration } from "./duration"
+import { formatSpan } from "./locale"
 import { mealsOf } from "./meals"
 
 /** Cheap solve for screening candidates; the shortlist is re-checked in full. */
@@ -223,7 +223,7 @@ function buildCandidates(settings: Settings, conflict: Unplaced): Suggestion[] {
         id: `shorten:${minutes}`,
         kind: "shorten",
         cost: 8 + minutes / 15,
-        label: `Make ${activity.name} ${formatDuration(next)} instead of ${formatDuration(activity.durationMinutes)}`,
+        label: `Make ${activity.name} ${formatSpan(next)} instead of ${formatSpan(activity.durationMinutes)}`,
         settings: withActivity(settings, activity.id, { durationMinutes: next }),
       })
     }

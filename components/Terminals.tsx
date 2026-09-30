@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
 import type { Activity, Meal, Schedule, Settings } from "@/lib/types"
 import { addMeal, isDefaultMeal, mealsOf } from "@/lib/meals"
 import { ActivityRow } from "./ActivityRow"
 import { AddActivityFlow } from "./AddActivityFlow"
+import { ClockReadout, Readout } from "./Readout"
 
 /*
  * What goes on each of the machine's four input screens. Everything that can
@@ -18,7 +18,7 @@ export function Request({ n, title, note }: { n: number; title: string; note?: s
   return (
     <div className="font-crt uppercase">
       <div className="text-[28px] tracking-[0.2em] text-ink/60">Input request {pad(n)}</div>
-      <h2 className="mt-1 text-[48px] leading-none tracking-[0.04em] sm:text-[88px]">{title}</h2>
+      <h2 className="mt-1 text-[44px] leading-none tracking-[0.04em] sm:text-[72px]">{title}</h2>
       {note && <p className="mt-3 text-[24px] tracking-[0.1em] text-ink/60">{note}</p>}
     </div>
   )
@@ -31,6 +31,7 @@ export function ActivitiesTerminal({
   onUpdateActivity,
   onRemoveActivity,
   onEmptyEnter,
+  onStepChange,
 }: {
   settings: Settings
   schedule: Schedule
@@ -39,6 +40,7 @@ export function ActivitiesTerminal({
   onRemoveActivity: (id: string) => void
   /** Enter on the blank entry line: nothing more to add. */
   onEmptyEnter: () => void
+  onStepChange?: (step: number | null) => void
 }) {
   const activities = settings.activities
   return (
@@ -61,7 +63,7 @@ export function ActivitiesTerminal({
           </div>
         )}
       </div>
-      <AddActivityFlow onAdd={onAddActivity} onEmptyEnter={onEmptyEnter} />
+      <AddActivityFlow onAdd={onAddActivity} onEmptyEnter={onEmptyEnter} onStepChange={onStepChange} />
       <p className="label mt-3 text-ink/45">
         Enter moves field to field, then through the parameters and adds. Enter on a blank line to continue.
       </p>
@@ -104,8 +106,6 @@ export function MealsTerminal({
       <Request n={3} title="Meal parameters" note="Switch on the meals you have." />
       <div className="mt-8 font-crt text-[36px] leading-none">
         {meals.map((meal) => {
-          const [h, m] = meal.start.split(":").map(Number)
-          const setStart = (hours: number, minutes: number) => patchMeal(meal.id, { start: `${pad(hours)}:${pad(minutes)}` })
           return (
             <div key={meal.id} className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-ink/20 py-3">
               <button
@@ -131,16 +131,11 @@ export function MealsTerminal({
                 />
               )}
               <span className={`flex items-baseline tabular-nums ${meal.enabled ? "" : "opacity-30"}`}>
-                <Readout label={`${meal.name} hour`} value={h} max={23} wrap disabled={!meal.enabled} onChange={(v) => setStart(v, m)} />
-                :
-                <Readout
-                  label={`${meal.name} minutes`}
-                  value={m}
-                  max={59}
-                  step={5}
-                  wrap
+                <ClockReadout
+                  label={meal.name}
+                  value={meal.start}
                   disabled={!meal.enabled}
-                  onChange={(v) => setStart(h, v)}
+                  onChange={(start) => patchMeal(meal.id, { start })}
                 />
               </span>
               <span className={`flex items-baseline gap-2 ${meal.enabled ? "" : "opacity-30"}`}>
@@ -170,6 +165,8 @@ export function MealsTerminal({
           )
         })}
       </div>
+      {/* The same bright hint as the day chips: the key that matters here. */}
+      <p className="mt-4 font-crt text-[24px] uppercase tracking-[0.12em]">Space to pick meal</p>
       <button
         type="button"
         data-nav
@@ -195,12 +192,20 @@ export function FreeTimeTerminal({
   return (
     <>
       <Request n={4} title="Free time allocation" note="Doomscrolling is a valid human activity." />
-      <div className="mt-10 flex items-baseline justify-center font-crt text-[144px] leading-none tabular-nums">
-        <Readout label="Free time a day, in minutes" value={free} max={720} step={15} width={3} onChange={setFree} />
+      <div className="mt-8 flex items-baseline justify-center font-crt text-[96px] leading-none tabular-nums sm:text-[120px]">
+        <Readout
+          label="Free time a day, in minutes"
+          value={free}
+          max={720}
+          step={15}
+          width={3}
+          horizontal
+          onChange={setFree}
+        />
         <span className="ml-4 text-[40px] text-ink/60">MIN / DAY</span>
       </div>
 
-      <div className="mt-10 flex items-start gap-3 font-crt text-[26px]">
+      <div className="mt-8 flex items-start gap-3 font-crt text-[26px]">
         <button type="button" tabIndex={-1} onClick={() => setFree(free - 15)} aria-label="Less free time" className="px-1 hover:text-ink/60">
           ◀
         </button>
@@ -229,118 +234,13 @@ export function FreeTimeTerminal({
 
 /** A clock set like an instrument: hours and minutes, each its own readout. */
 function TimeDial({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  const [h, m] = value.split(":").map(Number)
-  const set = (hours: number, minutes: number) => onChange(`${pad(hours)}:${pad(minutes)}`)
-
   return (
-    <div className="flex items-center gap-8 font-crt">
-      <span className="w-28 text-[34px] uppercase tracking-[0.2em] text-ink/70">{label}</span>
+    <div className="flex flex-col items-start gap-2 font-crt">
+      <span className="text-[34px] uppercase tracking-[0.2em] text-ink/70">{label}</span>
       <span className="flex items-center border border-ink/50 px-4 text-[128px] leading-none tabular-nums">
-        <Readout label={`${label} hours`} value={h} max={23} wrap arrows onChange={(v) => set(v, m)} />
-        <span className="px-1 text-ink/50">:</span>
-        <Readout label={`${label} minutes`} value={m} max={59} step={5} wrap arrows onChange={(v) => set(h, v)} />
+        <ClockReadout label={label} value={value} arrows onChange={onChange} periodClassName="text-[44px]" />
       </span>
     </div>
-  )
-}
-
-/**
- * A number on the screen that is set, not typed into a box: ↑ ↓ step it,
- * digits overwrite it (a partial entry shows as "1_"), Enter or leaving it
- * commits. `arrows` adds ▲ ▼ above and below for the mouse.
- */
-function Readout({
-  label,
-  value,
-  onChange,
-  max,
-  min = 0,
-  step = 1,
-  width = 2,
-  wrap = false,
-  arrows = false,
-  disabled = false,
-}: {
-  label: string
-  value: number
-  onChange: (v: number) => void
-  max: number
-  min?: number
-  step?: number
-  width?: number
-  wrap?: boolean
-  arrows?: boolean
-  disabled?: boolean
-}) {
-  const [draft, setDraft] = useState<string | null>(null)
-
-  const fit = (n: number) => {
-    if (wrap) return ((((n - min) % (max - min + 1)) + (max - min + 1)) % (max - min + 1)) + min
-    return Math.min(Math.max(n, min), max)
-  }
-  const nudge = (by: number) => {
-    setDraft(null)
-    onChange(fit(value + by))
-  }
-  const commit = (text: string | null) => {
-    if (text) onChange(Math.min(Math.max(Number(text), min), max))
-    setDraft(null)
-  }
-  const type = (digits: string) => {
-    const next = ((draft ?? "") + digits).slice(0, width)
-    if (next.length >= width) commit(next)
-    else setDraft(next)
-  }
-
-  const input = (
-    <input
-      data-nav
-      data-readout
-      inputMode="numeric"
-      aria-label={label}
-      disabled={disabled}
-      value={draft !== null ? draft.padEnd(width, "_") : String(value).padStart(width, "0")}
-      onKeyDown={(e) => {
-        if (e.key === "ArrowUp" || e.key === "+") {
-          e.preventDefault()
-          nudge(step)
-        } else if (e.key === "ArrowDown" || e.key === "-") {
-          e.preventDefault()
-          nudge(-step)
-        } else if (/^\d$/.test(e.key)) {
-          e.preventDefault()
-          type(e.key)
-        } else if (e.key === "Backspace") {
-          e.preventDefault()
-          setDraft(draft ? draft.slice(0, -1) || null : null)
-        } else if (e.key === "Enter") {
-          // Commit, and let Enter carry on to the next field.
-          commit(draft)
-        }
-      }}
-      // Virtual keyboards and pastes arrive as inserted text, not keys; take their digits here.
-      onChange={(e) => {
-        const inserted = (e.nativeEvent as InputEvent).data ?? e.target.value.slice(-1)
-        const digits = inserted.replace(/\D/g, "")
-        if (digits) type(digits)
-      }}
-      onBlur={() => commit(draft)}
-      style={{ width: `${width}ch` }}
-      className="bg-transparent text-center caret-transparent disabled:opacity-100"
-    />
-  )
-
-  if (!arrows) return input
-  return (
-    <span className="flex flex-col items-center">
-      <button type="button" tabIndex={-1} onClick={() => nudge(step)} aria-label={`${label} up`} className="px-3 text-[26px] text-ink/40 hover:text-ink">
-        ▲
-      </button>
-      {input}
-      <button type="button" tabIndex={-1} onClick={() => nudge(-step)} aria-label={`${label} down`} className="px-3 text-[26px] text-ink/40 hover:text-ink">
-        ▼
-      </button>
-    </span>
   )
 }
 

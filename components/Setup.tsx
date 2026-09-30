@@ -2,38 +2,56 @@
 
 import { useRef, useState } from "react"
 import type { Activity, Schedule, Settings } from "@/lib/types"
-import { Command, Legend, Screen, useTerminal } from "./Machine"
+import { Command, Console, SCREEN_HEIGHT, useTerminal, type LegendKey } from "./Machine"
 import { ActivitiesTerminal, FreeTimeTerminal, HoursTerminal, MealsTerminal } from "./Terminals"
 
 const STEP_COUNT = 4
 
-/** What the panel's legend lists on each request. */
-const LEGENDS: [string, string][][] = [
-  [
-    ["Enter", "Next field · next parameter"],
+/** The entry line of request 01, and each of its parameter steps, by index. */
+const ACTIVITY_LEGENDS: Record<"line" | number, LegendKey[]> = {
+  line: [
+    ["Enter", "Next field", true],
     ["← →", "Field"],
-    ["Space", "Pick"],
-    ["Esc", "Parameter back"],
     ["Del", "Delete line"],
   ],
+  0: [
+    ["Space", "Pick day", true],
+    ["Enter", "Next"],
+    ["Esc", "Back"],
+  ],
+  1: [
+    ["Enter", "Next", true],
+    ["Space", "Pick"],
+    ["Esc", "Back"],
+  ],
+  2: [
+    ["Enter", "Next", true],
+    ["Space", "Pick"],
+    ["Esc", "Back"],
+  ],
+  3: [
+    ["Enter", "Add", true],
+    ["Space", "Pick"],
+    ["Esc", "Back"],
+  ],
+}
+
+/** Requests 02–04. */
+const LEGENDS: LegendKey[][] = [
+  [],
   [
+    ["↑ ↓", "Adjust", true],
     ["Enter", "Next field"],
-    ["← →", "Field"],
-    ["↑ ↓", "Adjust"],
-    ["0–9", "Type"],
     ["Esc", "Back"],
   ],
   [
+    ["Space", "Pick meal", true],
+    ["↑ ↓", "Adjust"],
     ["Enter", "Next field"],
-    ["← →", "Field"],
-    ["↑ ↓", "Adjust · line"],
-    ["Space", "Switch"],
-    ["Esc", "Back"],
   ],
   [
-    ["↑ ↓", "Adjust"],
-    ["0–9", "Type"],
-    ["Enter", "Next · make me a robot"],
+    ["← →", "Adjust", true],
+    ["Enter", "Make me a robot"],
     ["Esc", "Back"],
   ],
 ]
@@ -66,6 +84,8 @@ export function Setup({
   onOpenTemplates: () => void
 }) {
   const [step, setStep] = useState(0)
+  // The add-activity line's own step, so the legend can follow it into the parameters.
+  const [flowStep, setFlowStep] = useState<number | null>(null)
   const root = useRef<HTMLDivElement>(null)
   const last = step === STEP_COUNT - 1
   const canGoOn = step !== 0 || settings.activities.length > 0
@@ -80,19 +100,12 @@ export function Setup({
   useTerminal(root, { onEnter: forward, onEscape: back, focusKey: step })
 
   return (
-    <div ref={root} className="mx-auto w-full max-w-[1440px] px-6 py-6">
-      <Screen
-        padding="px-6 py-6 sm:px-14 sm:py-12"
-        caption={
-          <>
-            <span>Input terminal</span>
-            <span className="tabular-nums">
-              Request {pad(step + 1)} / {pad(STEP_COUNT)}
-            </span>
-          </>
-        }
+    <div ref={root}>
+      <Console
+        captions={["Input terminal", `Request ${pad(step + 1)} / ${pad(STEP_COUNT)}`]}
+        legend={step === 0 ? ACTIVITY_LEGENDS[flowStep ?? "line"] : LEGENDS[step]}
       >
-        <div className="flex min-h-[max(480px,calc(100vh-350px))] flex-col">
+        <div className={`flex ${SCREEN_HEIGHT} flex-col`}>
           {step === 0 && (
             <ActivitiesTerminal
               settings={settings}
@@ -101,6 +114,7 @@ export function Setup({
               onUpdateActivity={onUpdateActivity}
               onRemoveActivity={onRemoveActivity}
               onEmptyEnter={forward}
+              onStepChange={setFlowStep}
             />
           )}
           {step === 1 && <HoursTerminal settings={settings} onPatchSettings={onPatchSettings} />}
@@ -128,9 +142,7 @@ export function Setup({
             )}
           </div>
         </div>
-      </Screen>
-
-      <Legend keys={LEGENDS[step]} />
+      </Console>
     </div>
   )
 }

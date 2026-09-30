@@ -1,31 +1,48 @@
 "use client"
 
-import { useState } from "react"
-import type { Day, Schedule, Settings } from "@/lib/types"
-import { formatTime, parseTime } from "@/lib/scheduler/time"
-import { formatDuration } from "@/lib/duration"
+import { useEffect, useRef, useState, type RefObject } from "react"
+import type { Schedule, Settings } from "@/lib/types"
+import { parseTime } from "@/lib/scheduler/time"
+import { formatClock, formatSpan, weekOrder } from "@/lib/locale"
 import { dayTimeline, isoWeek } from "@/lib/printout"
+import { useDisplay } from "./Display"
+import { Printer } from "./Printer"
 
-const DAYS: Day[] = [0, 1, 2, 3, 4, 5, 6]
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
 /**
  * The week as the machine prints it: a timetable on continuous-feed paper,
  * one day after another. Blocks can still be picked, to lock or remove them.
+ *
+ * With `feed`, the sheet is printed in front of you first: it feeds out of
+ * the printer's slot a line at a time while the head shuttles. The page stays
+ * where it is.
  */
 export function Printout({
   settings,
   schedule,
   selectedId,
   onSelect,
+  feed = false,
+  onFed,
+  onReplay,
 }: {
   settings: Settings
   schedule: Schedule
   selectedId: string | null
   onSelect: (id: string | null) => void
+  feed?: boolean
+  onFed?: () => void
+  /** Print it again (the printer's Form feed key). */
+  onReplay?: () => void
 }) {
+  const sheet = useRef<HTMLElement>(null)
+  const { shift, finish } = usePaperFeed(sheet, feed, onFed)
+  const printing = shift !== null
+
   // Stamped once, when the sheet comes out of the machine.
+  const { clock, weekStart } = useDisplay()
   const [printedAt] = useState(() => new Date())
   const { week, year } = isoWeek(printedAt)
 
@@ -35,14 +52,19 @@ export function Printout({
 
   return (
     <div className="px-4 py-10 sm:px-6">
-      <div className="mx-auto mb-3 flex max-w-[680px] justify-between gap-4 no-print">
-        <span className="label text-ink/55">Output · printer 01</span>
-        <button type="button" onClick={() => window.print()} className="key px-4 py-1.5">
-          Print
-        </button>
-      </div>
+      <Printer printing={printing} onPrint={() => window.print()} onFormFeed={() => onReplay?.()} />
 
-      <article className="sheet mx-auto max-w-[680px] px-12 py-10 font-mono text-[13px] uppercase leading-relaxed sm:px-16">
+      {/* A click on the paper while it prints finishes it. */}
+      {/* While printing, the paper still inside the printer (above the slot) is hidden. */}
+      <div
+        className={`relative mx-auto max-w-[680px] ${printing ? "overflow-hidden" : ""}`}
+        onPointerDown={() => printing && finish()}
+      >
+      <article
+        ref={sheet}
+        style={printing ? { transform: `translateY(${shift}px)` } : undefined}
+        className="sheet px-12 py-10 font-mono text-[13px] uppercase leading-relaxed sm:px-16"
+      >
         <Rule char="=" />
         <header className="py-3 text-center">
           <div className="font-display text-[20px] font-semibold tracking-[0.3em]">Robot Mode</div>
@@ -52,7 +74,7 @@ export function Printout({
         </header>
         <Rule char="=" />
 
-        {DAYS.map((day, i) => (
+        {weekOrder(weekStart).map((day, i) => (
           <section key={day} className="mt-7">
             {i > 0 && <Rule char="-" className="mb-7" />}
             <h2 className="font-semibold tracking-[0.2em]">{DAY_NAMES[day]}</h2>
@@ -62,7 +84,11 @@ export function Printout({
                 wake,
                 sleep,
               ).map((row) => {
-                const time = <span className="w-16 shrink-0 tabular-nums">{formatTime(row.minute)}</span>
+                const time = (
+                  <span className={`${clock === "12h" ? "w-24" : "w-16"} shrink-0 tabular-nums`}>
+                    {formatClock(row.minute, clock)}
+                  </span>
+                )
                 if (row.kind === "block") {
                   const { block } = row
                   const picked = block.id === selectedId
@@ -81,7 +107,7 @@ export function Printout({
                           {block.locked && " ■"}
                         </span>
                         <span className={`tabular-nums ${picked ? "" : "text-ink/45"}`}>
-                          {formatDuration(block.endMinute - block.startMinute)}
+                          {formatSpan(block.endMinute - block.startMinute)}
                         </span>
                       </button>
                     </li>
@@ -94,7 +120,7 @@ export function Printout({
                   >
                     {time}
                     <span className="flex-1">{row.kind === "free" ? "Free time" : row.kind}</span>
-                    {row.kind === "free" && <span className="tabular-nums">{formatDuration(row.minutes)}</span>}
+                    {row.kind === "free" && <span className="tabular-nums">{formatSpan(row.minutes)}</span>}
                   </li>
                 )
               })}
@@ -124,11 +150,12 @@ export function Printout({
           <div>Automatically generated</div>
           <div className="tabular-nums">
             {String(printedAt.getDate()).padStart(2, "0")} {MONTHS[printedAt.getMonth()]} {printedAt.getFullYear()} ·{" "}
-            {formatTime(printedAt.getHours() * 60 + printedAt.getMinutes())}
+            {formatClock(printedAt.getHours() * 60 + printedAt.getMinutes(), clock)}
           </div>
           <div>Unit RM-01</div>
         </footer>
       </article>
+      </div>
     </div>
   )
 }
@@ -140,4 +167,77 @@ function Rule({ char, className = "" }: { char: string; className?: string }) {
       {char.repeat(200)}
     </div>
   )
+}
+
+/** One printed line, roughly: the paper advances in steps of this, like a dot-matrix. */
+const LINE_PX = 22
+/** Feed speed, with the whole sheet kept between 2 and 5 seconds. */
+const FEED_PX_PER_SEC = 650
+
+/**
+ * Runs the printing animation while `active`, as paper feeding out of the
+ * slot: `shift` is how far the sheet sits above its resting place (px, zero or
+ * negative), stepping down a line at a time, or null when it isn't printing.
+ * The bottom leaves the slot first, so the text reads upright as it descends
+ * and the header lands last. The page is left where it is. Any key, or
+ * `finish()`, completes it at once; reduced motion skips it entirely.
+ */
+function usePaperFeed(
+  sheet: RefObject<HTMLElement | null>,
+  active: boolean,
+  onDone?: () => void,
+): { shift: number | null; finish: () => void } {
+  const [shift, setShift] = useState<number | null>(null)
+  const done = useRef(onDone)
+  const stop = useRef<() => void>(() => {})
+  useEffect(() => {
+    done.current = onDone
+  })
+
+  useEffect(() => {
+    const el = sheet.current
+    if (!active || !el) return
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      done.current?.()
+      return
+    }
+
+    const height = el.offsetHeight
+    const duration = Math.min(Math.max((height / FEED_PX_PER_SEC) * 1000, 2000), 5000)
+    const start = performance.now()
+    let frame = 0
+    let settle = 0
+    let stopped = false
+
+    const finish = () => {
+      if (stopped) return
+      stopped = true
+      cancelAnimationFrame(frame)
+      clearTimeout(settle)
+      window.removeEventListener("keydown", finish)
+      setShift(null)
+      done.current?.()
+    }
+    stop.current = finish
+    window.addEventListener("keydown", finish)
+
+    const tick = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1)
+      const fed = Math.min(Math.ceil((progress * height) / LINE_PX) * LINE_PX, height)
+      setShift(fed - height)
+      if (progress < 1) frame = requestAnimationFrame(tick)
+      else settle = window.setTimeout(finish, 400)
+    }
+    frame = requestAnimationFrame(tick)
+
+    return () => {
+      stopped = true
+      cancelAnimationFrame(frame)
+      clearTimeout(settle)
+      window.removeEventListener("keydown", finish)
+    }
+  }, [active, sheet])
+
+  // Still inside the printer from the moment printing is asked for, so the full sheet never flashes first.
+  return { shift: shift ?? (active ? -100_000 : null), finish: () => stop.current() }
 }
