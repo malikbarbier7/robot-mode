@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import type { Activity, Day, PlacedBlock, Settings } from "./types"
 import { generate } from "./scheduler/generate"
 import { computeBudget } from "./scheduler/budget"
-import { initialState, load, save, type SavedState } from "./storage"
+import { initialState, load, save, type Display, type SavedState } from "./storage"
+import { detectClock, type Clock, type WeekStart } from "./locale"
 import { matchesTemplate, templateById, type Template } from "./templates"
 
 export type NotBefore = { day: Day; minuteOfDay: number }
@@ -195,8 +196,25 @@ export function useRobotMode() {
    * earlier week still accept the next export as an update.
    */
   const wipe = useCallback(() => {
-    setStored((s) => ({ ...initialState, exportSequence: s.exportSequence }))
+    // How times are shown is a preference, not part of the week: it survives.
+    setStored((s) => ({ ...initialState, exportSequence: s.exportSequence, display: s.display }))
     setNotBefore(null)
+  }, [])
+
+  /**
+   * The clock follows the browser until chosen; the week starts on Monday
+   * until chosen. Detection waits for hydration so the server markup matches.
+   */
+  const display = useMemo<{ clock: Clock; weekStart: WeekStart }>(
+    () => ({
+      clock: state.display?.clock ?? (hydrated ? detectClock() : "24h"),
+      weekStart: state.display?.weekStart ?? "monday",
+    }),
+    [state.display, hydrated],
+  )
+
+  const setDisplay = useCallback((patch: Display) => {
+    setStored((s) => ({ ...s, display: { ...s.display, ...patch } }))
   }, [])
 
   const replaceState = useCallback((next: SavedState) => {
@@ -232,6 +250,8 @@ export function useRobotMode() {
     resetToTemplate,
     freshWeek,
     wipe,
+    display,
+    setDisplay,
     replaceState,
     bumpExport,
   }

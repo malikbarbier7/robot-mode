@@ -2,14 +2,6 @@
 
 import { useEffect, type ReactNode, type RefObject } from "react"
 
-export type Phase = "idle" | "input" | "process" | "output"
-
-const PHASES: [Exclude<Phase, "idle">, string][] = [
-  ["input", "Input"],
-  ["process", "Process"],
-  ["output", "Output"],
-]
-
 /** An indicator lamp. Lit is phosphor with a halo; unlit is a dark bead. */
 export function Lamp({ on = true, blink = false }: { on?: boolean; blink?: boolean }) {
   return (
@@ -22,45 +14,35 @@ export function Lamp({ on = true, blink = false }: { on?: boolean; blink?: boole
 }
 
 /**
- * The panel's left edge: which stage the machine is in. Decoration that keeps
- * the world coherent, so it gives way on narrow screens.
+ * The height every screen's content fills, so the machine doesn't change size
+ * between screens: the window minus the header, the captions and legend under
+ * the screen and the footer, and never less than a usable screen.
  */
-export function Rail({ phase, status }: { phase: Phase; status: string }) {
-  return (
-    <aside className="hidden w-[180px] shrink-0 border-r border-ink/30 px-5 py-6 lg:block">
-      <div className="label border-b border-ink/40 pb-1.5 text-ink/60">System</div>
-      <ol className="mt-3 space-y-2">
-        {PHASES.map(([key, name], i) => (
-          <li key={key} className={`label flex items-center gap-2.5 ${phase === key ? "text-ink" : "text-ink/35"}`}>
-            <Lamp on={phase === key} />
-            {String(i + 1).padStart(2, "0")} {name}
-          </li>
-        ))}
-      </ol>
+export const SCREEN_HEIGHT = "min-h-[max(420px,calc(100vh-310px))]"
 
-      <div className="label mt-10 border-b border-ink/40 pb-1.5 text-ink/60">Status</div>
-      <div className="label mt-3 flex items-center gap-2.5">
-        <Lamp blink={phase === "process"} />
-        {status}
-      </div>
-    </aside>
-  )
-}
-
-/** A screen set into the panel, with a caption printed under the bezel. */
-export function Screen({
+/**
+ * One of the machine's screens, centred on the panel, with a caption printed
+ * each side beneath it. On a phone the screen runs edge to edge.
+ */
+export function Console({
   children,
-  caption,
-  padding = "px-6 py-6 sm:px-8 sm:py-7",
+  captions: [left, right],
+  legend,
 }: {
   children: ReactNode
-  caption?: ReactNode
-  padding?: string
+  captions: [ReactNode, ReactNode]
+  legend?: LegendKey[]
 }) {
   return (
-    <div>
-      <div className={`crt ${padding}`}>{children}</div>
-      {caption && <div className="label mt-2 flex justify-between text-ink/55">{caption}</div>}
+    <div className="mx-auto w-full max-w-[1000px] py-6 sm:px-6">
+      <div className="crt px-5 py-6 sm:px-12 sm:py-10">{children}</div>
+
+      <div className="label mt-3 flex justify-between gap-4 px-4 text-ink/55 sm:px-0">
+        <span>{left}</span>
+        <span className="text-right">{right}</span>
+      </div>
+
+      {legend && <Legend keys={legend} />}
     </div>
   )
 }
@@ -99,7 +81,8 @@ export function useTerminal(
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const el = root.current
-      const target = e.target as HTMLElement
+      // A key sent to the window itself counts as sent to the bare screen.
+      const target = e.target instanceof HTMLElement ? e.target : document.body
       if (!el || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return
       const inside = el.contains(target)
       if (!inside && target !== document.body) return
@@ -160,11 +143,20 @@ function atEdge(input: HTMLInputElement, key: string): boolean {
 }
 
 /** The field says no: a brief flash, and the selection stays where it is. */
-function reject(el: HTMLElement) {
+export function reject(el: HTMLElement) {
   el.classList.remove("reject")
   void el.offsetWidth // restart the animation if it is already running
   el.classList.add("reject")
   setTimeout(() => el.classList.remove("reject"), 450)
+}
+
+/**
+ * Move on from a field that has just been completed, as Enter would (passing
+ * over Back). Does nothing if the cursor has already gone elsewhere.
+ */
+export function advance(el: HTMLElement) {
+  const root = el.closest<HTMLElement>(".crt")
+  if (root && document.activeElement === el) move(root, el, 1, true)
 }
 
 /** Next or previous item from `from` in reading order, stopping at the ends. */
@@ -241,18 +233,72 @@ export function Command({
   )
 }
 
-/** The keys a screen accepts, printed on the panel beneath it like a legend. */
-export function Legend({ keys }: { keys: [string, string][] }) {
+/** A key in a legend: what to press, what it does, and whether it is the one that matters now. */
+export type LegendKey = [key: string, what: string, now?: boolean]
+
+/**
+ * The keys that matter on the current step, printed beneath the screen: no
+ * more than three, dimmed, with the one to press now lit.
+ */
+export function Legend({ keys }: { keys: LegendKey[] }) {
   return (
-    <div className="mt-6 flex h-11 flex-wrap items-center gap-x-6 gap-y-1 overflow-hidden">
-      {keys.map(([key, what]) => (
-        <span key={`${key} ${what}`} className="label flex items-center gap-2 text-ink/60">
-          <kbd className="border border-ink border-b-[3px] bg-white/35 px-1.5 py-0.5 font-mono text-[10px] text-ink">
+    <div className="mt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 sm:px-0">
+      {keys.slice(0, 3).map(([key, what, now]) => (
+        <span key={`${key} ${what}`} className={`label flex items-center gap-2 ${now ? "text-ink" : "text-ink/35"}`}>
+          <kbd
+            className={`border border-b-[3px] px-1.5 py-0.5 font-mono text-[10px] ${
+              now ? "border-black bg-ink text-paper" : "border-ink/30 bg-white/20 text-ink/45"
+            }`}
+          >
             {key}
           </kbd>
           {what}
         </span>
       ))}
     </div>
+  )
+}
+
+/**
+ * A two-position switch on the panel: a lit knob in a dark slot, the chosen
+ * side's label printed bright. `small` is the header size.
+ */
+export function PanelSwitch({
+  left,
+  right,
+  on,
+  onChange,
+  label,
+  small = false,
+}: {
+  left: string
+  right: string
+  /** True when the right-hand position is selected. */
+  on: boolean
+  onChange: (on: boolean) => void
+  label: string
+  small?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      title={label}
+      onClick={() => onChange(!on)}
+      className={`key flex items-center ${small ? "gap-2 px-2 py-1 text-[10px]" : "gap-3 px-4 py-2 text-[12px]"}`}
+    >
+      <span className={on ? "text-ink/40" : ""}>{left}</span>
+      <span className={`relative border border-ink bg-screen ${small ? "h-4 w-8" : "h-5 w-11"}`}>
+        <span
+          className={`absolute bg-phosphor transition-[left] duration-150 ${
+            small ? "top-[2px] h-2.5 w-3" : "top-[3px] h-3 w-4"
+          } ${on ? (small ? "left-[calc(100%-14px)]" : "left-[calc(100%-19px)]") : small ? "left-[2px]" : "left-[3px]"}`}
+          style={{ filter: "drop-shadow(0 0 3px #ffb238)" }}
+        />
+      </span>
+      <span className={on ? "" : "text-ink/40"}>{right}</span>
+    </button>
   )
 }

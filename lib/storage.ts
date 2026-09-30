@@ -1,5 +1,9 @@
 import { defaultMeals } from "./meals"
+import type { Clock, WeekStart } from "./locale"
 import type { PlacedBlock, Settings } from "./types"
+
+/** How times and weeks are shown. A missing clock follows the browser's locale. */
+export type Display = { clock?: Clock; weekStart?: WeekStart }
 
 const KEY = "robot-mode:v1"
 
@@ -14,6 +18,7 @@ export type SavedState = {
   templateId?: string
   /** True once the user has pressed Generate. Before that, the list is the app. */
   generated?: boolean
+  display?: Display
 }
 
 export const emptySettings: Settings = {
@@ -53,6 +58,7 @@ export function load(): SavedState {
       exportSequence: parsed.exportSequence ?? 0,
       templateId: parsed.templateId,
       generated: parsed.generated ?? false,
+      display: parsed.display,
     }
   } catch {
     return initialState
@@ -88,6 +94,7 @@ export function fromJson(text: string): SavedState | null {
       exportSequence: parsed.exportSequence ?? 0,
       templateId: parsed.templateId,
       generated: parsed.generated ?? false,
+      display: parsed.display,
     }
   } catch {
     return null

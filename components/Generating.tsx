@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { Activity, Schedule, Settings } from "@/lib/types"
 import { mealsOf } from "@/lib/meals"
-import { Command, Legend, Screen, useTerminal } from "./Machine"
+import { Command, Console, SCREEN_HEIGHT, useTerminal } from "./Machine"
 
 /** When each readout line appears, and how long its number takes to count up. */
 const LINE_MS = 200
@@ -70,19 +70,14 @@ export function Generating({
   const conflicts = schedule.unplaced.length
 
   return (
-    <div ref={root} className="mx-auto w-full max-w-[1440px] px-6 py-6">
-      <Screen
-        padding="px-6 py-6 sm:px-14 sm:py-12"
-        caption={
-          <>
-            <span>Process 04</span>
-            <span>{complete ? `Output ready · ${schedule.blocks.length} blocks placed` : "Do not switch off the unit"}</span>
-          </>
-        }
+    <div ref={root}>
+      <Console
+        captions={["Process 04", complete ? `Output ready · ${schedule.blocks.length} blocks` : "Do not switch off the unit"]}
+        legend={[["Enter", complete ? "View output" : "Skip", true]]}
       >
         <div
           onClick={skip}
-          className="flex min-h-[max(480px,calc(100vh-350px))] cursor-pointer flex-col font-crt text-[20px] uppercase leading-[1.15] tracking-[0.06em] sm:text-[26px]"
+          className={`flex ${SCREEN_HEIGHT} cursor-pointer flex-col font-crt text-[18px] uppercase leading-[1.15] tracking-[0.06em] sm:text-[22px]`}
         >
           {complete ? (
             <div className="flex flex-1 flex-col justify-center">
@@ -95,7 +90,7 @@ export function Generating({
                   {conflicts > 0 && <span className="text-ink/60"> — see output</span>}
                 </div>
               </div>
-              <div className="mt-10 text-[48px] leading-[0.95] tracking-[0.04em] sm:text-[80px]">
+              <div className="mt-10 text-[44px] leading-[0.95] tracking-[0.04em] sm:text-[68px]">
                 Your week has been
                 <br />
                 generated.
@@ -160,9 +155,7 @@ export function Generating({
             </Command>
           </div>
         </div>
-      </Screen>
-
-      <Legend keys={[["Enter", complete ? "View output" : "Skip"]]} />
+      </Console>
     </div>
   )
 }

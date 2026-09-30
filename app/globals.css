@@ -17,6 +17,7 @@
 
   --font-display: var(--font-display-ui), ui-monospace, monospace;
   --font-crt: var(--font-crt-ui), ui-monospace, monospace;
+  --font-logo: var(--font-logo-ui), var(--font-display-ui), sans-serif;
   --font-sans: var(--font-sans-ui), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-ui), ui-monospace, "SF Mono", monospace;
 }
@@ -244,5 +245,25 @@
   100% {
     background: var(--color-alert);
     color: var(--color-screen);
+  }
+}
+
+/* The print head shuttling across the line it is printing, in steps. */
+@keyframes carriage {
+  from {
+    left: 0;
+  }
+  to {
+    left: calc(100% - 3rem);
+  }
+}
+
+.carriage {
+  animation: carriage 0.3s steps(8) infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carriage {
+    animation: none;
   }
 }
