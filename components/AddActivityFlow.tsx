@@ -11,7 +11,7 @@ import {
   type Draft,
 } from "@/lib/draft"
 
-const FIELD = "border-0 border-b border-ink/25 bg-transparent px-0 py-2 text-[18px] placeholder:text-ink/30"
+const FIELD = "border-0 border-b border-ink/25 bg-transparent px-0 py-2 text-[22px] placeholder:text-ink/30"
 const CHIP = "label h-8 border px-2.5"
 const TIME = "border-b border-ink/30 bg-transparent py-1 font-mono text-[13px] tabular-nums"
 /** min-w keeps the slot steady when Next turns into Add on the last step. */

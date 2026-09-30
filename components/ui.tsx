@@ -28,9 +28,9 @@ export function Button({
   disabled?: boolean
 }) {
   const styles = {
-    outline: "border border-ink px-2.5 py-1 hover:bg-ink hover:text-paper",
-    solid: "border border-ink bg-ink px-2.5 py-1 text-paper hover:bg-paper hover:text-ink",
-    bare: "px-1 text-ink/55 hover:text-ink",
+    outline: "key px-2.5 py-1",
+    solid: "key key-dark px-2.5 py-1",
+    bare: "label px-1 text-ink/55 hover:text-ink",
   }[variant]
 
   return (
@@ -39,7 +39,7 @@ export function Button({
       onClick={onClick}
       title={title}
       disabled={disabled}
-      className={`label transition-colors disabled:opacity-30 ${styles}`}
+      className={styles}
     >
       {children}
     </button>

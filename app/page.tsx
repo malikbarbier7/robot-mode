@@ -2,11 +2,12 @@
 
 import { useMemo, useRef, useState } from "react"
 import { BlockBar } from "@/components/BlockBar"
+import { Boot } from "@/components/Boot"
 import { BudgetBar } from "@/components/BudgetBar"
-import { BuildScreen } from "@/components/BuildScreen"
 import { DefinePanel } from "@/components/DefinePanel"
 import { Generating } from "@/components/Generating"
-import { NowCard } from "@/components/NowCard"
+import { Lamp, Rail, type Phase } from "@/components/Machine"
+import { Printout } from "@/components/Printout"
 import { Setup } from "@/components/Setup"
 import { Templates } from "@/components/Templates"
 import { WeekGrid } from "@/components/WeekGrid"
@@ -16,13 +17,13 @@ import { fromJson, toJson } from "@/lib/storage"
 import { useRobotMode } from "@/lib/useRobotMode"
 import { suggestFixes } from "@/lib/suggest"
 
-type View = "setup" | "list" | "week" | "now" | "templates" | "generating"
+type View = "boot" | "setup" | "print" | "week" | "templates" | "generating"
 
 export default function Page() {
   const rm = useRobotMode()
   // Null until the user navigates, so the landing screen can follow the saved
-  // state once it hydrates: the setup questions when there is nothing yet, the
-  // list before a week exists, the week after.
+  // state once it hydrates: the idle machine before a week exists, the
+  // printout after.
   const [chosenView, setView] = useState<View | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -30,13 +31,23 @@ export default function Page() {
 
   const empty = rm.state.settings.activities.length === 0
   const generated = rm.state.generated === true
-  const home: View = generated ? "week" : empty ? "setup" : "list"
-  // Once the questions are on screen they stay there: adding the first
-  // activity makes the list non-empty, which would otherwise skip to the list.
-  if (chosenView === null && rm.hydrated && home === "setup") setView("setup")
+  const home: View = generated ? "print" : "boot"
+  // Once the first run has started it stays on its path, whatever it saves.
+  if (chosenView === null && rm.hydrated && home === "boot") setView("boot")
   const view: View = chosenView ?? home
-  // Before the first Generate there is no week, so the week chrome stays hidden.
-  const showWeekChrome = generated && view !== "generating"
+  // The week and everything that edits it only exist on the two output views.
+  const showWeekChrome = generated && onOutput(view)
+
+  // The machine's own screens get the side rail; the working views need the room.
+  const [phase, status]: [Phase, string] =
+    view === "boot"
+      ? ["idle", "Ready"]
+      : view === "setup" || view === "templates"
+        ? ["input", "Awaiting input"]
+        : view === "generating"
+          ? ["process", "Processing"]
+          : ["output", rm.schedule.unplaced.length > 0 ? "Output · check" : "Output ready"]
+  const onMachineScreen = view === "boot" || view === "setup" || view === "generating"
 
   const selected = rm.schedule.blocks.find((b) => b.id === selectedId) ?? null
   const weekEdits = rm.state.locked.length + rm.state.skipped.length + (rm.notBefore ? 1 : 0)
@@ -68,51 +79,32 @@ export default function Page() {
       return
     }
     rm.replaceState(parsed)
-    setView(parsed.generated ? "week" : parsed.settings.activities.length > 0 ? "list" : "setup")
+    setView(parsed.generated ? "print" : "boot")
   }
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      <header className="flex items-end justify-between gap-6 border-b-2 border-ink px-6 pb-3 pt-5">
-        <button type="button" onClick={() => setView(home)} className="text-left">
-          <h1 className="font-display text-4xl leading-none">Robot Mode</h1>
-          <p className="label mt-1.5 text-ink/45">Wake · Execute · Sleep · Repeat</p>
-        </button>
+      <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b-2 border-ink px-6 py-3 no-print">
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
+          <button type="button" onClick={() => setView(home)} className="flex items-baseline gap-4 text-left">
+            <h1 className="font-display text-[22px] font-semibold uppercase leading-none tracking-[0.3em]">
+              Robot Mode
+            </h1>
+            <span className="label text-ink/50">RM-01</span>
+          </button>
 
-        <div className="flex items-center gap-2 pb-0.5">
+          {showWeekChrome && (
+            <OutputSwitch grid={view === "week"} onChange={(grid) => setView(grid ? "week" : "print")} />
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="label mr-3 hidden items-center gap-2 text-ink/60 md:flex">
+            Power <Lamp />
+            <span className="ml-2 text-ink">{status}</span>
+          </span>
           {showWeekChrome && (
             <>
-              <button
-                type="button"
-                onClick={() => setView("list")}
-                aria-pressed={view === "list"}
-                title="Your activity list"
-                className="label mr-1 border border-ink bg-ink px-3 py-1 text-paper hover:bg-paper hover:text-ink"
-              >
-                Home page
-              </button>
-
-              <div className="flex">
-                {(
-                  [
-                    ["week", "Week"],
-                    ["now", "Now"],
-                  ] as const
-                ).map(([v, label], i) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setView(v)}
-                    aria-pressed={view === v}
-                    className={`label border border-ink px-3 py-1 ${i > 0 ? "border-l-0" : ""} ${
-                      view === v ? "bg-ink text-paper" : "hover:bg-ink/10"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
               <Button onClick={rm.shuffle} disabled={empty} title="Same constraints, different arrangement">
                 Shuffle
               </Button>
@@ -156,16 +148,27 @@ export default function Page() {
               e.target.value = ""
             }}
           />
+          {showWeekChrome && (
+            <Button
+              onClick={() => {
+                setSelectedId(null)
+                setView("boot")
+              }}
+              title="Go through the four input requests again, starting from what you have now"
+            >
+              Restart terminal
+            </Button>
+          )}
         </div>
       </header>
 
-      {showWeekChrome && view !== "list" && (
+      {showWeekChrome && (
         <>
-          <div className="border-b border-ink/20">
+          <div className="border-b border-ink/20 no-print">
             <BudgetBar budget={rm.budget} />
           </div>
           {rm.schedule.unplaced.length > 0 && (
-            <div className="border-b-2 border-alert bg-alert/[0.07] px-6 py-3 text-alert">
+            <div className="border-b-2 border-alert bg-alert/[0.07] px-6 py-3 text-alert no-print">
               <div className="label mb-1.5">
                 {rm.schedule.unplaced.length === 1
                   ? "1 conflict"
@@ -223,8 +226,9 @@ export default function Page() {
       )}
 
       <div className="flex min-h-0 flex-1">
-        {showWeekChrome && view !== "list" && (
-          <aside className="w-[340px] shrink-0 border-r border-ink/20">
+        {onMachineScreen && <Rail phase={phase} status={status} />}
+        {showWeekChrome && (
+          <aside className="w-[340px] shrink-0 border-r border-ink/20 no-print">
             <DefinePanel
               settings={rm.state.settings}
               schedule={rm.schedule}
@@ -246,7 +250,7 @@ export default function Page() {
               schedule={rm.schedule}
               onDone={() => {
                 rm.markGenerated()
-                setView("week")
+                setView("print")
               }}
             />
           ) : view === "setup" ? (
@@ -257,11 +261,18 @@ export default function Page() {
               onAddActivity={rm.addActivity}
               onUpdateActivity={rm.updateActivity}
               onRemoveActivity={rm.removeActivity}
-              onDone={() => setView("list")}
+              onDone={generate}
               onOpenTemplates={() => setView("templates")}
             />
           ) : view === "templates" ? (
             <Templates onPick={pickTemplate} onCancel={() => setView(home)} />
+          ) : view === "print" && generated ? (
+            <Printout
+              settings={rm.state.settings}
+              schedule={rm.schedule}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+            />
           ) : view === "week" && generated ? (
             <WeekGrid
               settings={rm.state.settings}
@@ -269,25 +280,13 @@ export default function Page() {
               selectedId={selectedId}
               onSelect={setSelectedId}
             />
-          ) : view === "now" && generated ? (
-            <NowCard schedule={rm.schedule} onMissed={rm.markMissed} />
           ) : (
-            <BuildScreen
-              settings={rm.state.settings}
-              budget={rm.budget}
-              schedule={rm.schedule}
-              onPatchSettings={rm.patchSettings}
-              onAddActivity={rm.addActivity}
-              onUpdateActivity={rm.updateActivity}
-              onRemoveActivity={rm.removeActivity}
-              onGenerate={generate}
-              onOpenTemplates={() => setView("templates")}
-            />
+            <Boot onStart={() => setView("setup")} />
           )}
         </main>
       </div>
 
-      {showWeekChrome && view === "week" && selected && (
+      {showWeekChrome && (view === "week" || view === "print") && selected && (
         <BlockBar
           block={selected}
           onToggleLock={() => rm.toggleLock(selected.id)}
@@ -302,6 +301,41 @@ export default function Page() {
           onClose={() => setSelectedId(null)}
         />
       )}
+
+      <footer className="label flex justify-between border-t border-ink/40 px-6 py-1.5 text-ink/50 no-print">
+        <span>Wake · Execute · Sleep · Repeat</span>
+        <span>Rev. 2.7</span>
+      </footer>
     </div>
+  )
+}
+
+function onOutput(view: View): boolean {
+  return view === "print" || view === "week"
+}
+
+/**
+ * The one control that matters once the week exists: a two-position switch
+ * between the printed sheet and the grid.
+ */
+function OutputSwitch({ grid, onChange }: { grid: boolean; onChange: (grid: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={grid}
+      aria-label="Show the grid instead of the printout"
+      onClick={() => onChange(!grid)}
+      className="key flex items-center gap-3 px-4 py-2 text-[12px]"
+    >
+      <span className={grid ? "text-ink/40" : ""}>Printout</span>
+      <span className="relative h-5 w-11 border border-ink bg-screen">
+        <span
+          className={`absolute top-[3px] h-3 w-4 bg-phosphor transition-[left] duration-150 ${grid ? "left-[calc(100%-19px)]" : "left-[3px]"}`}
+          style={{ filter: "drop-shadow(0 0 3px #ffb238)" }}
+        />
+      </span>
+      <span className={grid ? "" : "text-ink/40"}>Grid</span>
+    </button>
   )
 }

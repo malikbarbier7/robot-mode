@@ -1,13 +1,22 @@
 @import "tailwindcss";
 
 @theme {
-  /* One ink colour on paper. Everything else is an alpha of it. */
-  --color-ink: #1d2be0;
-  --color-paper: #ffffff;
-  /* The one exception to a single ink colour: a conflict has to be noticed. */
-  --color-alert: #d81f2a;
+  /*
+   * The console: printed black on a warm grey-beige panel. Everything else is
+   * an alpha of the ink, so components re-theme by swapping these two.
+   */
+  --color-ink: #1b1914;
+  --color-paper: #d8d2c2;
+  /* A conflict has to be noticed: the one warning lamp on the panel. */
+  --color-alert: #c8321e;
+  /* The screens set into the panel, and the phosphor they glow with. */
+  --color-screen: #14110c;
+  --color-phosphor: #ffb238;
+  /* Continuous-feed printer paper. */
+  --color-sheet: #f4f0e4;
 
-  --font-display: var(--font-display), Georgia, "Times New Roman", serif;
+  --font-display: var(--font-display-ui), ui-monospace, monospace;
+  --font-crt: var(--font-crt-ui), ui-monospace, monospace;
   --font-sans: var(--font-sans-ui), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-ui), ui-monospace, "SF Mono", monospace;
 }
@@ -23,7 +32,7 @@
     font-family: var(--font-sans);
   }
 
-  /* Brutalist: nothing is rounded, nothing floats. */
+  /* Machined: nothing is rounded, nothing floats. Depth comes from borders. */
   * {
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -71,4 +80,136 @@
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+
+/* A status light: on, off, on. Stepped, like hardware, not faded. */
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@utility blink {
+  animation: blink 1.1s steps(1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blink {
+    animation: none;
+  }
+}
+
+/*
+ * A screen set into the panel. It re-points the ink and paper tokens, so any
+ * component placed inside draws itself in phosphor without knowing it.
+ */
+@utility crt {
+  --color-ink: var(--color-phosphor);
+  --color-paper: var(--color-screen);
+  /* A terminal has no proportional type. */
+  --font-sans: var(--font-mono);
+  position: relative;
+  background:
+    radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 0.45) 100%),
+    var(--color-screen);
+  color: var(--color-phosphor);
+  border: 14px solid #2a2620;
+  outline: 1px solid var(--color-ink);
+  text-shadow: 0 0 6px rgb(255 178 56 / 0.45);
+  caret-color: var(--color-phosphor);
+
+  /* Scan lines, drawn over the content and ignored by the pointer. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 2px,
+      rgb(0 0 0 / 0.22) 2px,
+      rgb(0 0 0 / 0.22) 3px
+    );
+  }
+
+  & input {
+    text-transform: uppercase;
+  }
+
+  & input::placeholder {
+    color: color-mix(in srgb, var(--color-phosphor) 30%, transparent);
+  }
+
+  & input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) sepia(1) saturate(4) hue-rotate(-10deg);
+  }
+}
+
+/* A physical key: a heavy bottom edge that disappears when it is pressed. */
+@utility key {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 1px solid var(--color-ink);
+  border-bottom-width: 4px;
+  background: color-mix(in srgb, white 35%, var(--color-paper));
+  color: var(--color-ink);
+  transition: transform 60ms, border-bottom-width 60ms;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, white 55%, var(--color-paper));
+  }
+
+  &:active:not(:disabled) {
+    border-bottom-width: 1px;
+    transform: translateY(3px);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+  }
+
+  /* A latching key: stays down, lit, while its mode is selected. */
+  &[aria-pressed="true"],
+  &[aria-pressed="true"]:hover {
+    background: var(--color-ink);
+    color: var(--color-paper);
+    border-bottom-width: 1px;
+    transform: translateY(3px);
+  }
+}
+
+/* The dark variant, for the one action that matters on a panel. */
+@utility key-dark {
+  background: var(--color-ink);
+  color: var(--color-paper);
+  border-color: #000;
+
+  &:hover:not(:disabled) {
+    background: #000;
+  }
+}
+
+/* Paper fed from the machine: sprocket holes down both margins. */
+@utility sheet {
+  --color-ink: #1b1914;
+  --color-paper: var(--color-sheet);
+  background-color: var(--color-sheet);
+  background-image:
+    radial-gradient(circle, var(--color-screen) 0 5px, transparent 5.5px),
+    radial-gradient(circle, var(--color-screen) 0 5px, transparent 5.5px),
+    repeating-linear-gradient(to bottom, transparent 0, transparent 23px, rgb(27 25 20 / 0.045) 23px, rgb(27 25 20 / 0.045) 46px);
+  background-size: 28px 24px, 28px 24px, 100% 46px;
+  background-position: 0 0, 100% 0, 0 0;
+  background-repeat: repeat-y, repeat-y, repeat;
+  color: var(--color-ink);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
 }

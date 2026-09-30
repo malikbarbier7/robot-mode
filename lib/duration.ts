@@ -1,4 +1,10 @@
-/** Accepts "1h15", "1h", "90", "45m", "1:30". Returns minutes, or null. */
+/**
+ * Accepts "1h15", "1h", "90", "45m", "1:30", "2". Returns minutes, or null.
+ *
+ * A bare number under 10 is hours: nobody means a 2-minute session, and the
+ * engine rounds anything under 15 minutes up to a slot anyway. Write "5m" for
+ * five minutes.
+ */
 export function parseDuration(input: string): number | null {
   const s = input.trim().toLowerCase().replace(/\s+/g, "")
   if (!s) return null
@@ -9,8 +15,11 @@ export function parseDuration(input: string): number | null {
   m = /^(\d+):(\d{1,2})$/.exec(s)
   if (m) return Number(m[1]) * 60 + Number(m[2])
 
-  m = /^(\d+)m?$/.exec(s)
+  m = /^(\d+)m$/.exec(s)
   if (m) return Number(m[1])
+
+  m = /^(\d+)$/.exec(s)
+  if (m) return Number(m[1]) < 10 ? Number(m[1]) * 60 : Number(m[1])
 
   return null
 }

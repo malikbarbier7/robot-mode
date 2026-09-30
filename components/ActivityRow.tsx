@@ -14,18 +14,15 @@ export function ActivityRow({
   placed,
   onChange,
   onRemove,
-  /** "panel" is the narrow sidebar; "page" is the wide home screen. */
+  /** "panel" is the narrow sidebar; "terminal" is a line on one of the machine's screens. */
   variant = "panel",
-  index,
 }: {
   activity: Activity
   placed: number
   onChange: (patch: Partial<Activity>) => void
   onRemove: () => void
-  variant?: "panel" | "page"
-  index?: number
+  variant?: "panel" | "terminal"
 }) {
-  const isPage = variant === "page"
   const [open, setOpen] = useState(false)
   const [durationText, setDurationText] = useState(formatDuration(activity.durationMinutes))
   const short = placed < activity.sessionsPerWeek
@@ -38,37 +35,47 @@ export function ActivityRow({
 
   return (
     <div className="border-b border-ink/15">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        title={open ? "Hide constraints" : "Priority, days, preferred time"}
-        className={
-          isPage
-            ? "flex w-full items-baseline gap-4 py-3 text-left"
-            : "flex w-full items-baseline gap-2 px-6 py-2.5 text-left hover:bg-ink/[0.04]"
-        }
-      >
-        {isPage ? (
-          <span className="label w-6 shrink-0 tabular-nums text-ink/35">
-            {String((index ?? 0) + 1).padStart(2, "0")}
+      {variant === "terminal" ? (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          title={open ? "Hide constraints" : "Priority, days, preferred time"}
+          className="flex w-full items-baseline gap-5 py-2 text-left font-crt text-[34px] leading-tight hover:bg-ink/[0.07]"
+        >
+          <span className="text-ink/60">{open ? "▼" : ">"}</span>
+          <span className="min-w-0 flex-1 truncate uppercase">{activity.name}</span>
+          {short && (
+            <span className="border border-ink px-1.5 text-[22px]" title={`Only ${placed} of ${activity.sessionsPerWeek} fit`}>
+              {placed}/{activity.sessionsPerWeek} FIT
+            </span>
+          )}
+          <span className="tabular-nums">{clock(activity.durationMinutes)}</span>
+          <span className="w-32 text-right tabular-nums">
+            {activity.sessionsPerWeek === 7 ? "DAILY" : `${String(activity.sessionsPerWeek).padStart(2, "0")}/WEEK`}
           </span>
-        ) : (
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          title={open ? "Hide constraints" : "Priority, days, preferred time"}
+          className="flex w-full items-baseline gap-2 px-6 py-2.5 text-left hover:bg-ink/[0.04]"
+        >
           <span className="label w-3 shrink-0 text-ink/40">{open ? "−" : "+"}</span>
-        )}
-        <span className={`flex-1 truncate ${isPage ? "text-[17px]" : "text-[13px]"}`}>{activity.name}</span>
-        <span className={`font-mono tabular-nums text-ink/60 ${isPage ? "text-[13px]" : "text-[11px]"}`}>
-          {formatDuration(activity.durationMinutes)} · {activity.sessionsPerWeek}×
-        </span>
-        {short && (
-          <span className="label border border-ink px-1" title={`Only ${placed} of ${activity.sessionsPerWeek} fit`}>
-            {placed}/{activity.sessionsPerWeek}
+          <span className="flex-1 truncate text-[13px]">{activity.name}</span>
+          <span className="font-mono text-[11px] tabular-nums text-ink/60">
+            {formatDuration(activity.durationMinutes)} · {activity.sessionsPerWeek}×
           </span>
-        )}
-        {isPage && <span className="label w-4 text-right text-ink/40">{open ? "−" : "+"}</span>}
-      </button>
+          {short && (
+            <span className="label border border-ink px-1" title={`Only ${placed} of ${activity.sessionsPerWeek} fit`}>
+              {placed}/{activity.sessionsPerWeek}
+            </span>
+          )}
+        </button>
+      )}
 
       {open && (
-        <div className={isPage ? "space-y-3 pb-6 pt-1" : "space-y-3 bg-ink/[0.03] px-6 pb-4 pt-1"}>
+        <div className={variant === "terminal" ? "space-y-3 pb-6 pt-1" : "space-y-3 bg-ink/[0.03] px-6 pb-4 pt-1"}>
           <div className="grid grid-cols-3 gap-2">
             <Field label="Name">
               <input
@@ -197,4 +204,9 @@ export function ActivityRow({
       )}
     </div>
   )
+}
+
+/** 75 → "01:15", the way the machine writes a duration. */
+function clock(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`
 }
