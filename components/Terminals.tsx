@@ -32,6 +32,7 @@ export function ActivitiesTerminal({
   onRemoveActivity,
   onEmptyEnter,
   onStepChange,
+  openId,
 }: {
   settings: Settings
   schedule: Schedule
@@ -41,6 +42,8 @@ export function ActivitiesTerminal({
   /** Enter on the blank entry line: nothing more to add. */
   onEmptyEnter: () => void
   onStepChange?: (step: number | null) => void
+  /** An activity to show with its constraints already unfolded. */
+  openId?: string
 }) {
   const activities = settings.activities
   return (
@@ -49,9 +52,11 @@ export function ActivitiesTerminal({
       <div className="mt-5">
         {activities.map((activity) => (
           <ActivityRow
-            key={activity.id}
+            // Remounts when it becomes the one to unfold, so it opens even if it was already listed.
+            key={`${activity.id}${activity.id === openId ? "-open" : ""}`}
             activity={activity}
             variant="terminal"
+            defaultOpen={activity.id === openId}
             placed={schedule.blocks.filter((b) => b.activityId === activity.id).length}
             onChange={(patch) => onUpdateActivity(activity.id, patch)}
             onRemove={() => onRemoveActivity(activity.id)}

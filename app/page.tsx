@@ -1,14 +1,12 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
-import { BlockBar } from "@/components/BlockBar"
+import { useEffect, useRef, useState } from "react"
 import { Boot } from "@/components/Boot"
-import { BudgetBar } from "@/components/BudgetBar"
-import { DefinePanel } from "@/components/DefinePanel"
+import { Terminal, type TerminalScreen } from "@/components/Terminal"
 import { Generating } from "@/components/Generating"
-import { Lamp, PanelSwitch } from "@/components/Machine"
+import { PanelSwitch } from "@/components/Machine"
+import { Menu, MenuItem } from "@/components/Menu"
 import { DisplayProvider } from "@/components/Display"
-import { localizeTimes } from "@/lib/locale"
 import { Printout } from "@/components/Printout"
 import { Setup } from "@/components/Setup"
 import { Templates } from "@/components/Templates"
@@ -17,7 +15,6 @@ import { Button } from "@/components/ui"
 import { downloadIcs, downloadText } from "@/lib/ics"
 import { fromJson, toJson } from "@/lib/storage"
 import { useRobotMode } from "@/lib/useRobotMode"
-import { suggestFixes } from "@/lib/suggest"
 
 type View = "boot" | "setup" | "print" | "week" | "templates" | "generating"
 
@@ -28,10 +25,13 @@ export default function Page() {
   // printout after.
   const [chosenView, setView] = useState<View | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // The screen open on the terminal, if any.
+  const [screen, setScreen] = useState<TerminalScreen>(null)
   const fileInput = useRef<HTMLInputElement>(null)
-  const [fixing, setFixing] = useState<string | null>(null)
   // Set when a week has just been generated: the printout is printed in front of you once.
   const [feed, setFeed] = useState(false)
+  // Until the grid has been pointed out once, the terminal points it out after the printout.
+  const [gridTip, setGridTip] = useState(() => !tipSeen())
 
   const empty = rm.state.settings.activities.length === 0
   const generated = rm.state.generated === true
@@ -42,26 +42,39 @@ export default function Page() {
   // The week and everything that edits it only exist on the two output views.
   const showWeekChrome = generated && onOutput(view)
 
-  // What the header's status lamp reads.
-  const status =
-    view === "boot"
-      ? "Ready"
-      : view === "setup" || view === "templates"
-        ? "Awaiting input"
-        : view === "generating"
-          ? "Processing"
-          : rm.schedule.unplaced.length > 0
-            ? "Output · check"
-            : "Output ready"
-
   const selected = rm.schedule.blocks.find((b) => b.id === selectedId) ?? null
   const weekEdits = rm.state.locked.length + rm.state.skipped.length + (rm.notBefore ? 1 : 0)
 
-  // Only worked out when asked: each suggestion costs a trial solve to verify.
-  const suggestions = useMemo(() => {
-    const conflict = rm.schedule.unplaced.find((u) => u.activityId === fixing)
-    return conflict ? suggestFixes(rm.state.settings, conflict) : []
-  }, [fixing, rm.schedule.unplaced, rm.state.settings])
+  const showView = (next: "printout" | "grid") => {
+    setFeed(false)
+    setGridTip(false)
+    setView(next === "grid" ? "week" : "print")
+  }
+
+  // Shown once the sheet is out, and only ever once: seen is remembered as soon as it appears.
+  const tipVisible = gridTip && showWeekChrome && view === "print" && !feed
+  useEffect(() => {
+    if (tipVisible) markTipSeen()
+  }, [tipVisible])
+
+  // Picking a block on the printout or grid opens it on the terminal.
+  const select = (id: string | null) => {
+    setSelectedId(id)
+    setScreen(id ? { name: "block" } : null)
+  }
+
+  const saveJson = () => downloadText(toJson(rm.state), "robot-mode.json")
+
+  const restart = () => {
+    rm.wipe()
+    setSelectedId(null)
+    setScreen(null)
+    setView("boot")
+  }
+
+  const exportIcs = () => {
+    if (!empty) downloadIcs(rm.schedule.blocks, { sequence: rm.bumpExport() })
+  }
 
   const generate = () => {
     setSelectedId(null)
@@ -105,76 +118,105 @@ export default function Page() {
             </button>
 
             {showWeekChrome && (
-              // The one control that matters once the week exists: sheet or grid.
-              <PanelSwitch
-                left="Printout"
-                right="Grid"
-                on={view === "week"}
-                onChange={(grid) => {
-                setFeed(false)
-                setView(grid ? "week" : "print")
-              }}
-                label="Show the grid instead of the printout"
-              />
+              // The two ways to see the week, as two keys: the one showing stays pressed.
+              <div role="group" aria-label="View" className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-pressed={view === "print"}
+                  onClick={() => showView("printout")}
+                  className="key px-3 py-1.5"
+                >
+                  ≡ Printout
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={view === "week"}
+                  onClick={() => showView("grid")}
+                  className="key flex items-center gap-2 px-3 py-1.5"
+                >
+                  ▦ Grid
+                  {tipVisible && <span aria-hidden className="blink inline-block h-1.5 w-1.5 bg-phosphor" style={{ animationIterationCount: 6 }} />}
+                </button>
+              </div>
             )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="label mr-3 flex items-center gap-2 text-ink/60">
-              Power <Lamp blink={view === "generating"} />
-              <span className="ml-2 text-ink">{status}</span>
-            </span>
-            {/* How times and weeks read. Stored in 24h from Monday regardless. */}
-            <PanelSwitch
-              small
-              left="24H"
-              right="12H"
-              on={rm.display.clock === "12h"}
-              onChange={(on) => rm.setDisplay({ clock: on ? "12h" : "24h" })}
-              label="Clock: 24-hour or 12-hour"
-            />
-            <PanelSwitch
-              small
-              left="Mon"
-              right="Sun"
-              on={rm.display.weekStart === "sunday"}
-              onChange={(on) => rm.setDisplay({ weekStart: on ? "sunday" : "monday" })}
-              label="Week starts on Monday or Sunday"
-            />
             {showWeekChrome && (
               <>
                 <Button onClick={rm.shuffle} disabled={empty} title="Same constraints, different arrangement">
                   Shuffle
                 </Button>
-                <Button
-                  onClick={rm.freshWeek}
-                  disabled={weekEdits === 0}
-                  title={
-                    weekEdits === 0
-                      ? "Nothing to clear: no locked blocks, removed blocks or missed sessions"
-                      : `Unlock ${rm.state.locked.length} block(s), restore ${rm.state.skipped.length} removed, and undo today's replan`
-                  }
-                >
-                  Clear edits{weekEdits > 0 ? ` (${weekEdits})` : ""}
-                </Button>
-                <Button
-                  variant="solid"
-                  disabled={empty}
-                  onClick={() => downloadIcs(rm.schedule.blocks, { sequence: rm.bumpExport() })}
-                >
+                {/* Only there when there is something to clear. */}
+                {weekEdits > 0 && (
+                  <Button
+                    onClick={rm.freshWeek}
+                    title={`Unlock ${rm.state.locked.length} block(s), restore ${rm.state.skipped.length} removed, and undo today's replan`}
+                  >
+                    Clear edits ({weekEdits})
+                  </Button>
+                )}
+                <Button variant="solid" disabled={empty} onClick={exportIcs}>
                   Export .ics
                 </Button>
               </>
             )}
 
-            <Button
-              onClick={() => downloadText(toJson(rm.state), "robot-mode.json")}
-              disabled={empty}
-              title="Back up your setup"
-            >
-              Save
-            </Button>
-            <Button onClick={() => fileInput.current?.click()}>Load</Button>
+            <Menu>
+              {/* How times and weeks read. Stored in 24h from Monday regardless. */}
+              <div className="flex gap-2">
+                <PanelSwitch
+                  small
+                  left="24H"
+                  right="12H"
+                  on={rm.display.clock === "12h"}
+                  onChange={(on) => rm.setDisplay({ clock: on ? "12h" : "24h" })}
+                  label="Clock: 24-hour or 12-hour"
+                />
+                <PanelSwitch
+                  small
+                  left="Mon"
+                  right="Sun"
+                  on={rm.display.weekStart === "sunday"}
+                  onChange={(on) => rm.setDisplay({ weekStart: on ? "sunday" : "monday" })}
+                  label="Week starts on Monday or Sunday"
+                />
+              </div>
+              <MenuItem
+                onClick={saveJson}
+                disabled={empty}
+                title="Back up your setup"
+              >
+                Save
+              </MenuItem>
+              <MenuItem onClick={() => fileInput.current?.click()} title="Open a saved setup">
+                Load
+              </MenuItem>
+              {showWeekChrome && rm.activeTemplate && (
+                <MenuItem
+                  disabled={!rm.templateEdited}
+                  onClick={() => {
+                    if (window.confirm(`Discard your changes and restore the ${rm.activeTemplate?.name} activities?`)) {
+                      rm.resetToTemplate()
+                    }
+                  }}
+                  title={`Restore the ${rm.activeTemplate.name} activities, times and free time`}
+                >
+                  Reset to {rm.activeTemplate.name}
+                </MenuItem>
+              )}
+              {showWeekChrome && (
+                <MenuItem
+                  onClick={() => {
+                    if (!window.confirm("Erase this week and everything you entered, and start over?\n\nUse Save first if you want to keep it.")) return
+                    restart()
+                  }}
+                  title="Erase the week and everything entered, and start again from a blank machine"
+                >
+                  Restart terminal
+                </MenuItem>
+              )}
+            </Menu>
             <input
               ref={fileInput}
               type="file"
@@ -186,102 +228,10 @@ export default function Page() {
                 e.target.value = ""
               }}
             />
-            {showWeekChrome && (
-              <Button
-                onClick={() => {
-                  if (!window.confirm("Erase this week and everything you entered, and start over?\n\nUse Save first if you want to keep it.")) return
-                  rm.wipe()
-                  setSelectedId(null)
-                  setView("boot")
-                }}
-                title="Erase the week and everything entered, and start again from a blank machine"
-              >
-                Restart terminal
-              </Button>
-            )}
           </div>
         </header>
 
-        {showWeekChrome && (
-          <>
-            <div className="border-b border-ink/20 no-print">
-              <BudgetBar budget={rm.budget} />
-            </div>
-            {rm.schedule.unplaced.length > 0 && (
-              <div className="border-b-2 border-alert bg-alert/[0.07] px-6 py-3 text-alert no-print">
-                <div className="label mb-1.5">
-                  {rm.schedule.unplaced.length === 1
-                    ? "1 conflict"
-                    : `${rm.schedule.unplaced.length} conflicts`}
-                </div>
-                <ul className="space-y-1.5">
-                  {rm.schedule.unplaced.map((u) => (
-                    <li key={u.activityId}>
-                      <div className="flex items-baseline gap-2 font-mono text-[11px] leading-relaxed">
-                        <span className="min-w-0 flex-1">
-                          <span className="font-sans text-[12px] font-medium">{u.name}</span>{" "}
-                          <span className="tabular-nums opacity-70">
-                            {u.sessionsPlaced}/{u.sessionsRequested}
-                          </span>{" "}
-                          — {localizeTimes(u.why, rm.display.clock)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setFixing(fixing === u.activityId ? null : u.activityId)}
-                          className="label shrink-0 border border-alert px-2 py-0.5 hover:bg-alert hover:text-paper"
-                        >
-                          {fixing === u.activityId ? "Close" : "Fix"}
-                        </button>
-                      </div>
-
-                      {fixing === u.activityId && (
-                        <div className="mt-1.5 space-y-1 border-l-2 border-alert/40 pl-3">
-                          {suggestions.length === 0 ? (
-                            <p className="font-mono text-[11px] opacity-70">
-                              No single change fixes this one.
-                            </p>
-                          ) : (
-                            suggestions.map((fix) => (
-                              <button
-                                key={fix.id}
-                                type="button"
-                                onClick={() => {
-                                  rm.patchSettings(fix.settings)
-                                  setFixing(null)
-                                }}
-                                className="block w-full border border-alert/40 px-2 py-1 text-left font-mono text-[11px] hover:bg-alert hover:text-paper"
-                              >
-                                {localizeTimes(fix.label, rm.display.clock)}
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </>
-        )}
-
         <div className="flex min-h-0 flex-1">
-          {showWeekChrome && (
-            <aside className="w-[340px] shrink-0 border-r border-ink/20 no-print">
-              <DefinePanel
-                settings={rm.state.settings}
-                schedule={rm.schedule}
-                onPatchSettings={rm.patchSettings}
-                onAddActivity={rm.addActivity}
-                onUpdateActivity={rm.updateActivity}
-                onRemoveActivity={rm.removeActivity}
-                template={rm.activeTemplate}
-                templateEdited={rm.templateEdited}
-                onResetToTemplate={rm.resetToTemplate}
-              />
-            </aside>
-          )}
-
           <main className="min-w-0 flex-1 overflow-auto">
             {!rm.hydrated ? null : view === "generating" ? (
               <Generating
@@ -311,7 +261,7 @@ export default function Page() {
                 settings={rm.state.settings}
                 schedule={rm.schedule}
                 selectedId={selectedId}
-                onSelect={setSelectedId}
+                onSelect={select}
                 feed={feed}
                 onFed={() => setFeed(false)}
                 onReplay={() => setFeed(true)}
@@ -321,7 +271,7 @@ export default function Page() {
                 settings={rm.state.settings}
                 schedule={rm.schedule}
                 selectedId={selectedId}
-                onSelect={setSelectedId}
+                onSelect={select}
               />
             ) : (
               <Boot onStart={() => setView("setup")} />
@@ -329,24 +279,24 @@ export default function Page() {
           </main>
         </div>
 
-        {showWeekChrome && (view === "week" || view === "print") && selected && (
-          <BlockBar
-            block={selected}
-            onToggleLock={() => rm.toggleLock(selected.id)}
-            onRemove={() => {
-              rm.removeBlock(selected.id)
-              setSelectedId(null)
-            }}
-            onMissed={() => {
-              rm.markMissed(selected.id)
-              setSelectedId(null)
-            }}
-            onClose={() => setSelectedId(null)}
+        {showWeekChrome && (
+          <Terminal
+            rm={rm}
+            screen={screen}
+            onScreen={setScreen}
+            selected={selected}
+            onDeselect={() => setSelectedId(null)}
+            onExport={exportIcs}
+            onSave={saveJson}
+            onLoad={() => fileInput.current?.click()}
+            onRestart={restart}
+            view={view === "week" ? "grid" : "printout"}
+            onView={showView}
+            tip={tipVisible ? "TIP: THE WEEK ALSO COMES AS A CALENDAR · TYPE G + ENTER, OR PRESS ▦ GRID" : null}
           />
         )}
 
-        <footer className="label flex justify-between border-t border-ink/40 px-6 py-1.5 text-ink/50 no-print">
-          <span>Wake · Execute · Sleep · Repeat</span>
+        <footer className="label flex justify-end border-t border-ink/40 px-6 py-1.5 text-ink/50 no-print">
           <span>Rev. 2.7</span>
         </footer>
       </div>
@@ -356,4 +306,23 @@ export default function Page() {
 
 function onOutput(view: View): boolean {
   return view === "print" || view === "week"
+}
+
+const TIP_KEY = "robot-mode:grid-tip-seen"
+
+function tipSeen(): boolean {
+  if (typeof window === "undefined") return true
+  try {
+    return window.localStorage.getItem(TIP_KEY) === "1"
+  } catch {
+    return true
+  }
+}
+
+function markTipSeen() {
+  try {
+    window.localStorage.setItem(TIP_KEY, "1")
+  } catch {
+    // Private mode: the tip may show again next time, which is harmless.
+  }
 }

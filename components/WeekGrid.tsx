@@ -6,7 +6,7 @@ import { DAY_NAMES, parseTime } from "@/lib/scheduler/time"
 import { formatClock, localizeTimes, weekOrder } from "@/lib/locale"
 import { useDisplay } from "./Display"
 
-const HOUR_PX = 48
+const HOUR_PX = 34
 
 export function WeekGrid({
   settings,
@@ -29,7 +29,7 @@ export function WeekGrid({
   for (let m = Math.ceil(wake / 60) * 60; m <= sleep; m += 60) hours.push(m)
 
   return (
-    <div className="flex min-w-[720px]">
+    <div className="mx-auto flex min-w-[640px] max-w-[1100px] px-4 py-4">
       <div className="w-14 shrink-0">
         <div className="h-9 border-b border-ink/20" />
         <div className="relative" style={{ height }}>

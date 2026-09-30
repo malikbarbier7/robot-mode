@@ -3,29 +3,21 @@ import type { PlacedBlock } from "./types"
 export type PrintRow =
   | { kind: "wake" | "sleep"; minute: number }
   | { kind: "block"; minute: number; block: PlacedBlock }
-  | { kind: "free"; minute: number; minutes: number }
-
-/** Gaps shorter than this are transitions, not free time worth a line. */
-const MIN_FREE = 15
 
 /**
- * One day as the printer lists it: wake, then every block in order with the
- * free stretches between them, then sleep. Times are minutes from midnight of
- * that day, so `sleep` may exceed 1440 when bedtime is after midnight.
+ * One day as the printer lists it: wake, then every block in order, then
+ * sleep. Free time isn't printed; it is whatever the times leave between.
+ * Times are minutes from midnight of that day, so `sleep` may exceed 1440
+ * when bedtime is after midnight.
  */
 export function dayTimeline(blocks: PlacedBlock[], wake: number, sleep: number): PrintRow[] {
-  const rows: PrintRow[] = [{ kind: "wake", minute: wake }]
-  let cursor = wake
-  for (const block of [...blocks].sort((a, b) => a.startMinute - b.startMinute)) {
-    if (block.startMinute - cursor >= MIN_FREE) {
-      rows.push({ kind: "free", minute: cursor, minutes: block.startMinute - cursor })
-    }
-    rows.push({ kind: "block", minute: block.startMinute, block })
-    cursor = Math.max(cursor, block.endMinute)
-  }
-  if (sleep - cursor >= MIN_FREE) rows.push({ kind: "free", minute: cursor, minutes: sleep - cursor })
-  rows.push({ kind: "sleep", minute: sleep })
-  return rows
+  return [
+    { kind: "wake", minute: wake },
+    ...[...blocks]
+      .sort((a, b) => a.startMinute - b.startMinute)
+      .map((block): PrintRow => ({ kind: "block", minute: block.startMinute, block })),
+    { kind: "sleep", minute: sleep },
+  ]
 }
 
 /** ISO 8601 week number, which is what a printed timetable would carry. */

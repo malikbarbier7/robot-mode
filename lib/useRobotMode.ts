@@ -121,6 +121,31 @@ export function useRobotMode() {
   }, [])
 
   /**
+   * Put a block somewhere else and keep it there: it becomes a locked block at
+   * the new time, and the rest of the week is solved around it. Refused (with
+   * the reason) when it would land on another locked block.
+   */
+  const moveBlock = useCallback(
+    (blockId: string, day: Day, startMinute: number): string | null => {
+      const block = schedule.blocks.find((b) => b.id === blockId)
+      if (!block) return "That block is no longer in the week"
+      const endMinute = startMinute + (block.endMinute - block.startMinute)
+      const clash = state.locked.find(
+        (b) => b.id !== blockId && b.day === day && b.startMinute < endMinute && startMinute < b.endMinute,
+      )
+      if (clash) return `${clash.name} is locked there`
+      const moved: PlacedBlock = { ...block, day, startMinute, endMinute, locked: true, reason: "Moved here by you" }
+      setStored((s) => ({
+        ...s,
+        locked: [...s.locked.filter((b) => b.id !== blockId), moved],
+        skipped: s.skipped.filter((id) => id !== blockId),
+      }))
+      return null
+    },
+    [schedule.blocks, state.locked],
+  )
+
+  /**
    * "I missed this": everything already done stays put, the missed session is
    * dropped, and only the rest of the week is re-solved.
    */
@@ -240,6 +265,7 @@ export function useRobotMode() {
     removeActivity,
     toggleLock,
     removeBlock,
+    moveBlock,
     markMissed,
     shuffle,
     applyTemplate,
