@@ -189,6 +189,16 @@ export function useRobotMode() {
     setNotBefore(null)
   }, [])
 
+  /**
+   * Everything back to a blank machine: activities, meals, hours, the week and
+   * its edits. Only the export counter survives, so calendars that imported an
+   * earlier week still accept the next export as an update.
+   */
+  const wipe = useCallback(() => {
+    setStored((s) => ({ ...initialState, exportSequence: s.exportSequence }))
+    setNotBefore(null)
+  }, [])
+
   const replaceState = useCallback((next: SavedState) => {
     setStored(next)
     setNotBefore(null)
@@ -221,6 +231,7 @@ export function useRobotMode() {
     templateEdited,
     resetToTemplate,
     freshWeek,
+    wipe,
     replaceState,
     bumpExport,
   }

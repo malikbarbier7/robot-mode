@@ -1,19 +1,50 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import type { Activity, Schedule, Settings } from "@/lib/types"
-import { Screen } from "./Machine"
+import { Command, Legend, Screen, useTerminal } from "./Machine"
 import { ActivitiesTerminal, FreeTimeTerminal, HoursTerminal, MealsTerminal } from "./Terminals"
 
 const STEP_COUNT = 4
 
+/** What the panel's legend lists on each request. */
+const LEGENDS: [string, string][][] = [
+  [
+    ["Enter", "Next field · next parameter"],
+    ["← →", "Field"],
+    ["Space", "Pick"],
+    ["Esc", "Parameter back"],
+    ["Del", "Delete line"],
+  ],
+  [
+    ["Enter", "Next field"],
+    ["← →", "Field"],
+    ["↑ ↓", "Adjust"],
+    ["0–9", "Type"],
+    ["Esc", "Back"],
+  ],
+  [
+    ["Enter", "Next field"],
+    ["← →", "Field"],
+    ["↑ ↓", "Adjust · line"],
+    ["Space", "Switch"],
+    ["Esc", "Back"],
+  ],
+  [
+    ["↑ ↓", "Adjust"],
+    ["0–9", "Type"],
+    ["Enter", "Next · make me a robot"],
+    ["Esc", "Back"],
+  ],
+]
+
 /**
  * The first run, fed to the machine one request at a time: what to do, the
  * operating hours, meals, free time. Every answer lands in the same settings
- * the input console edits, so the week that follows is built from exactly these.
+ * the output side panel edits, so the week that follows is built from these.
  *
- * The questions appear on the screen; the keys that move between them are on
- * the panel around it.
+ * It is driven like a terminal: the commands are on the screen and the
+ * keyboard reaches everything. The mouse still works, but nothing needs it.
  */
 export function Setup({
   settings,
@@ -35,12 +66,21 @@ export function Setup({
   onOpenTemplates: () => void
 }) {
   const [step, setStep] = useState(0)
-  const activities = settings.activities
+  const root = useRef<HTMLDivElement>(null)
   const last = step === STEP_COUNT - 1
-  const canGoOn = step !== 0 || activities.length > 0
+  const canGoOn = step !== 0 || settings.activities.length > 0
+
+  const forward = () => {
+    if (!canGoOn) return
+    if (last) onDone()
+    else setStep(step + 1)
+  }
+  const back = () => setStep(Math.max(step - 1, 0))
+
+  useTerminal(root, { onEnter: forward, onEscape: back, focusKey: step })
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-6 py-6">
+    <div ref={root} className="mx-auto w-full max-w-[1440px] px-6 py-6">
       <Screen
         padding="px-6 py-6 sm:px-14 sm:py-12"
         caption={
@@ -52,7 +92,7 @@ export function Setup({
           </>
         }
       >
-        <div className="min-h-[max(480px,calc(100vh-350px))]">
+        <div className="flex min-h-[max(480px,calc(100vh-350px))] flex-col">
           {step === 0 && (
             <ActivitiesTerminal
               settings={settings}
@@ -60,52 +100,37 @@ export function Setup({
               onAddActivity={onAddActivity}
               onUpdateActivity={onUpdateActivity}
               onRemoveActivity={onRemoveActivity}
+              onEmptyEnter={forward}
             />
           )}
           {step === 1 && <HoursTerminal settings={settings} onPatchSettings={onPatchSettings} />}
           {step === 2 && <MealsTerminal settings={settings} onPatchSettings={onPatchSettings} />}
           {step === 3 && <FreeTimeTerminal settings={settings} onPatchSettings={onPatchSettings} />}
+
+          <div className="mt-auto flex flex-wrap items-center justify-between gap-4 border-t border-ink/30 pt-5">
+            {step === 0 ? (
+              <Command onClick={onOpenTemplates} secondary>
+                Load a template
+              </Command>
+            ) : (
+              <Command keyName="Esc" onClick={back} secondary>
+                ◀ Back
+              </Command>
+            )}
+            {last ? (
+              <Command keyName="Enter" onClick={onDone} primary>
+                Make me a robot ▶
+              </Command>
+            ) : (
+              <Command keyName="Enter" onClick={forward} disabled={!canGoOn}>
+                Continue ▶
+              </Command>
+            )}
+          </div>
         </div>
       </Screen>
 
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="label text-ink/60">
-          {step === 0 && activities.length === 0 ? (
-            <>
-              No input?{" "}
-              <button type="button" onClick={onOpenTemplates} className="text-ink underline underline-offset-4">
-                Load a template
-              </button>
-            </>
-          ) : (
-            `Input ${pad(step + 1)} / ${pad(STEP_COUNT)} · ${step === 0 ? `${pad(activities.length)} recorded` : "accepted"}`
-          )}
-        </div>
-
-        <div className="flex items-center gap-3">
-          {step > 0 && (
-            <button type="button" onClick={() => setStep(step - 1)} className="key px-6 py-3">
-              ◀ Back
-            </button>
-          )}
-          {!last && (
-            <button
-              type="button"
-              onClick={() => setStep(step + 1)}
-              disabled={!canGoOn}
-              className="key key-dark px-8 py-3"
-            >
-              Enter ▶
-            </button>
-          )}
-        </div>
-      </div>
-
-      {last && (
-        <button type="button" onClick={onDone} className="key key-dark mt-8 w-full py-7 text-[18px] tracking-[0.3em]">
-          Make me a robot
-        </button>
-      )}
+      <Legend keys={LEGENDS[step]} />
     </div>
   )
 }
