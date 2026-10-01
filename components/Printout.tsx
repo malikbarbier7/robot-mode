@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState, type RefObject } from "react"
+import { useState } from "react"
 import type { Schedule, Settings } from "@/lib/types"
 import { parseTime } from "@/lib/scheduler/time"
 import { formatClock, formatSpan, weekOrder } from "@/lib/locale"
 import { dayTimeline, isoWeek } from "@/lib/printout"
 import { useDisplay } from "./Display"
-import { Printer } from "./Printer"
+import { Paper } from "./Paper"
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
@@ -37,10 +37,6 @@ export function Printout({
   /** Print it again (the printer's Form feed key). */
   onReplay?: () => void
 }) {
-  const sheet = useRef<HTMLElement>(null)
-  const { shift, finish } = usePaperFeed(sheet, feed, onFed)
-  const printing = shift !== null
-
   // Stamped once, when the sheet comes out of the machine.
   const { clock, weekStart } = useDisplay()
   const [printedAt] = useState(() => new Date())
@@ -51,20 +47,13 @@ export function Printout({
   if (sleep <= wake) sleep += 1440
 
   return (
-    <div className="px-4 py-10 sm:px-6">
-      <Printer printing={printing} onPrint={() => window.print()} onFormFeed={() => onReplay?.()} />
-
-      {/* A click on the paper while it prints finishes it. */}
-      {/* While printing, the paper still inside the printer (above the slot) is hidden. */}
-      <div
-        className={`relative mx-auto max-w-[680px] ${printing ? "overflow-hidden" : ""}`}
-        onPointerDown={() => printing && finish()}
-      >
-      <article
-        ref={sheet}
-        style={printing ? { transform: `translateY(${shift}px)` } : undefined}
-        className="sheet px-12 py-10 font-mono text-[13px] uppercase leading-relaxed sm:px-16"
-      >
+    <Paper
+      width="max-w-[680px]"
+      className="sheet px-12 py-10 font-mono text-[13px] uppercase leading-relaxed sm:px-16"
+      feed={feed}
+      onFed={onFed}
+      onReplay={onReplay}
+    >
         <Rule char="=" />
         <header className="py-3 text-center">
           <div className="font-display text-[20px] font-semibold tracking-[0.3em]">Robot Mode</div>
@@ -150,9 +139,7 @@ export function Printout({
           </div>
           <div>Unit RM-01</div>
         </footer>
-      </article>
-      </div>
-    </div>
+    </Paper>
   )
 }
 
@@ -163,77 +150,4 @@ function Rule({ char, className = "" }: { char: string; className?: string }) {
       {char.repeat(200)}
     </div>
   )
-}
-
-/** One printed line, roughly: the paper advances in steps of this, like a dot-matrix. */
-const LINE_PX = 22
-/** Feed speed, with the whole sheet kept between 2 and 5 seconds. */
-const FEED_PX_PER_SEC = 650
-
-/**
- * Runs the printing animation while `active`, as paper feeding out of the
- * slot: `shift` is how far the sheet sits above its resting place (px, zero or
- * negative), stepping down a line at a time, or null when it isn't printing.
- * The bottom leaves the slot first, so the text reads upright as it descends
- * and the header lands last. The page is left where it is. Any key, or
- * `finish()`, completes it at once; reduced motion skips it entirely.
- */
-function usePaperFeed(
-  sheet: RefObject<HTMLElement | null>,
-  active: boolean,
-  onDone?: () => void,
-): { shift: number | null; finish: () => void } {
-  const [shift, setShift] = useState<number | null>(null)
-  const done = useRef(onDone)
-  const stop = useRef<() => void>(() => {})
-  useEffect(() => {
-    done.current = onDone
-  })
-
-  useEffect(() => {
-    const el = sheet.current
-    if (!active || !el) return
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      done.current?.()
-      return
-    }
-
-    const height = el.offsetHeight
-    const duration = Math.min(Math.max((height / FEED_PX_PER_SEC) * 1000, 2000), 5000)
-    const start = performance.now()
-    let frame = 0
-    let settle = 0
-    let stopped = false
-
-    const finish = () => {
-      if (stopped) return
-      stopped = true
-      cancelAnimationFrame(frame)
-      clearTimeout(settle)
-      window.removeEventListener("keydown", finish)
-      setShift(null)
-      done.current?.()
-    }
-    stop.current = finish
-    window.addEventListener("keydown", finish)
-
-    const tick = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1)
-      const fed = Math.min(Math.ceil((progress * height) / LINE_PX) * LINE_PX, height)
-      setShift(fed - height)
-      if (progress < 1) frame = requestAnimationFrame(tick)
-      else settle = window.setTimeout(finish, 400)
-    }
-    frame = requestAnimationFrame(tick)
-
-    return () => {
-      stopped = true
-      cancelAnimationFrame(frame)
-      clearTimeout(settle)
-      window.removeEventListener("keydown", finish)
-    }
-  }, [active, sheet])
-
-  // Still inside the printer from the moment printing is asked for, so the full sheet never flashes first.
-  return { shift: shift ?? (active ? -100_000 : null), finish: () => stop.current() }
 }

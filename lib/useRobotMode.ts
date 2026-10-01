@@ -7,6 +7,13 @@ import { computeBudget } from "./scheduler/budget"
 import { initialState, load, save, type Display, type SavedState } from "./storage"
 import { detectClock, type Clock, type WeekStart } from "./locale"
 import { matchesTemplate, templateById, type Template } from "./templates"
+import { isoWeek } from "./printout"
+
+/** "2026-W40": the week a DONE answer belongs to. */
+export function weekKey(date = new Date()): string {
+  const { week, year } = isoWeek(date)
+  return `${year}-W${String(week).padStart(2, "0")}`
+}
 
 export type NotBefore = { day: Day; minuteOfDay: number }
 
@@ -169,6 +176,21 @@ export function useRobotMode() {
     [schedule.blocks],
   )
 
+  /** "I did this": remembered for the rest of this week, so it isn't asked about again. */
+  const markDone = useCallback((blockId: string) => {
+    setStored((s) => {
+      const week = weekKey()
+      const ids = s.done?.week === week ? s.done.ids : []
+      return ids.includes(blockId) ? s : { ...s, done: { week, ids: [...ids, blockId] } }
+    })
+  }, [])
+
+  /** This week's DONE answers; an older week's are ignored. */
+  const doneIds = useMemo(
+    () => new Set(hydrated && state.done?.week === weekKey() ? state.done.ids : []),
+    [hydrated, state.done],
+  )
+
   const shuffle = useCallback(() => {
     setStored((s) => ({ ...s, settings: { ...s.settings, seed: s.settings.seed + 1 } }))
   }, [])
@@ -180,7 +202,7 @@ export function useRobotMode() {
 
   /** Flipped by the Generate button. The week view only exists after this. */
   const markGenerated = useCallback(() => {
-    setStored((s) => ({ ...s, generated: true }))
+    setStored((s) => ({ ...s, generated: true, generatedAt: Date.now() }))
   }, [])
 
   /** Back to the list, without throwing the schedule away. */
@@ -230,10 +252,12 @@ export function useRobotMode() {
    * The clock follows the browser until chosen; the week starts on Monday
    * until chosen. Detection waits for hydration so the server markup matches.
    */
-  const display = useMemo<{ clock: Clock; weekStart: WeekStart }>(
+  const display = useMemo<{ clock: Clock; weekStart: WeekStart; sound: boolean }>(
     () => ({
       clock: state.display?.clock ?? (hydrated ? detectClock() : "24h"),
       weekStart: state.display?.weekStart ?? "monday",
+      // On until switched off: the machine is meant to be heard.
+      sound: state.display?.sound ?? true,
     }),
     [state.display, hydrated],
   )
@@ -267,6 +291,8 @@ export function useRobotMode() {
     removeBlock,
     moveBlock,
     markMissed,
+    markDone,
+    doneIds,
     shuffle,
     applyTemplate,
     markGenerated,

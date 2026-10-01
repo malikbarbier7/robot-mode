@@ -234,6 +234,26 @@
   color: var(--color-ink);
 }
 
+/* Thermal paper off the ticket printer: bright, smooth, torn off in a zigzag. */
+@utility ticket {
+  --color-ink: #1b1914;
+  --color-paper: #fbfaf5;
+  position: relative;
+  background-color: #fbfaf5;
+  color: var(--color-ink);
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: -8px;
+    height: 8px;
+    background:
+      linear-gradient(135deg, #fbfaf5 50%, transparent 50%) 0 0 / 12px 8px repeat-x,
+      linear-gradient(225deg, #fbfaf5 50%, transparent 50%) 0 0 / 12px 8px repeat-x;
+  }
+}
+
 @media print {
   .no-print {
     display: none !important;

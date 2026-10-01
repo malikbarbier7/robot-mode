@@ -8,10 +8,14 @@ import { DAY_NAMES, parseTime } from "@/lib/scheduler/time"
 import { formatHours } from "@/lib/duration"
 import { suggestFixes } from "@/lib/suggest"
 import { FUNCTIONS, commandFor, complete, interpret, nextHint, type Screen } from "@/lib/command"
+import type { DayStatus } from "@/lib/today"
+import { beep, chime } from "@/lib/sound"
 import { Command, Legend, reject, useTerminal, type LegendKey } from "./Machine"
 import { ClockReadout } from "./Readout"
 import { ActivitiesTerminal, FreeTimeTerminal, HoursTerminal, MealsTerminal } from "./Terminals"
 import { useDisplay } from "./Display"
+
+type View = "printout" | "grid" | "today"
 
 /** What the terminal shows above its prompt: nothing, a function's screen, or the picked block. */
 export type TerminalScreen = { name: Screen | "block" | "move"; id?: string } | null
@@ -124,6 +128,7 @@ export function Terminal({
   view,
   onView,
   tip,
+  day,
 }: {
   rm: RobotMode
   screen: TerminalScreen
@@ -135,11 +140,13 @@ export function Terminal({
   onSave: () => void
   onLoad: () => void
   onRestart: () => void
-  /** Which way the week is shown above: the printed list or the calendar grid. */
-  view: "printout" | "grid"
-  onView: (view: "printout" | "grid") => void
-  /** A one-time hint, shown under the prompt when there is nothing else to say. */
+  /** Which way the week is shown above: the printed list, the calendar grid or today's ticket. */
+  view: View
+  onView: (view: View) => void
+  /** A hint, shown under the prompt when there is nothing else to say. */
   tip?: string | null
+  /** Where today stands (null until the clock is read), and the ended session waiting for an answer. */
+  day: { status: DayStatus | null; pending: PlacedBlock | null }
 }) {
   const { clock } = useDisplay()
   const settings = rm.state.settings
@@ -159,8 +166,8 @@ export function Terminal({
 
   // What the line would do, worked out as it is typed. Enter takes the completion when the line alone means nothing.
   const completion = complete(text, activities)
-  const typed = text.trim() ? interpret(text, { ...settings, activities }) : null
-  const completed = completion ? interpret(completion, { ...settings, activities }) : null
+  const typed = text.trim() ? interpret(text, { ...settings, activities, sound: rm.display.sound ?? true }) : null
+  const completed = completion ? interpret(completion, { ...settings, activities, sound: rm.display.sound ?? true }) : null
   const action = (!typed || typed.kind === "error") && completed && completed.kind !== "error" ? completed : typed
   const hint = text.trim() && !completion ? nextHint(text, activities) : null
   // The function Enter will run, lit in the function row.
@@ -213,7 +220,7 @@ export function Terminal({
 
   /** Run a function from the row or a menu, as if its word had been typed. */
   const runWord = (word: string) => {
-    const a = interpret(word, { ...settings, activities })
+    const a = interpret(word, { ...settings, activities, sound: rm.display.sound ?? true })
     if (a && a.kind !== "error") perform(a)
   }
 
@@ -259,7 +266,26 @@ export function Terminal({
     say(a.reply)
   }
 
+  /** Y / N to the session that has just ended. */
+  const answer = (did: boolean) => {
+    const block = day.pending
+    if (!block) return
+    const name = block.name.toUpperCase()
+    if (did) {
+      rm.markDone(block.id)
+      chime()
+      say(`${name} DONE ✓`)
+    } else {
+      rm.markMissed(block.id)
+      beep(330, 0.16)
+      say(`${name} MISSED · REST OF THE WEEK REPLANNED`)
+    }
+    load("")
+  }
+  const yesNo = day.pending ? (/^(y|yes|done|oui)$/i.test(text.trim()) ? true : /^(n|no|missed|non)$/i.test(text.trim()) ? false : null) : null
+
   const run = () => {
+    if (yesNo !== null) return answer(yesNo)
     if (!action) return
     if (action.kind === "error") {
       say(action.reply, true)
@@ -267,12 +293,17 @@ export function Terminal({
       return
     }
     perform(action)
+    beep(1320, 0.04)
     load("")
   }
 
   // Under the prompt: the answer to the last command, or else what this one will do.
+  const pendingName = day.pending?.name.toUpperCase()
   const status =
     reply ??
+    (yesNo !== null
+      ? { text: `→ ${yesNo ? `MARK ${pendingName} DONE` : `${pendingName} MISSED · REPLAN THE REST OF THE WEEK`}   [ENTER]`, error: false }
+      : null) ??
     (action && action.kind !== "error"
       ? { text: `→ ${action.preview}   [ENTER]${action.note ? `   · ${action.note}` : ""}`, error: false }
       : hint
@@ -280,17 +311,26 @@ export function Terminal({
         : tip && !text
           ? { text: tip, error: false }
           : null)
+  // An ended session's question waits under an empty prompt, in place of any other hint.
+  const asking = day.pending && !reply && !text
+
+  // NOW / NEXT, as the function row's right-hand readout.
+  const nowLine = day.status && describeStatus(day.status, (m) => formatClock(m, clock))
 
   const placed = (id: string) => schedule.blocks.filter((b) => b.activityId === id).length
 
-  // The other way to see the week, offered like any other function.
-  const otherView = view === "printout" ? "grid" : "printout"
+  // The other ways to see the week, offered like any other function.
+  const views: { word: View; label: string }[] = [
+    { word: "today", label: "◫ Today" },
+    { word: "grid", label: "▦ Grid view" },
+    { word: "printout", label: "≡ Printout view" },
+  ]
   const functionRow: { word: string; label: string; show: boolean; alert?: boolean; flag?: boolean }[] = [
     { word: "add", label: "Add", show: true },
     { word: "edit", label: "Edit", show: true },
     { word: "shuffle", label: "Shuffle", show: true },
     { word: "export", label: "Export", show: activities.length > 0 },
-    { word: otherView, label: otherView === "grid" ? "▦ Grid view" : "≡ Printout view", show: true, flag: !!tip },
+    ...views.filter((v) => v.word !== view).map((v) => ({ ...v, show: true, flag: !!tip && v.word === "today" })),
     { word: "system", label: "System", show: true },
     { word: "help", label: "Help", show: true },
     { word: "clear", label: `Clear edits (${weekEdits})`, show: weekEdits > 0 },
@@ -391,6 +431,14 @@ export function Terminal({
               [{f.label}]
             </button>
           ))}
+        {/* Where the day stands: what is on now, and what comes next. */}
+        {nowLine && (
+          <span className="ml-auto flex items-baseline gap-2 tabular-nums" aria-live="polite">
+            <span className={`inline-block h-2 w-2 self-center ${day.status?.kind === "block" ? "bg-ink" : "border border-ink/50"}`} />
+            <span>{nowLine.now}</span>
+            {nowLine.next && <span className="text-ink/55">→ {nowLine.next}</span>}
+          </span>
+        )}
       </div>
 
       <form
@@ -458,7 +506,20 @@ export function Terminal({
         aria-live="polite"
         className={`min-h-[1.4em] font-crt text-[18px] ${status?.error ? "text-alert [text-shadow:none]" : "text-ink/55"}`}
       >
-        {status && localizeTimes(status.text, clock)}
+        {asking && day.pending ? (
+          // The session that just ended: did it happen? Y / N, typed or clicked.
+          <span className="text-ink">
+            {day.pending.name.toUpperCase()} ENDED {formatClock(day.pending.endMinute, clock)} · DONE?{" "}
+            <button type="button" onClick={() => answer(true)} className="px-1 hover:bg-ink/15">
+              [Y] YES
+            </button>{" "}
+            <button type="button" onClick={() => answer(false)} className="px-1 hover:bg-ink/15">
+              [N] MISSED, REPLAN
+            </button>
+          </span>
+        ) : (
+          status && localizeTimes(status.text, clock)
+        )}
       </div>
     </div>
   )
@@ -631,6 +692,13 @@ function SystemScreen({
       onSelect: () => rm.setDisplay({ weekStart: weekStart === "monday" ? "sunday" : "monday" }),
     },
   ]
+  const sound = rm.display.sound
+  items.push({
+    key: "S",
+    label: `Sound: ${sound ? "On" : "Off"}`,
+    note: `→ switch ${sound ? "off" : "on"}`,
+    onSelect: () => rm.setDisplay({ sound: !sound }),
+  })
   if (template) {
     items.push({
       key: "5",
@@ -904,6 +972,7 @@ const MANUAL_FUNCTIONS: [word: string, what: string][] = [
   ["edit", "Change activities, hours, meals or free time. EDIT GYM · EDIT MEALS."],
   ["shuffle", "Same rules, a different arrangement of the week."],
   ["export", "Download the week as .ics, for any calendar app."],
+  ["today", "Print today's ticket: the day's lines, what is on now, what is done."],
   ["grid", "Show the week as a calendar grid. PRINTOUT shows the list again."],
   ["system", "Save, load, 12H / 24H clock, week start, reset, restart."],
   ["fix", "Shown when a session doesn't fit: suggested fixes, one key each."],
@@ -986,6 +1055,12 @@ function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
         <ManualLine cmd="12H · 24H · MON · SUN">How times read, and which day starts the week.</ManualLine>
       </ManualSection>
 
+      <ManualSection title="During the day">
+        <ManualLine cmd="NOW · NEXT">Top right of the terminal: what is on, and what comes after.</ManualLine>
+        <ManualLine cmd="Y · N">When a session ends, the terminal asks DONE?: Y marks it, N replans the rest of the week.</ManualLine>
+        <ManualLine cmd="SOUND · MUTE">The machine’s clicks, printer and hum. Also SYSTEM [S] and ♪ on the panel.</ManualLine>
+      </ManualSection>
+
       <ManualSection title="Blocks">
         <ManualLine cmd="Click a block">
           On the printout or the grid: [E] edit · [M] move · [L] lock · [X] missed · [R] remove.
@@ -1001,4 +1076,19 @@ function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
       </ManualSection>
     </div>
   )
+}
+
+/** The NOW / NEXT readout for where the day stands. */
+function describeStatus(status: DayStatus, time: (minute: number) => string): { now: string; next?: string } {
+  const next = status.kind !== "done" && status.next ? `${status.next.name.toUpperCase()} ${time(status.next.startMinute)}` : undefined
+  switch (status.kind) {
+    case "block":
+      return { now: `NOW ${status.block.name.toUpperCase()} · ${formatSpan(status.left)} LEFT`, next }
+    case "free":
+      return { now: `FREE UNTIL ${time(status.until)}`, next }
+    case "asleep":
+      return { now: "BEFORE WAKE", next }
+    case "done":
+      return { now: "DAY OVER · SLEEP" }
+  }
 }

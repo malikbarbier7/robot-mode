@@ -1,22 +1,31 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Boot } from "@/components/Boot"
 import { Terminal, type TerminalScreen } from "@/components/Terminal"
 import { Generating } from "@/components/Generating"
-import { PanelSwitch } from "@/components/Machine"
+import { Lamp, PanelSwitch } from "@/components/Machine"
 import { Menu, MenuItem } from "@/components/Menu"
 import { DisplayProvider } from "@/components/Display"
 import { Printout } from "@/components/Printout"
 import { Setup } from "@/components/Setup"
 import { Templates } from "@/components/Templates"
 import { WeekGrid } from "@/components/WeekGrid"
+import { Ticket } from "@/components/Ticket"
 import { Button } from "@/components/ui"
 import { downloadIcs, downloadText } from "@/lib/ics"
 import { fromJson, toJson } from "@/lib/storage"
 import { useRobotMode } from "@/lib/useRobotMode"
+import { useNow } from "@/lib/useNow"
+import { useMachineSound } from "@/lib/useMachineSound"
+import { beep, chime } from "@/lib/sound"
+import { parseTime } from "@/lib/scheduler/time"
+import { dayStatus, momentOf, pendingCheck } from "@/lib/today"
 
-type View = "boot" | "setup" | "print" | "week" | "templates" | "generating"
+type View = "boot" | "setup" | "print" | "week" | "today" | "templates" | "generating"
+/** The three ways the week comes out of the machine, as the terminal names them. */
+type Output = "printout" | "grid" | "today"
+const OUTPUT_VIEW: Record<Output, View> = { printout: "print", grid: "week", today: "today" }
 
 export default function Page() {
   const rm = useRobotMode()
@@ -30,12 +39,13 @@ export default function Page() {
   const fileInput = useRef<HTMLInputElement>(null)
   // Set when a week has just been generated: the printout is printed in front of you once.
   const [feed, setFeed] = useState(false)
-  // Set when a week has just been generated: the grid is pointed out until it is looked at.
-  const [gridTip, setGridTip] = useState(false)
+  // Set when a week has just been generated: today's ticket is pointed out until another view is opened.
+  const [todayTip, setTodayTip] = useState(false)
 
   const empty = rm.state.settings.activities.length === 0
   const generated = rm.state.generated === true
-  const home: View = generated ? "print" : "boot"
+  // Once a week exists, it opens on the grid: the whole week at a glance.
+  const home: View = generated ? "week" : "boot"
   // Once the first run has started it stays on its path, whatever it saves.
   if (chosenView === null && rm.hydrated && home === "boot") setView("boot")
   const view: View = chosenView ?? home
@@ -45,14 +55,45 @@ export default function Page() {
   const selected = rm.schedule.blocks.find((b) => b.id === selectedId) ?? null
   const weekEdits = rm.state.locked.length + rm.state.skipped.length + (rm.notBefore ? 1 : 0)
 
-  const showView = (next: "printout" | "grid") => {
-    setFeed(false)
-    setGridTip(false)
-    setView(next === "grid" ? "week" : "print")
+  // Each view is printed by its own unit, so switching prints it in front of you.
+  const showView = (next: Output) => {
+    setTodayTip(false)
+    if (OUTPUT_VIEW[next] === view) return
+    setFeed(true)
+    setView(OUTPUT_VIEW[next])
   }
+  const output: Output = view === "week" ? "grid" : view === "today" ? "today" : "printout"
+
+  useMachineSound(rm.display.sound)
+
+  // Where today stands, read off the clock: what is on, and the session waiting for a DONE?
+  const now = useNow()
+  const settings = rm.state.settings
+  const wake = parseTime(settings.wakeTime)
+  const sleepRaw = parseTime(settings.sleepTime)
+  const sleep = sleepRaw <= wake ? sleepRaw + 1440 : sleepRaw
+  const moment = now ? momentOf(now) : null
+  const status = moment ? dayStatus(rm.schedule.blocks, wake, sleep, moment) : null
+  const pending = moment
+    ? pendingCheck(
+        rm.schedule.blocks,
+        moment,
+        new Set(settings.activities.map((a) => a.id)),
+        new Set([...rm.doneIds, ...rm.state.skipped]),
+        generatedTodayAt(rm.state.generatedAt, now),
+      )
+    : null
+  const session = status?.kind === "block" ? status.block.id : null
+
+  // A session starting is announced, the way a machine marks a new job; not the one already on at load.
+  const lastSession = useRef<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (lastSession.current !== undefined && session && session !== lastSession.current) chime()
+    lastSession.current = session
+  }, [session])
 
   // Shown once the sheet is out of the printer.
-  const tipVisible = gridTip && showWeekChrome && view === "print" && !feed
+  const tipVisible = todayTip && showWeekChrome && view === "week" && !feed
 
   // Picking a block on the printout or grid opens it on the terminal.
   const select = (id: string | null) => {
@@ -94,36 +135,57 @@ export default function Page() {
       return
     }
     rm.replaceState(parsed)
-    setView(parsed.generated ? "print" : "boot")
+    setView(parsed.generated ? "week" : "boot")
   }
 
   return (
     <DisplayProvider value={rm.display}>
       <div className="flex h-screen flex-col overflow-hidden">
-        <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b-2 border-ink px-6 py-3 no-print">
-          <div className="flex flex-wrap items-center gap-x-8 gap-y-2">
-            <button type="button" onClick={() => setView(home)} className="flex items-baseline gap-4 text-left">
+        {/* The machine's own panel: its nameplate, its lamps and its keys. */}
+        <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b-2 border-ink bg-[#cdc5b1] px-6 py-2.5 shadow-[inset_0_1px_0_rgb(255_255_255/0.4)] no-print">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <button
+              type="button"
+              onClick={() => setView(home)}
+              className="relative flex items-baseline gap-4 border-2 border-ink bg-paper px-4 py-1.5 text-left"
+            >
+              {/* The plate's screws. */}
+              {["left-1 top-1", "right-1 top-1", "left-1 bottom-1", "right-1 bottom-1"].map((at) => (
+                <span key={at} aria-hidden className={`absolute h-1 w-1 rounded-full bg-ink/50 ${at}`} />
+              ))}
               {/*
                * Soviet-poster nameplate: a Cyrillic lookalike stands in for the B,
                * the way Soviet-imitation lettering does. Read aloud as the real name.
                */}
-              <h1 className="font-logo text-[24px] uppercase leading-none tracking-[0.18em]">
+              <h1 className="font-logo text-[22px] uppercase leading-none tracking-[0.18em]">
                 <span aria-hidden>ROБOT MODE</span>
                 <span className="sr-only">Robot Mode</span>
               </h1>
               <span className="label text-ink/50">RM-01</span>
             </button>
 
+            {/* The lamps: on, a session running, a session waiting for its DONE?. */}
+            <div className="label flex items-center gap-4 text-ink/70">
+              <span className="flex items-center gap-1.5">
+                <Lamp /> Power
+              </span>
+              {showWeekChrome && (
+                <>
+                  <span className={`flex items-center gap-1.5 ${session ? "" : "text-ink/40"}`} title="A session is running">
+                    <Lamp on={!!session} /> Session
+                  </span>
+                  <span className={`flex items-center gap-1.5 ${pending ? "" : "text-ink/40"}`} title="A session has ended: did it happen?">
+                    <Lamp on={!!pending} blink={!!pending} /> Check
+                  </span>
+                </>
+              )}
+            </div>
+
             {showWeekChrome && (
-              // The two ways to see the week, as two keys: the one showing stays pressed.
+              // The three ways to see the week, as keys: the one showing stays pressed.
               <div role="group" aria-label="View" className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  aria-pressed={view === "print"}
-                  onClick={() => showView("printout")}
-                  className="key px-3 py-1.5"
-                >
-                  ≡ Printout
+                <button type="button" aria-pressed={view === "print"} onClick={() => showView("printout")} className="key px-3 py-1.5">
+                  ≡ Week
                 </button>
                 <button
                   type="button"
@@ -132,6 +194,14 @@ export default function Page() {
                   className="key flex items-center gap-2 px-3 py-1.5"
                 >
                   ▦ Grid
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={view === "today"}
+                  onClick={() => showView("today")}
+                  className="key flex items-center gap-2 px-3 py-1.5"
+                >
+                  ◫ Today
                   {tipVisible && <span aria-hidden className="blink inline-block h-1.5 w-1.5 bg-phosphor" style={{ animationIterationCount: 6 }} />}
                 </button>
               </div>
@@ -159,6 +229,15 @@ export default function Page() {
               </>
             )}
 
+            <button
+              type="button"
+              aria-pressed={rm.display.sound}
+              onClick={() => rm.setDisplay({ sound: !rm.display.sound })}
+              title={rm.display.sound ? "Switch the sound off" : "Switch the sound on"}
+              className="key px-2.5 py-1"
+            >
+              {rm.display.sound ? "♪ Sound" : "♪ Off"}
+            </button>
             <Menu>
               {/* How times and weeks read. Stored in 24h from Monday regardless. */}
               <div className="flex gap-2">
@@ -236,9 +315,10 @@ export default function Page() {
                 schedule={rm.schedule}
                 onDone={() => {
                   rm.markGenerated()
-                  setGridTip(true)
+                  chime()
+                  setTodayTip(true)
                   setFeed(true)
-                  setView("print")
+                  setView("week")
                 }}
               />
             ) : view === "setup" ? (
@@ -270,9 +350,31 @@ export default function Page() {
                 schedule={rm.schedule}
                 selectedId={selectedId}
                 onSelect={select}
+                feed={feed}
+                onFed={() => setFeed(false)}
+                onReplay={() => setFeed(true)}
               />
+            ) : view === "today" && generated ? (
+              now && (
+                <Ticket
+                  settings={rm.state.settings}
+                  schedule={rm.schedule}
+                  now={now}
+                  doneIds={rm.doneIds}
+                  selectedId={selectedId}
+                  onSelect={select}
+                  feed={feed}
+                  onFed={() => setFeed(false)}
+                  onReplay={() => setFeed(true)}
+                />
+              )
             ) : (
-              <Boot onStart={() => setView("setup")} />
+              <Boot
+                onStart={() => {
+                  beep()
+                  setView("setup")
+                }}
+              />
             )}
           </main>
         </div>
@@ -288,9 +390,10 @@ export default function Page() {
             onSave={saveJson}
             onLoad={() => fileInput.current?.click()}
             onRestart={restart}
-            view={view === "week" ? "grid" : "printout"}
+            view={output}
             onView={showView}
-            tip={tipVisible ? "TIP: THE WEEK ALSO COMES AS A CALENDAR · TYPE G + ENTER, OR PRESS ▦ GRID" : null}
+            day={{ status, pending }}
+            tip={tipVisible ? "TIP: TODAY'S TICKET SHOWS WHAT'S ON NOW · TYPE T + ENTER, OR PRESS ◫ TODAY" : null}
           />
         )}
 
@@ -303,6 +406,12 @@ export default function Page() {
 }
 
 function onOutput(view: View): boolean {
-  return view === "print" || view === "week"
+  return view === "print" || view === "week" || view === "today"
 }
 
+/** The minute of today the week was generated at, or -1 when it was generated on an earlier day. */
+function generatedTodayAt(generatedAt: number | undefined, now: Date | null): number {
+  if (!generatedAt || !now) return -1
+  const at = new Date(generatedAt)
+  return at.toDateString() === now.toDateString() ? at.getHours() * 60 + at.getMinutes() : -1
+}
