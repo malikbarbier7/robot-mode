@@ -134,6 +134,8 @@ describe("interpret", () => {
     expect(interpret("system", ctx)).toMatchObject({ kind: "open", screen: "system" })
     expect(interpret("restart", ctx)).toMatchObject({ kind: "open", screen: "restart" })
     expect(interpret("clear", ctx)?.kind).toBe("clear")
+    expect(interpret("help", ctx)).toMatchObject({ kind: "open", screen: "help" })
+    expect(complete("h", [gym])).toBe("help")
     expect(interpret("grid", ctx)).toMatchObject({ kind: "view", view: "grid" })
     expect(interpret("printout", ctx)).toMatchObject({ kind: "view", view: "printout" })
   })

@@ -55,7 +55,6 @@ export function ActivitiesTerminal({
             // Remounts when it becomes the one to unfold, so it opens even if it was already listed.
             key={`${activity.id}${activity.id === openId ? "-open" : ""}`}
             activity={activity}
-            variant="terminal"
             defaultOpen={activity.id === openId}
             placed={schedule.blocks.filter((b) => b.activityId === activity.id).length}
             onChange={(patch) => onUpdateActivity(activity.id, patch)}

@@ -26,6 +26,7 @@ export function Readout({
   disabled = false,
   invalid = false,
   horizontal = false,
+  keysOnly = false,
 }: {
   label: string
   /** Null shows dashes: nothing entered yet. */
@@ -45,6 +46,11 @@ export function Readout({
    * screen to move between fields.
    */
   horizontal?: boolean
+  /**
+   * Set only with digits and + −: the arrows are left to the screen, for a
+   * readout sitting among lines of choices that ↑ ↓ walk through.
+   */
+  keysOnly?: boolean
 }) {
   const [draft, setDraft] = useState<string | null>(null)
   const field = useRef<HTMLInputElement>(null)
@@ -91,8 +97,8 @@ export function Readout({
       disabled={disabled}
       value={draft !== null ? draft.padEnd(width, "_") : value === null ? "-".repeat(width) : String(value).padStart(width, "0")}
       onKeyDown={(e) => {
-        const up = horizontal ? "ArrowRight" : "ArrowUp"
-        const down = horizontal ? "ArrowLeft" : "ArrowDown"
+        const up = keysOnly ? null : horizontal ? "ArrowRight" : "ArrowUp"
+        const down = keysOnly ? null : horizontal ? "ArrowLeft" : "ArrowDown"
         if (e.key === up || e.key === "+") {
           e.preventDefault()
           nudge(step)
@@ -150,6 +156,7 @@ export function ClockReadout({
   arrows = false,
   disabled = false,
   periodClassName = "",
+  keysOnly = false,
 }: {
   label: string
   value: string | null
@@ -160,6 +167,8 @@ export function ClockReadout({
   arrows?: boolean
   disabled?: boolean
   periodClassName?: string
+  /** Leave ↑ ↓ to the screen: set with digits, + − (and A / P / Space for the half of the day). */
+  keysOnly?: boolean
 }) {
   const { clock } = useDisplay()
   const [h24, m] = value ? value.split(":").map(Number) : [null, null]
@@ -176,6 +185,7 @@ export function ClockReadout({
       step={minuteStep}
       wrap
       arrows={arrows}
+      keysOnly={keysOnly}
       disabled={disabled}
       onChange={(v) => set(h24 ?? from12(12, period), v)}
     />
@@ -184,7 +194,7 @@ export function ClockReadout({
   if (clock === "24h") {
     return (
       <>
-        <Readout label={`${label} hours`} value={h24} max={23} wrap arrows={arrows} disabled={disabled} onChange={(v) => set(v, m ?? 0)} />
+        <Readout label={`${label} hours`} value={h24} max={23} wrap arrows={arrows} keysOnly={keysOnly} disabled={disabled} onChange={(v) => set(v, m ?? 0)} />
         <span className="px-[0.1em] opacity-50">:</span>
         {minutes}
       </>
@@ -204,6 +214,7 @@ export function ClockReadout({
         max={12}
         wrap
         arrows={arrows}
+        keysOnly={keysOnly}
         disabled={disabled}
         onChange={(v) => set(from12(v, period), m ?? 0)}
       />
@@ -214,6 +225,7 @@ export function ClockReadout({
         period={period}
         unset={h24 === null}
         disabled={disabled}
+        keysOnly={keysOnly}
         onChange={setPeriod}
         className={periodClassName}
       />
@@ -230,6 +242,7 @@ function PeriodField({
   period,
   unset,
   disabled,
+  keysOnly = false,
   onChange,
   className,
 }: {
@@ -237,6 +250,7 @@ function PeriodField({
   period: Period
   unset: boolean
   disabled: boolean
+  keysOnly?: boolean
   onChange: (p: Period) => void
   className: string
 }) {
@@ -250,7 +264,7 @@ function PeriodField({
       disabled={disabled}
       onClick={flip}
       onKeyDown={(e) => {
-        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        if (!keysOnly && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
           e.preventDefault()
           flip()
         } else if (e.key === "a" || e.key === "A" || e.key === "p" || e.key === "P") {
