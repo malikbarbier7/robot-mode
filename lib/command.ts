@@ -17,9 +17,9 @@ export type CommandAction = { preview: string; reply: string; note?: string } & 
   | { kind: "open"; screen: Screen; id?: string }
   | { kind: "clear" | "save" | "load" }
   /** Show the week as the printed list or as the calendar grid. */
-  | { kind: "view"; view: "printout" | "grid" }
+  | { kind: "view"; view: "printout" | "grid" | "today" }
   | { kind: "settings"; patch: { wakeTime?: string; sleepTime?: string; minFreeMinutesPerDay?: number } }
-  | { kind: "display"; patch: { clock?: Clock; weekStart?: WeekStart } }
+  | { kind: "display"; patch: { clock?: Clock; weekStart?: WeekStart; sound?: boolean } }
   | { kind: "shuffle" | "export" }
 )
 
@@ -34,6 +34,8 @@ export type CommandContext = {
   wakeTime?: string
   sleepTime?: string
   minFreeMinutesPerDay?: number
+  /** Whether the machine's sounds are on, so "sound" alone can flip them. */
+  sound?: boolean
 }
 
 const MAX_SESSIONS = 28
@@ -43,7 +45,7 @@ const MAX_SESSIONS = 28
  * EDIT before EXPORT. They come before activity names, so one letter and
  * Enter is enough to open a function.
  */
-export const FUNCTIONS = ["add", "edit", "shuffle", "export", "grid", "printout", "system", "fix", "clear", "restart", "save", "load", "help"]
+export const FUNCTIONS = ["add", "edit", "today", "shuffle", "export", "grid", "printout", "system", "fix", "clear", "restart", "save", "load", "help"]
 /** Other command words, offered after activity names. */
 const VERBS = ["wake", "sleep", "free", "remove", "meals", "hours"]
 /** What EDIT can open besides an activity. */
@@ -111,6 +113,15 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
     case "grid":
     case "calendar":
       return { kind: "view", view: "grid", preview: "SHOW THE WEEK AS A GRID", reply: "GRID VIEW" }
+    case "today":
+    case "ticket":
+      return { kind: "view", view: "today", preview: "PRINT TODAY'S TICKET", reply: "TODAY" }
+    case "sound":
+    case "mute":
+    case "unmute": {
+      const on = verb === "mute" ? false : verb === "unmute" ? true : arg === "on" ? true : arg === "off" ? false : !(ctx.sound ?? true)
+      return { kind: "display", patch: { sound: on }, preview: on ? "SOUND ON" : "SOUND OFF", reply: on ? "SOUND ON" : "SOUND OFF" }
+    }
     case "printout":
     case "list":
       return { kind: "view", view: "printout", preview: "SHOW THE WEEK AS THE PRINTOUT", reply: "PRINTOUT VIEW" }

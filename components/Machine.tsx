@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, type ReactNode, type RefObject } from "react"
+import { buzz } from "@/lib/sound"
 
 /** An indicator lamp. Lit is phosphor with a halo; unlit is a dark bead. */
 export function Lamp({ on = true, blink = false }: { on?: boolean; blink?: boolean }) {
@@ -144,6 +145,7 @@ function atEdge(input: HTMLInputElement, key: string): boolean {
 
 /** The field says no: a brief flash, and the selection stays where it is. */
 export function reject(el: HTMLElement) {
+  buzz()
   el.classList.remove("reject")
   void el.offsetWidth // restart the animation if it is already running
   el.classList.add("reject")
