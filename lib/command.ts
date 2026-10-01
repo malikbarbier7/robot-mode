@@ -20,13 +20,13 @@ export type CommandAction = { preview: string; reply: string; note?: string } & 
   | { kind: "view"; view: "printout" | "grid" }
   | { kind: "settings"; patch: { wakeTime?: string; sleepTime?: string; minFreeMinutesPerDay?: number } }
   | { kind: "display"; patch: { clock?: Clock; weekStart?: WeekStart } }
-  | { kind: "shuffle" | "export" | "help" }
+  | { kind: "shuffle" | "export" }
 )
 
 export type CommandError = { kind: "error"; reply: string }
 
 /** The terminal's screens, each opened by a function. */
-export type Screen = "add" | "edit" | "activities" | "hours" | "meals" | "free" | "system" | "fix" | "restart"
+export type Screen = "add" | "edit" | "activities" | "hours" | "meals" | "free" | "system" | "fix" | "restart" | "help"
 
 /** What the command line needs to know to read a line against. */
 export type CommandContext = {
@@ -35,9 +35,6 @@ export type CommandContext = {
   sleepTime?: string
   minFreeMinutesPerDay?: number
 }
-
-export const HELP =
-  "SURF 1H10 4× MTSaSu MORNING ALWAYS AT 06:00 · GYM 3× · REMOVE GYM · WAKE 7:00 · SLEEP 23:30 · FREE 2H · ADD · EDIT · SHUFFLE · EXPORT · GRID · SYSTEM · FIX · CLEAR · 12H / 24H"
 
 const MAX_SESSIONS = 28
 
@@ -73,6 +70,7 @@ const SCREEN_NAMES: Record<Screen, string> = {
   system: "SYSTEM",
   fix: "FIX CONFLICTS",
   restart: "RESTART",
+  help: "HELP",
 }
 
 function open(screen: Screen, id?: string, label = SCREEN_NAMES[screen]): CommandAction {
@@ -124,7 +122,8 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
       return { kind: "load", preview: "OPEN A SAVED SETUP", reply: "LOADING" }
     case "help":
     case "?":
-      return { kind: "help", preview: "SHOW WHAT I UNDERSTAND", reply: HELP }
+    case "man":
+      return open("help")
     case "shuffle":
       return { kind: "shuffle", preview: "SHUFFLE THE WEEK", reply: "SHUFFLED" }
     case "export":

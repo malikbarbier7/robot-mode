@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { Boot } from "@/components/Boot"
 import { Terminal, type TerminalScreen } from "@/components/Terminal"
 import { Generating } from "@/components/Generating"
@@ -30,8 +30,8 @@ export default function Page() {
   const fileInput = useRef<HTMLInputElement>(null)
   // Set when a week has just been generated: the printout is printed in front of you once.
   const [feed, setFeed] = useState(false)
-  // Until the grid has been pointed out once, the terminal points it out after the printout.
-  const [gridTip, setGridTip] = useState(() => !tipSeen())
+  // Set when a week has just been generated: the grid is pointed out until it is looked at.
+  const [gridTip, setGridTip] = useState(false)
 
   const empty = rm.state.settings.activities.length === 0
   const generated = rm.state.generated === true
@@ -51,11 +51,8 @@ export default function Page() {
     setView(next === "grid" ? "week" : "print")
   }
 
-  // Shown once the sheet is out, and only ever once: seen is remembered as soon as it appears.
+  // Shown once the sheet is out of the printer.
   const tipVisible = gridTip && showWeekChrome && view === "print" && !feed
-  useEffect(() => {
-    if (tipVisible) markTipSeen()
-  }, [tipVisible])
 
   // Picking a block on the printout or grid opens it on the terminal.
   const select = (id: string | null) => {
@@ -239,6 +236,7 @@ export default function Page() {
                 schedule={rm.schedule}
                 onDone={() => {
                   rm.markGenerated()
+                  setGridTip(true)
                   setFeed(true)
                   setView("print")
                 }}
@@ -308,21 +306,3 @@ function onOutput(view: View): boolean {
   return view === "print" || view === "week"
 }
 
-const TIP_KEY = "robot-mode:grid-tip-seen"
-
-function tipSeen(): boolean {
-  if (typeof window === "undefined") return true
-  try {
-    return window.localStorage.getItem(TIP_KEY) === "1"
-  } catch {
-    return true
-  }
-}
-
-function markTipSeen() {
-  try {
-    window.localStorage.setItem(TIP_KEY, "1")
-  } catch {
-    // Private mode: the tip may show again next time, which is harmless.
-  }
-}

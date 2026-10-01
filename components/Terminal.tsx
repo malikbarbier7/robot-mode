@@ -37,6 +37,7 @@ const PATHS: Record<Screen | "block" | "move", string> = {
   restart: "System › Restart",
   block: "Block",
   move: "Block › Move",
+  help: "Help",
 }
 
 const LEGENDS: Record<Screen | "block" | "move", LegendKey[]> = {
@@ -93,6 +94,11 @@ const LEGENDS: Record<Screen | "block" | "move", LegendKey[]> = {
     ["↑ ↓", "Adjust", true],
     ["Enter", "Move"],
     ["Esc", "Back"],
+  ],
+  help: [
+    ["Enter", "Run function", true],
+    ["↑ ↓", "Move"],
+    ["Esc", "Close"],
   ],
 }
 
@@ -286,6 +292,7 @@ export function Terminal({
     { word: "export", label: "Export", show: activities.length > 0 },
     { word: otherView, label: otherView === "grid" ? "▦ Grid view" : "≡ Printout view", show: true, flag: !!tip },
     { word: "system", label: "System", show: true },
+    { word: "help", label: "Help", show: true },
     { word: "clear", label: `Clear edits (${weekEdits})`, show: weekEdits > 0 },
     { word: "fix", label: conflicts === 1 ? "Fix 1 conflict" : `Fix ${conflicts} conflicts`, show: conflicts > 0, alert: true },
   ]
@@ -408,7 +415,7 @@ export function Terminal({
             spellCheck={false}
             autoComplete="off"
             aria-label="Command"
-            placeholder="Type a function or a change · e.g. surf 1h10 4x weekends morning · edit"
+            placeholder="Type a function"
             onChange={(e) => {
               setText(e.target.value)
               setPickedId(null)
@@ -542,6 +549,8 @@ function ScreenBody({
       return <FixScreen rm={rm} onClose={onClose} onSay={onSay} />
     case "block":
       return selected && <BlockScreen block={selected} rm={rm} onScreen={onScreen} onClose={onClose} onSay={onSay} />
+    case "help":
+      return <HelpScreen onRunWord={onRunWord} />
     case "move":
       return selected && <MoveScreen block={selected} rm={rm} onScreen={onScreen} onSay={onSay} />
   }
@@ -885,6 +894,111 @@ function MoveScreen({
           Move ▶
         </Command>
       </div>
+    </div>
+  )
+}
+
+/** The functions as the manual lists them; each one runs from here. */
+const MANUAL_FUNCTIONS: [word: string, what: string][] = [
+  ["add", "Add an activity. ADD SURF starts from 1H 1×; or type the whole line."],
+  ["edit", "Change activities, hours, meals or free time. EDIT GYM · EDIT MEALS."],
+  ["shuffle", "Same rules, a different arrangement of the week."],
+  ["export", "Download the week as .ics, for any calendar app."],
+  ["grid", "Show the week as a calendar grid. PRINTOUT shows the list again."],
+  ["system", "Save, load, 12H / 24H clock, week start, reset, restart."],
+  ["fix", "Shown when a session doesn't fit: suggested fixes, one key each."],
+  ["clear", "Shown after moving or locking blocks: undo those edits."],
+]
+
+/** One section of the manual: a heading, then aligned lines. */
+function ManualSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="mt-6">
+      <h3 className="border-b border-ink/30 pb-0.5 text-[22px] tracking-[0.2em] text-ink/60">{title}</h3>
+      <div className="mt-2">{children}</div>
+    </section>
+  )
+}
+
+const MANUAL_ROW = "flex flex-wrap items-baseline gap-x-6 px-1 text-[24px] leading-snug"
+const MANUAL_CMD = "w-[22rem] shrink-0"
+
+/**
+ * A line of the manual: what to type, then what it does. Selectable like any
+ * terminal line, so ↑ ↓ read down the whole page. Day letters keep their case.
+ */
+function ManualLine({ cmd, children }: { cmd: ReactNode; children: ReactNode }) {
+  return (
+    <div data-nav tabIndex={-1} className={MANUAL_ROW}>
+      <span className={MANUAL_CMD}>{cmd}</span>
+      <span className="min-w-0 flex-1 opacity-60">{children}</span>
+    </div>
+  )
+}
+
+/**
+ * The manual page, as a terminal would print one: every function, the
+ * shape of an activity line, and the keys. Functions are selectable and run.
+ */
+function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
+  const days = <span className="normal-case">MTSaSu</span>
+  return (
+    <div className="font-crt uppercase">
+      <div className="flex flex-wrap items-baseline gap-x-6">
+        <h2 className="text-[48px] leading-none tracking-[0.04em]">Help</h2>
+        <span className="text-[22px] tracking-[0.2em] text-ink/60">RM-01 · Command reference</span>
+      </div>
+      <p className="mt-2 text-[22px] tracking-[0.08em] text-ink/60">
+        Type a function and press Enter. The first letters are enough: the rest is completed for you.
+      </p>
+
+      <ManualSection title="Functions">
+        {MANUAL_FUNCTIONS.map(([word, what]) => (
+          <button key={word} type="button" data-nav onClick={() => onRunWord(word)} className={`${MANUAL_ROW} w-full text-left uppercase hover:bg-ink/15`}>
+            <span className={MANUAL_CMD}>[{word}]</span>
+            <span className="min-w-0 flex-1 opacity-60">{what}</span>
+          </button>
+        ))}
+      </ManualSection>
+
+      <ManualSection title="Activities">
+        <ManualLine cmd="SURF 1H10 4×">Add it, or change it if it is already on your list.</ManualLine>
+        <ManualLine cmd={<>SURF 1H10 4× {days} MORNING</>}>With days and a time of day.</ManualLine>
+        <ManualLine cmd="SURF ALWAYS AT 06:00">Always at the same time.</ManualLine>
+        <ManualLine cmd="GYM 3× · GYM 1H30">Change one thing; the rest stays.</ManualLine>
+        <ManualLine cmd="REMOVE GYM">Take it off the list.</ManualLine>
+      </ManualSection>
+
+      <ManualSection title="What goes in a line">
+        <ManualLine cmd="Length">1H · 45M · 1H30 · 90 MIN</ManualLine>
+        <ManualLine cmd="Times a week">4× · 4X · 3 TIMES · TWICE · DAILY</ManualLine>
+        <ManualLine cmd="Days">
+          <span className="normal-case">M T W T F Sa Su</span>, in week order: {days} = Mon Tue Sat Sun ·{" "}
+          <span className="normal-case">TT</span> = Tue Thu · WEEKDAYS · WEEKENDS
+        </ManualLine>
+        <ManualLine cmd="Time of day">MORNING 06–12 · AFTERNOON 12–18 · EVENING 18–23</ManualLine>
+        <ManualLine cmd="Fixed time">ALWAYS AT 07:00</ManualLine>
+      </ManualSection>
+
+      <ManualSection title="Your day">
+        <ManualLine cmd="WAKE 7:00 · SLEEP 23:30">When the day starts and ends.</ManualLine>
+        <ManualLine cmd="FREE 2H">Time kept free every day.</ManualLine>
+        <ManualLine cmd="12H · 24H · MON · SUN">How times read, and which day starts the week.</ManualLine>
+      </ManualSection>
+
+      <ManualSection title="Blocks">
+        <ManualLine cmd="Click a block">
+          On the printout or the grid: [E] edit · [M] move · [L] lock · [X] missed · [R] remove.
+        </ManualLine>
+      </ManualSection>
+
+      <ManualSection title="Keys">
+        <ManualLine cmd="Enter">Run the line, or the dimmed completion.</ManualLine>
+        <ManualLine cmd="Tab · →">Take the completion without running it.</ManualLine>
+        <ManualLine cmd="↑ ↓">On the prompt: step through your activities, ready to change.</ManualLine>
+        <ManualLine cmd="/">Back to the prompt from anywhere.</ManualLine>
+        <ManualLine cmd="Esc">Back one screen, or clear the line.</ManualLine>
+      </ManualSection>
     </div>
   )
 }
