@@ -7,9 +7,8 @@ import { formatClock, formatSpan, localizeTimes, weekOrder } from "@/lib/locale"
 import { DAY_NAMES, parseTime } from "@/lib/scheduler/time"
 import { formatHours } from "@/lib/duration"
 import { suggestFixes } from "@/lib/suggest"
-import { FUNCTIONS, commandFor, complete, interpret, nextHint, type Screen } from "@/lib/command"
-import type { DayStatus } from "@/lib/today"
-import { beep, chime } from "@/lib/sound"
+import { FUNCTIONS, commandFor, complete, describeExtra, interpret, nextHint, type CommandAction, type Screen } from "@/lib/command"
+import { beep, buzz } from "@/lib/sound"
 import { Command, Legend, reject, useTerminal, type LegendKey } from "./Machine"
 import { ClockReadout } from "./Readout"
 import { ActivitiesTerminal, FreeTimeTerminal, HoursTerminal, MealsTerminal } from "./Terminals"
@@ -90,8 +89,8 @@ const LEGENDS: Record<Screen | "block" | "move", LegendKey[]> = {
     ["Esc", "Back"],
   ],
   block: [
-    ["M", "Move", true],
-    ["L", "Lock"],
+    ["S", "This session", true],
+    ["M", "Move"],
     ["Esc", "Close"],
   ],
   move: [
@@ -128,7 +127,6 @@ export function Terminal({
   view,
   onView,
   tip,
-  day,
 }: {
   rm: RobotMode
   screen: TerminalScreen
@@ -145,8 +143,6 @@ export function Terminal({
   onView: (view: View) => void
   /** A hint, shown under the prompt when there is nothing else to say. */
   tip?: string | null
-  /** Where today stands (null until the clock is read), and the ended session waiting for an answer. */
-  day: { status: DayStatus | null; pending: PlacedBlock | null }
 }) {
   const { clock } = useDisplay()
   const settings = rm.state.settings
@@ -158,6 +154,8 @@ export function Terminal({
   const [reply, setReply] = useState<{ text: string; error: boolean } | null>(null)
   // The activity loaded onto the line with ↑ ↓, by id so it survives the list changing.
   const [pickedId, setPickedId] = useState<string | null>(null)
+  // A question waiting on which session a line meant: the options, by number.
+  const [choice, setChoice] = useState<{ label: string; action: CommandAction }[] | null>(null)
 
   // A BLOCK screen with no block left to show has nothing to say.
   const current = (screen?.name === "block" || screen?.name === "move") && !selected ? null : screen
@@ -166,8 +164,15 @@ export function Terminal({
 
   // What the line would do, worked out as it is typed. Enter takes the completion when the line alone means nothing.
   const completion = complete(text, activities)
-  const typed = text.trim() ? interpret(text, { ...settings, activities, sound: rm.display.sound ?? true }) : null
-  const completed = completion ? interpret(completion, { ...settings, activities, sound: rm.display.sound ?? true }) : null
+  // What the parser reads a line against, including the placed sessions EDIT picks from.
+  const ctx = {
+    ...settings,
+    activities,
+    sound: rm.display.sound ?? true,
+    sessions: schedule.blocks.map((b) => ({ id: b.id, activityId: b.activityId, day: b.day, start: b.startMinute, end: b.endMinute })),
+  }
+  const typed = text.trim() ? interpret(text, ctx) : null
+  const completed = completion ? interpret(completion, ctx) : null
   const action = (!typed || typed.kind === "error") && completed && completed.kind !== "error" ? completed : typed
   const hint = text.trim() && !completion ? nextHint(text, activities) : null
   // The function Enter will run, lit in the function row.
@@ -220,7 +225,7 @@ export function Terminal({
 
   /** Run a function from the row or a menu, as if its word had been typed. */
   const runWord = (word: string) => {
-    const a = interpret(word, { ...settings, activities, sound: rm.display.sound ?? true })
+    const a = interpret(word, ctx)
     if (a && a.kind !== "error") perform(a)
   }
 
@@ -262,30 +267,47 @@ export function Terminal({
       case "view":
         onView(a.view)
         break
+      case "split":
+        rm.updateActivity(a.id, a.patch)
+        rm.addActivity(a.extra)
+        break
+      case "move": {
+        // The same as the BLOCK screen's MOVE: locked there, refused if another locked block is in the way.
+        const refused = rm.moveBlock(a.blockId, a.day, a.start)
+        if (refused) {
+          buzz()
+          return say(refused.toUpperCase(), true)
+        }
+        break
+      }
+      case "choose":
+        // Not done yet: the line meant several sessions, so the terminal asks which.
+        setChoice(a.options)
+        break
     }
     say(a.reply)
   }
 
-  /** Y / N to the session that has just ended. */
-  const answer = (did: boolean) => {
-    const block = day.pending
-    if (!block) return
-    const name = block.name.toUpperCase()
-    if (did) {
-      rm.markDone(block.id)
-      chime()
-      say(`${name} DONE ✓`)
-    } else {
-      rm.markMissed(block.id)
-      beep(330, 0.16)
-      say(`${name} MISSED · REST OF THE WEEK REPLANNED`)
-    }
+  /** Close the screen and put a line on the prompt, ready to finish. */
+  const promptWith = (line: string) => {
+    close(true)
+    load(line)
+  }
+
+  /** Pick one of the sessions a line could have meant. */
+  const pickOption = (i: number) => {
+    const option = choice?.[i]
+    if (!option) return
+    setChoice(null)
+    if (option.action.kind !== "choose") perform(option.action)
+    beep(1320, 0.04)
     load("")
   }
-  const yesNo = day.pending ? (/^(y|yes|done|oui)$/i.test(text.trim()) ? true : /^(n|no|missed|non)$/i.test(text.trim()) ? false : null) : null
+
+  const picking = choice && /^[1-9]$/.test(text.trim()) ? Number(text.trim()) - 1 : null
 
   const run = () => {
-    if (yesNo !== null) return answer(yesNo)
+    if (picking !== null) return pickOption(picking)
     if (!action) return
     if (action.kind === "error") {
       say(action.reply, true)
@@ -298,12 +320,13 @@ export function Terminal({
   }
 
   // Under the prompt: the answer to the last command, or else what this one will do.
-  const pendingName = day.pending?.name.toUpperCase()
   const status =
-    reply ??
-    (yesNo !== null
-      ? { text: `→ ${yesNo ? `MARK ${pendingName} DONE` : `${pendingName} MISSED · REPLAN THE REST OF THE WEEK`}   [ENTER]`, error: false }
+    (picking !== null && choice?.[picking]
+      ? { text: `→ ${choice[picking].action.preview}   [ENTER]`, error: false }
       : null) ??
+    (choice && !text
+      ? null
+      : reply) ??
     (action && action.kind !== "error"
       ? { text: `→ ${action.preview}   [ENTER]${action.note ? `   · ${action.note}` : ""}`, error: false }
       : hint
@@ -311,11 +334,6 @@ export function Terminal({
         : tip && !text
           ? { text: tip, error: false }
           : null)
-  // An ended session's question waits under an empty prompt, in place of any other hint.
-  const asking = day.pending && !reply && !text
-
-  // NOW / NEXT, as the function row's right-hand readout.
-  const nowLine = day.status && describeStatus(day.status, (m) => formatClock(m, clock))
 
   const placed = (id: string) => schedule.blocks.filter((b) => b.activityId === id).length
 
@@ -362,6 +380,7 @@ export function Terminal({
                 onRunWord={runWord}
                 onSay={say}
                 onRestart={onRestart}
+                onPrompt={promptWith}
               />
             </div>
           </div>
@@ -385,8 +404,9 @@ export function Terminal({
             {formatSpan(settings.minFreeMinutesPerDay)}/day
           </button>
           <span aria-hidden className="text-ink/30">│</span>
-          {activities.map((a) => {
+          {activities.filter((a) => !a.extraOf).map((a) => {
             const short = placed(a.id) < a.sessionsPerWeek
+            const extras = activities.filter((x) => x.extraOf === a.id)
             return (
               <button
                 key={a.id}
@@ -397,6 +417,12 @@ export function Terminal({
               >
                 {a.name} <span className="opacity-60">{formatSpan(a.durationMinutes)}×{a.sessionsPerWeek}</span>
                 {short && <span className="ml-1 border border-current px-1">{placed(a.id)}/{a.sessionsPerWeek}</span>}
+                {/* Its extra sessions, read like the line that added them. */}
+                {extras.map((x) => (
+                  <span key={x.id} className="ml-2 normal-case opacity-60">
+                    {localizeTimes(describeExtra(x), clock)}
+                  </span>
+                ))}
               </button>
             )
           })}
@@ -431,14 +457,6 @@ export function Terminal({
               [{f.label}]
             </button>
           ))}
-        {/* Where the day stands: what is on now, and what comes next. */}
-        {nowLine && (
-          <span className="ml-auto flex items-baseline gap-2 tabular-nums" aria-live="polite">
-            <span className={`inline-block h-2 w-2 self-center ${day.status?.kind === "block" ? "bg-ink" : "border border-ink/50"}`} />
-            <span>{nowLine.now}</span>
-            {nowLine.next && <span className="text-ink/55">→ {nowLine.next}</span>}
-          </span>
-        )}
       </div>
 
       <form
@@ -489,7 +507,11 @@ export function Terminal({
                 else load("")
               } else if (e.key === "Escape") {
                 e.preventDefault()
-                if (text || reply) {
+                if (choice) {
+                  setChoice(null)
+                  setReply(null)
+                  load("")
+                } else if (text || reply) {
                   setReply(null)
                   load("")
                 } else if (current) back()
@@ -506,16 +528,16 @@ export function Terminal({
         aria-live="polite"
         className={`min-h-[1.4em] font-crt text-[18px] ${status?.error ? "text-alert [text-shadow:none]" : "text-ink/55"}`}
       >
-        {asking && day.pending ? (
-          // The session that just ended: did it happen? Y / N, typed or clicked.
+        {choice && !text ? (
+          // Which session the line meant: typed (1, 2… then Enter) or clicked.
           <span className="text-ink">
-            {day.pending.name.toUpperCase()} ENDED {formatClock(day.pending.endMinute, clock)} · DONE?{" "}
-            <button type="button" onClick={() => answer(true)} className="px-1 hover:bg-ink/15">
-              [Y] YES
-            </button>{" "}
-            <button type="button" onClick={() => answer(false)} className="px-1 hover:bg-ink/15">
-              [N] MISSED, REPLAN
-            </button>
+            WHICH SESSION?{" "}
+            {choice.map((o, i) => (
+              <button key={o.label} type="button" onClick={() => pickOption(i)} className="px-1 hover:bg-ink/15">
+                [{i + 1}] {localizeTimes(o.label, clock)}
+              </button>
+            ))}
+            <span className="text-ink/45"> · [ESC] CANCEL</span>
           </span>
         ) : (
           status && localizeTimes(status.text, clock)
@@ -546,6 +568,7 @@ function ScreenBody({
   onRunWord,
   onSay,
   onRestart,
+  onPrompt,
 }: {
   screen: NonNullable<TerminalScreen>
   rm: RobotMode
@@ -555,6 +578,7 @@ function ScreenBody({
   onRunWord: (word: string) => void
   onSay: (text: string, error?: boolean) => void
   onRestart: () => void
+  onPrompt: (line: string) => void
 }) {
   const settings = rm.state.settings
 
@@ -609,7 +633,7 @@ function ScreenBody({
     case "fix":
       return <FixScreen rm={rm} onClose={onClose} onSay={onSay} />
     case "block":
-      return selected && <BlockScreen block={selected} rm={rm} onScreen={onScreen} onClose={onClose} onSay={onSay} />
+      return selected && <BlockScreen block={selected} rm={rm} onScreen={onScreen} onClose={onClose} onSay={onSay} onPrompt={onPrompt} />
     case "help":
       return <HelpScreen onRunWord={onRunWord} />
     case "move":
@@ -730,7 +754,7 @@ function FixScreen({
   const settings = rm.state.settings
   // Each suggestion costs a trial solve to verify, so only worked out while this screen is open.
   const fixes = useMemo(
-    () => unplaced.map((u) => ({ conflict: u, fixes: suggestFixes(settings, u) })),
+    () => unplaced.map((u) => ({ conflict: u, fixes: suggestFixes(settings, u, 5) })),
     [unplaced, settings],
   )
 
@@ -816,12 +840,14 @@ function BlockScreen({
   onScreen,
   onClose,
   onSay,
+  onPrompt,
 }: {
   block: PlacedBlock
   rm: RobotMode
   onScreen: (screen: TerminalScreen) => void
   onClose: () => void
   onSay: (text: string, error?: boolean) => void
+  onPrompt: (line: string) => void
 }) {
   const { clock } = useDisplay()
   const activity = rm.state.settings.activities.find((a) => a.id === block.activityId)
@@ -829,6 +855,14 @@ function BlockScreen({
   const items: MenuItem[] = []
   if (activity) {
     items.push({ key: "E", label: `Edit ${block.name}`, note: "length, times a week, days…", onSelect: () => onScreen({ name: "activities", id: activity.id }) })
+    // This one session, by its day and start, so the terminal never has to ask which.
+    const start = `${String(Math.floor((block.startMinute % 1440) / 60)).padStart(2, "0")}:${String(block.startMinute % 60).padStart(2, "0")}`
+    items.push({
+      key: "S",
+      label: "This session only",
+      note: "type what changes: 2h · at 11:00",
+      onSelect: () => onPrompt(`edit ${block.name.toLowerCase()} ${FULL_DAYS[block.day]} ${start} to `),
+    })
   }
   items.push(
     { key: "M", label: "Move", note: "pick another day or time", onSelect: () => onScreen({ name: "move" }) },
@@ -880,6 +914,8 @@ function BlockScreen({
     />
   )
 }
+
+const FULL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
 function hhmm(minutes: number): string {
   const m = ((minutes % 1440) + 1440) % 1440
@@ -972,7 +1008,7 @@ const MANUAL_FUNCTIONS: [word: string, what: string][] = [
   ["edit", "Change activities, hours, meals or free time. EDIT GYM · EDIT MEALS."],
   ["shuffle", "Same rules, a different arrangement of the week."],
   ["export", "Download the week as .ics, for any calendar app."],
-  ["today", "Print today's ticket: the day's lines, what is on now, what is done."],
+  ["today", "Print today's ticket: the day's lines, to keep in your pocket."],
   ["grid", "Show the week as a calendar grid. PRINTOUT shows the list again."],
   ["system", "Save, load, 12H / 24H clock, week start, reset, restart."],
   ["fix", "Shown when a session doesn't fit: suggested fixes, one key each."],
@@ -1035,7 +1071,15 @@ function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
         <ManualLine cmd={<>SURF 1H10 4× {days} MORNING</>}>With days and a time of day.</ManualLine>
         <ManualLine cmd="SURF ALWAYS AT 06:00">Always at the same time.</ManualLine>
         <ManualLine cmd="GYM 3× · GYM 1H30">Change one thing; the rest stays.</ManualLine>
-        <ManualLine cmd="REMOVE GYM">Take it off the list.</ManualLine>
+        <ManualLine cmd="ADD GYM · ADD GYM 2×">One or two more of the same sessions.</ManualLine>
+        <ManualLine cmd="ADD DEEP WORK MONDAY 1H AT 10:00">An extra session of an activity you have; the regular ones stay.</ManualLine>
+        <ManualLine cmd="REMOVE GYM">Take it off the list, with its extra sessions.</ManualLine>
+        <ManualLine cmd="REMOVE DEEP WORK MONDAY">Remove only that extra session.</ManualLine>
+        <ManualLine cmd="EDIT DEEP WORK MONDAY 2H">Change only Monday’s session. A regular one becomes an extra, kept at its time.</ManualLine>
+        <ManualLine cmd="MOVE GYM MONDAY 10H TO 11H">Move one session; every hour here is a time. Locked there, like [M] MOVE.</ManualLine>
+        <ManualLine cmd="MOVE GYM MONDAY TO TUESDAY">Same time, another day. Or both: TO TUESDAY 11H.</ManualLine>
+        <ManualLine cmd="EDIT DEEP WORK MONDAY 10:00 TO 3H AT 11:00">When a day has several: name it by its start. TO separates which from what changes.</ManualLine>
+        <ManualLine cmd="Any order">The parts of a line can come in any order: 1H MONDAY GYM is GYM MONDAY 1H.</ManualLine>
       </ManualSection>
 
       <ManualSection title="What goes in a line">
@@ -1043,10 +1087,10 @@ function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
         <ManualLine cmd="Times a week">4× · 4X · 3 TIMES · TWICE · DAILY</ManualLine>
         <ManualLine cmd="Days">
           <span className="normal-case">M T W T F Sa Su</span>, in week order: {days} = Mon Tue Sat Sun ·{" "}
-          <span className="normal-case">TT</span> = Tue Thu · WEEKDAYS · WEEKENDS
+          <span className="normal-case">TT</span> = Tue Thu · MONDAY · MON · WEEKDAYS · WEEKENDS
         </ManualLine>
         <ManualLine cmd="Time of day">MORNING 06–12 · AFTERNOON 12–18 · EVENING 18–23</ManualLine>
-        <ManualLine cmd="Fixed time">ALWAYS AT 07:00</ManualLine>
+        <ManualLine cmd="Start time">AT 10:00 · AT 10H00 · STARTING AT 10 · FROM 7AM · ALWAYS AT 07:00</ManualLine>
       </ManualSection>
 
       <ManualSection title="Your day">
@@ -1055,15 +1099,13 @@ function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
         <ManualLine cmd="12H · 24H · MON · SUN">How times read, and which day starts the week.</ManualLine>
       </ManualSection>
 
-      <ManualSection title="During the day">
-        <ManualLine cmd="NOW · NEXT">Top right of the terminal: what is on, and what comes after.</ManualLine>
-        <ManualLine cmd="Y · N">When a session ends, the terminal asks DONE?: Y marks it, N replans the rest of the week.</ManualLine>
+      <ManualSection title="Sound">
         <ManualLine cmd="SOUND · MUTE">The machine’s clicks, printer and hum. Also SYSTEM [S] and ♪ on the panel.</ManualLine>
       </ManualSection>
 
       <ManualSection title="Blocks">
         <ManualLine cmd="Click a block">
-          On the printout or the grid: [E] edit · [M] move · [L] lock · [X] missed · [R] remove.
+          On the printout or the grid: [E] edit · [S] this session only · [M] move · [L] lock · [X] missed · [R] remove.
         </ManualLine>
       </ManualSection>
 
@@ -1076,19 +1118,4 @@ function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
       </ManualSection>
     </div>
   )
-}
-
-/** The NOW / NEXT readout for where the day stands. */
-function describeStatus(status: DayStatus, time: (minute: number) => string): { now: string; next?: string } {
-  const next = status.kind !== "done" && status.next ? `${status.next.name.toUpperCase()} ${time(status.next.startMinute)}` : undefined
-  switch (status.kind) {
-    case "block":
-      return { now: `NOW ${status.block.name.toUpperCase()} · ${formatSpan(status.left)} LEFT`, next }
-    case "free":
-      return { now: `FREE UNTIL ${time(status.until)}`, next }
-    case "asleep":
-      return { now: "BEFORE WAKE", next }
-    case "done":
-      return { now: "DAY OVER · SLEEP" }
-  }
 }

@@ -13,14 +13,13 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 
 /**
  * Today, as a receipt from the machine's ticket printer: the day's lines,
- * what is on now, and what has been done. Small enough to keep on a phone or
- * print and pocket. Blocks can be picked, as on the other views.
+ * made to be printed and pocketed, so nothing on it depends on the time it is
+ * read at. Blocks can be picked, as on the other views.
  */
 export function Ticket({
   settings,
   schedule,
   now,
-  doneIds,
   selectedId,
   onSelect,
   feed = false,
@@ -29,9 +28,8 @@ export function Ticket({
 }: {
   settings: Settings
   schedule: Schedule
-  /** The current time; the ticket follows it, line by line. */
+  /** Which day the ticket is for, and its date. */
   now: Date
-  doneIds: Set<string>
   selectedId: string | null
   onSelect: (id: string | null) => void
   feed?: boolean
@@ -47,7 +45,6 @@ export function Ticket({
   const activityIds = new Set(settings.activities.map((a) => a.id))
   const blocks = schedule.blocks.filter((b) => b.day === moment.day)
   const tasks = blocks.filter((b) => activityIds.has(b.activityId))
-  const done = tasks.filter((b) => doneIds.has(b.id)).length
   const planned = tasks.reduce((sum, b) => sum + b.endMinute - b.startMinute, 0)
 
   return (
@@ -80,9 +77,6 @@ export function Ticket({
             )
           }
           const { block } = row
-          const live = block.startMinute <= moment.minute && moment.minute < block.endMinute
-          const past = block.endMinute <= moment.minute
-          const isDone = doneIds.has(block.id)
           const picked = block.id === selectedId
           return (
             <li key={block.id}>
@@ -90,7 +84,7 @@ export function Ticket({
                 type="button"
                 onClick={() => onSelect(picked ? null : block.id)}
                 className={`-mx-2 flex w-[calc(100%+1rem)] items-baseline gap-2 px-2 py-0.5 text-left uppercase ${
-                  picked || live ? "bg-ink text-paper" : past ? "text-ink/45 hover:bg-ink/[0.07]" : "hover:bg-ink/[0.07]"
+                  picked ? "bg-ink text-paper" : "hover:bg-ink/[0.07]"
                 }`}
               >
                 {time}
@@ -99,8 +93,7 @@ export function Ticket({
                   {block.locked && " ■"}
                 </span>
                 <span className="tabular-nums">
-                  {isDone ? "✓ " : live ? "◀ " : ""}
-                  {live ? `${formatSpan(block.endMinute - moment.minute)} left` : formatSpan(block.endMinute - block.startMinute)}
+                  {formatSpan(block.endMinute - block.startMinute)}
                 </span>
               </button>
             </li>
@@ -111,9 +104,7 @@ export function Ticket({
       <Cut />
       <div className="flex justify-between">
         <span>Tasks</span>
-        <span className="tabular-nums">
-          {done} / {tasks.length} done
-        </span>
+        <span className="tabular-nums">{tasks.length}</span>
       </div>
       <div className="flex justify-between">
         <span>Planned</span>

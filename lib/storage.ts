@@ -5,9 +5,6 @@ import type { PlacedBlock, Settings } from "./types"
 /** How times and weeks are shown. A missing clock follows the browser's locale. */
 export type Display = { clock?: Clock; weekStart?: WeekStart; sound?: boolean }
 
-/** Sessions answered "done" on the terminal, for one ISO week ("2026-W40"); a new week starts empty. */
-export type DoneLog = { week: string; ids: string[] }
-
 const KEY = "robot-mode:v1"
 
 export type SavedState = {
@@ -22,9 +19,6 @@ export type SavedState = {
   /** True once the user has pressed Generate. Before that, the list is the app. */
   generated?: boolean
   display?: Display
-  done?: DoneLog
-  /** When the week was generated (ms since epoch): sessions that were over by then aren't asked about. */
-  generatedAt?: number
 }
 
 export const emptySettings: Settings = {
@@ -65,8 +59,6 @@ export function load(): SavedState {
       templateId: parsed.templateId,
       generated: parsed.generated ?? false,
       display: parsed.display,
-      done: parsed.done,
-      generatedAt: parsed.generatedAt,
     }
   } catch {
     return initialState
@@ -103,8 +95,6 @@ export function fromJson(text: string): SavedState | null {
       templateId: parsed.templateId,
       generated: parsed.generated ?? false,
       display: parsed.display,
-      done: parsed.done,
-      generatedAt: parsed.generatedAt,
     }
   } catch {
     return null

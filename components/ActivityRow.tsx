@@ -67,7 +67,10 @@ export function ActivityRow({
         className="flex w-full items-baseline gap-5 py-2 text-left font-crt text-[34px] leading-tight hover:bg-ink/[0.07]"
       >
         <span className="text-ink/60">{open ? "▼" : ">"}</span>
-        <span className="min-w-0 flex-1 truncate uppercase">{activity.name}</span>
+        <span className="min-w-0 flex-1 truncate uppercase">
+          {activity.name}
+          {activity.extraOf && <span className="text-ink/50"> · extra</span>}
+        </span>
         {short && (
           <span className="border border-ink px-1.5 text-[22px]" title={`Only ${placed} of ${activity.sessionsPerWeek} fit`}>
             {placed}/{activity.sessionsPerWeek} FIT

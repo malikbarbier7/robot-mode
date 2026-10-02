@@ -7,13 +7,6 @@ import { computeBudget } from "./scheduler/budget"
 import { initialState, load, save, type Display, type SavedState } from "./storage"
 import { detectClock, type Clock, type WeekStart } from "./locale"
 import { matchesTemplate, templateById, type Template } from "./templates"
-import { isoWeek } from "./printout"
-
-/** "2026-W40": the week a DONE answer belongs to. */
-export function weekKey(date = new Date()): string {
-  const { week, year } = isoWeek(date)
-  return `${year}-W${String(week).padStart(2, "0")}`
-}
 
 export type NotBefore = { day: Day; minuteOfDay: number }
 
@@ -90,7 +83,14 @@ export function useRobotMode() {
       ...s,
       settings: {
         ...s.settings,
-        activities: s.settings.activities.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+        activities: s.settings.activities.map((a) =>
+          a.id === id
+            ? { ...a, ...patch }
+            : // An extra session carries its activity's name.
+              a.extraOf === id && patch.name !== undefined
+              ? { ...a, name: patch.name }
+              : a,
+        ),
       },
       // Locks and skips refer to sessions of this activity, which may no longer exist.
       locked: s.locked.filter((b) => b.activityId !== id),
@@ -99,12 +99,16 @@ export function useRobotMode() {
   }, [])
 
   const removeActivity = useCallback((id: string) => {
-    setStored((s) => ({
-      ...s,
-      settings: { ...s.settings, activities: s.settings.activities.filter((a) => a.id !== id) },
-      locked: s.locked.filter((b) => b.activityId !== id),
-      skipped: s.skipped.filter((key) => !key.startsWith(`${id}#`)),
-    }))
+    setStored((s) => {
+      // Its extra sessions go with it.
+      const gone = new Set([id, ...s.settings.activities.filter((a) => a.extraOf === id).map((a) => a.id)])
+      return {
+        ...s,
+        settings: { ...s.settings, activities: s.settings.activities.filter((a) => !gone.has(a.id)) },
+        locked: s.locked.filter((b) => !gone.has(b.activityId)),
+        skipped: s.skipped.filter((key) => !gone.has(key.split("#")[0])),
+      }
+    })
   }, [])
 
   const toggleLock = useCallback(
@@ -176,21 +180,6 @@ export function useRobotMode() {
     [schedule.blocks],
   )
 
-  /** "I did this": remembered for the rest of this week, so it isn't asked about again. */
-  const markDone = useCallback((blockId: string) => {
-    setStored((s) => {
-      const week = weekKey()
-      const ids = s.done?.week === week ? s.done.ids : []
-      return ids.includes(blockId) ? s : { ...s, done: { week, ids: [...ids, blockId] } }
-    })
-  }, [])
-
-  /** This week's DONE answers; an older week's are ignored. */
-  const doneIds = useMemo(
-    () => new Set(hydrated && state.done?.week === weekKey() ? state.done.ids : []),
-    [hydrated, state.done],
-  )
-
   const shuffle = useCallback(() => {
     setStored((s) => ({ ...s, settings: { ...s.settings, seed: s.settings.seed + 1 } }))
   }, [])
@@ -202,7 +191,7 @@ export function useRobotMode() {
 
   /** Flipped by the Generate button. The week view only exists after this. */
   const markGenerated = useCallback(() => {
-    setStored((s) => ({ ...s, generated: true, generatedAt: Date.now() }))
+    setStored((s) => ({ ...s, generated: true }))
   }, [])
 
   /** Back to the list, without throwing the schedule away. */
@@ -291,8 +280,6 @@ export function useRobotMode() {
     removeBlock,
     moveBlock,
     markMissed,
-    markDone,
-    doneIds,
     shuffle,
     applyTemplate,
     markGenerated,
