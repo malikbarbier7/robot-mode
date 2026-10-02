@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { Boot } from "@/components/Boot"
 import { Terminal, type TerminalScreen } from "@/components/Terminal"
 import { Generating } from "@/components/Generating"
@@ -19,8 +19,6 @@ import { useRobotMode } from "@/lib/useRobotMode"
 import { useNow } from "@/lib/useNow"
 import { useMachineSound } from "@/lib/useMachineSound"
 import { beep, chime } from "@/lib/sound"
-import { parseTime } from "@/lib/scheduler/time"
-import { dayStatus, momentOf, pendingCheck } from "@/lib/today"
 
 type View = "boot" | "setup" | "print" | "week" | "today" | "templates" | "generating"
 /** The three ways the week comes out of the machine, as the terminal names them. */
@@ -66,31 +64,8 @@ export default function Page() {
 
   useMachineSound(rm.display.sound)
 
-  // Where today stands, read off the clock: what is on, and the session waiting for a DONE?
+  // Today's date, for the day's ticket.
   const now = useNow()
-  const settings = rm.state.settings
-  const wake = parseTime(settings.wakeTime)
-  const sleepRaw = parseTime(settings.sleepTime)
-  const sleep = sleepRaw <= wake ? sleepRaw + 1440 : sleepRaw
-  const moment = now ? momentOf(now) : null
-  const status = moment ? dayStatus(rm.schedule.blocks, wake, sleep, moment) : null
-  const pending = moment
-    ? pendingCheck(
-        rm.schedule.blocks,
-        moment,
-        new Set(settings.activities.map((a) => a.id)),
-        new Set([...rm.doneIds, ...rm.state.skipped]),
-        generatedTodayAt(rm.state.generatedAt, now),
-      )
-    : null
-  const session = status?.kind === "block" ? status.block.id : null
-
-  // A session starting is announced, the way a machine marks a new job; not the one already on at load.
-  const lastSession = useRef<string | null | undefined>(undefined)
-  useEffect(() => {
-    if (lastSession.current !== undefined && session && session !== lastSession.current) chime()
-    lastSession.current = session
-  }, [session])
 
   // Shown once the sheet is out of the printer.
   const tipVisible = todayTip && showWeekChrome && view === "week" && !feed
@@ -164,22 +139,9 @@ export default function Page() {
               <span className="label text-ink/50">RM-01</span>
             </button>
 
-            {/* The lamps: on, a session running, a session waiting for its DONE?. */}
-            <div className="label flex items-center gap-4 text-ink/70">
-              <span className="flex items-center gap-1.5">
-                <Lamp /> Power
-              </span>
-              {showWeekChrome && (
-                <>
-                  <span className={`flex items-center gap-1.5 ${session ? "" : "text-ink/40"}`} title="A session is running">
-                    <Lamp on={!!session} /> Session
-                  </span>
-                  <span className={`flex items-center gap-1.5 ${pending ? "" : "text-ink/40"}`} title="A session has ended: did it happen?">
-                    <Lamp on={!!pending} blink={!!pending} /> Check
-                  </span>
-                </>
-              )}
-            </div>
+            <span className="label flex items-center gap-1.5 text-ink/70">
+              <Lamp /> Power
+            </span>
 
             {showWeekChrome && (
               // The three ways to see the week, as keys: the one showing stays pressed.
@@ -360,7 +322,6 @@ export default function Page() {
                   settings={rm.state.settings}
                   schedule={rm.schedule}
                   now={now}
-                  doneIds={rm.doneIds}
                   selectedId={selectedId}
                   onSelect={select}
                   feed={feed}
@@ -392,7 +353,6 @@ export default function Page() {
             onRestart={restart}
             view={output}
             onView={showView}
-            day={{ status, pending }}
             tip={tipVisible ? "TIP: TODAY'S TICKET SHOWS WHAT'S ON NOW · TYPE T + ENTER, OR PRESS ◫ TODAY" : null}
           />
         )}
@@ -409,9 +369,3 @@ function onOutput(view: View): boolean {
   return view === "print" || view === "week" || view === "today"
 }
 
-/** The minute of today the week was generated at, or -1 when it was generated on an earlier day. */
-function generatedTodayAt(generatedAt: number | undefined, now: Date | null): number {
-  if (!generatedAt || !now) return -1
-  const at = new Date(generatedAt)
-  return at.toDateString() === now.toDateString() ? at.getHours() * 60 + at.getMinutes() : -1
-}

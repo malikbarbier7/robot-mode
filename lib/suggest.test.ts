@@ -114,6 +114,31 @@ describe("a fixed time outside waking hours", () => {
   })
 })
 
+describe("a daily pin an hour before waking", () => {
+  // The reported case: surf every day at 06:00, waking at 07:00.
+  const surf = (durationMinutes: number): Settings => ({
+    ...base,
+    wakeTime: "07:00",
+    meals: defaultMeals.map((m) => ({ ...m, enabled: true })),
+    activities: [{ id: "surf", name: "Surf", durationMinutes, sessionsPerWeek: 7, priority: "medium", fixedAt: { start: "06:00" } }],
+  })
+
+  it("offers to wake up exactly early enough, not just 15 or 30 minutes", () => {
+    const settings = surf(60)
+    const labels = suggestFixes(settings, conflictIn(settings, "surf"), 5).map((f) => f.label)
+    expect(labels).toContain("Wake up at 06:00 instead of 07:00")
+    expect(labels).toContain("Do Surf in the morning instead of always at 06:00")
+    expect(labels).toContain("Let Robot Mode choose when Surf happens")
+  })
+
+  it("finds the nearest start that works, even beyond an hour away", () => {
+    const settings = surf(90)
+    const move = suggestFixes(settings, conflictIn(settings, "surf"), 5).find((f) => f.kind === "move")
+    expect(move?.label).toBe("Move Surf to 08:30")
+    expect(generate(move!.settings).unplaced).toEqual([])
+  })
+})
+
 describe("when nothing small can help", () => {
   it("returns an empty list rather than a bad suggestion", () => {
     // Far more hours requested than the week holds: no single tweak saves this.

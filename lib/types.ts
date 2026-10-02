@@ -24,6 +24,11 @@ export type Activity = {
    *   Breakfast daily: { start: "08:00" }            + sessionsPerWeek: 7
    */
   fixedAt?: { start: string; days?: Day[] }
+  /**
+   * Set on a one-off extra session of another activity (its id): same name,
+   * its own length, days and time. Shown with that activity, removed with it.
+   */
+  extraOf?: string
 }
 
 /**

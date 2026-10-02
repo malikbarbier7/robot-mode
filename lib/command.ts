@@ -21,6 +21,12 @@ export type CommandAction = { preview: string; reply: string; note?: string } & 
   | { kind: "settings"; patch: { wakeTime?: string; sleepTime?: string; minFreeMinutesPerDay?: number } }
   | { kind: "display"; patch: { clock?: Clock; weekStart?: WeekStart; sound?: boolean } }
   | { kind: "shuffle" | "export" }
+  /** One regular session becomes an extra of its own: the activity loses a session, the extra takes it. */
+  | { kind: "split"; id: string; patch: Partial<Activity>; extra: Omit<Activity, "id"> }
+  /** Put one placed session somewhere else and lock it there, as the BLOCK screen's MOVE does. */
+  | { kind: "move"; blockId: string; day: Day; start: number }
+  /** The line could mean several sessions: each option is what picking it would do. */
+  | { kind: "choose"; options: { label: string; action: CommandAction }[] }
 )
 
 export type CommandError = { kind: "error"; reply: string }
@@ -36,7 +42,12 @@ export type CommandContext = {
   minFreeMinutesPerDay?: number
   /** Whether the machine's sounds are on, so "sound" alone can flip them. */
   sound?: boolean
+  /** The sessions placed in the week, so EDIT can find "Monday's" one. */
+  sessions?: SessionRef[]
 }
+
+/** A placed session, as EDIT needs to know it: whose, which day, when. */
+export type SessionRef = { id?: string; activityId: string; day: Day; start: number; end: number }
 
 const MAX_SESSIONS = 28
 
@@ -47,7 +58,7 @@ const MAX_SESSIONS = 28
  */
 export const FUNCTIONS = ["add", "edit", "today", "shuffle", "export", "grid", "printout", "system", "fix", "clear", "restart", "save", "load", "help"]
 /** Other command words, offered after activity names. */
-const VERBS = ["wake", "sleep", "free", "remove", "meals", "hours"]
+const VERBS = ["wake", "sleep", "free", "remove", "move", "meals", "hours"]
 /** What EDIT can open besides an activity. */
 const EDIT_TARGETS: Record<string, Screen> = {
   activities: "activities",
@@ -93,6 +104,9 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
   const [head, ...rest] = words
   const verb = head.toLowerCase()
   const arg = rest.join(" ")
+  // "add …" with more after it is always about an activity, whatever word comes next ("add monday deep work").
+  const explicitAdd = /^\s*(?:add|new|create)\s/i.test(input)
+  if (explicitAdd) return activityLine(words, activities, true)
 
   switch (verb) {
     case "add":
@@ -151,6 +165,8 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
     case "monday":
     case "sun":
     case "sunday": {
+      // Only on its own: "monday deep work 1h" is an activity line.
+      if (rest.length) break
       const day = verb.startsWith("mon") ? "MONDAY" : "SUNDAY"
       return {
         kind: "display",
@@ -161,7 +177,7 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
     }
     case "wake":
     case "sleep": {
-      const time = parseClock(arg)
+      const time = parseClock(arg.replace(/^@/, ""))
       if (!time) return error(`${verb.toUpperCase()} NEEDS A TIME, E.G. ${verb === "wake" ? "WAKE 7:00" : "SLEEP 23:30"}`)
       const was = verb === "wake" ? ctx.wakeTime : ctx.sleepTime
       return {
@@ -182,29 +198,49 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
         reply: `FREE ${span(minutes)} / DAY`,
       }
     }
+    case "move":
+      if (!arg) return error("MOVE WHICH SESSION? E.G. MOVE GYM MONDAY 10H TO 11H")
+      return moveLine(rest, ctx)
     case "edit": {
       if (!arg) return open("edit")
       const target = EDIT_TARGETS[arg.toLowerCase()]
       if (target) return open(target)
       const found = findActivity(arg, activities)
-      if (!found) return error(notFound(arg, activities))
-      return open("activities", found.id, `EDIT › ${upper(found)}`)
+      if (found) return open("activities", found.id, `EDIT › ${upper(found)}`)
+      return editLine(rest, ctx)
     }
     case "rm": {
       if (!arg) return error("REMOVE WHICH ACTIVITY?")
-      const found = findActivity(arg, activities)
-      if (!found) return error(notFound(arg, activities))
+      const { parent, parts } = readLine(rest, activities)
+      if (!parent) return error(notFound(arg, activities))
+      const extras = extrasOf(parent, activities)
+      // "remove deep work monday", "remove deep work extra": one of its extra sessions, not the activity.
+      const aboutExtra = Object.keys(parts).length > 0 || /\bextras?\b/i.test(arg)
+      if (aboutExtra) {
+        const match = extras.find(
+          (x) =>
+            (!parts.allowedDays || parts.allowedDays.every((d) => x.allowedDays?.includes(d))) &&
+            (!parts.fixedAt || x.fixedAt?.start === parts.fixedAt.start) &&
+            (!parts.durationMinutes || x.durationMinutes === parts.durationMinutes),
+        )
+        if (!match) return error(`NO EXTRA ${upper(parent)} SESSION LIKE THAT`)
+        return {
+          kind: "remove",
+          id: match.id,
+          preview: `REMOVE ${upper(parent)} EXTRA SESSION ${describeExtra(match)}`,
+          reply: `REMOVED ${upper(parent)} ${describeExtra(match)}`,
+        }
+      }
       return {
         kind: "remove",
-        id: found.id,
-        preview: `REMOVE ${describe(found)}`,
-        reply: `REMOVED ${upper(found)}`,
+        id: parent.id,
+        preview: `REMOVE ${describe(parent)}${extras.length ? ` AND ITS ${extras.length} EXTRA SESSION${extras.length > 1 ? "S" : ""}` : ""}`,
+        reply: `REMOVED ${upper(parent)}`,
       }
     }
   }
 
-  // "add surf" asks for a new activity outright, so it may lean on defaults; a bare "surf" might be a typo.
-  return activityLine(words, activities, /^\s*(?:add|new|create)\s/i.test(input))
+  return activityLine(words, activities)
 }
 
 /** "gym 1h15 4x", "deep work 2h", "gym 3x": a name, then a length and/or a count, in either order. */
@@ -220,64 +256,95 @@ type Parts = {
   fixedAt?: { start: string }
 }
 
-/**
- * "surf 1h10 4x MTSaSu morning always at 06:00": a name, then any of a
- * length, a count, days, a time of day and a fixed time, in any order.
- */
-function activityLine(words: string[], activities: Activity[], explicitAdd = false): CommandAction | CommandError {
-  const parts: Parts = {}
-  const nameWords = [...words]
+/** Words that only join a line together when it names an activity you have: "add an extra session of gym". */
+const FILLERS = new Set(["a", "an", "the", "and", "of", "on", "every", "extra", "another", "more", "session", "sessions", "additional", "new"])
 
-  // Read the parameters off the end, so a name may have spaces in it.
-  while (nameWords.length > 1) {
-    const last = nameWords[nameWords.length - 1]
-    const before = nameWords[nameWords.length - 2]?.toLowerCase()
-    const time = before === "always" && nameWords.length > 2 ? parseClock(last) : null
-    const count = parseSessions(last)
-    const days = parseDays(last)
-    const window = WINDOW_PRESETS.find((w) => w.label.toLowerCase() === last.toLowerCase().replace(/s$/, ""))
-    if (time && !parts.fixedAt) {
-      parts.fixedAt = { start: time }
-      nameWords.pop()
-    } else if (count !== null && parts.sessionsPerWeek === undefined) {
-      parts.sessionsPerWeek = count
-    } else if (days && !parts.allowedDays) {
-      parts.allowedDays = days
-    } else if (window && !parts.window) {
-      parts.window = { start: window.start, end: window.end }
-    } else {
-      const minutes = parseDuration(last)
-      if (minutes === null || parts.durationMinutes !== undefined) break
-      parts.durationMinutes = minutes
+/**
+ * Reads an activity line in any order: "deep work monday morning 1h @10:00"
+ * and "1h @10:00 monday deep work" are the same. A name you already have is
+ * found first, wherever it sits, so its words are never mistaken for days;
+ * then every word that is a length, a count, days, a time of day or a start
+ * time (`@`, from normalize) is taken as one. What is left is the name.
+ */
+function readLine(words: string[], activities: Activity[]) {
+  const lower = words.map((w) => w.toLowerCase())
+  // The longest name on the list that appears as consecutive words.
+  let parent: Activity | undefined
+  let at = -1
+  let length = 0
+  for (const a of activities) {
+    if (a.extraOf) continue
+    const tokens = a.name.toLowerCase().split(/\s+/).filter(Boolean)
+    if (tokens.length <= length) continue
+    for (let i = 0; i + tokens.length <= lower.length; i++) {
+      if (tokens.every((t, j) => lower[i + j] === t)) {
+        parent = a
+        at = i
+        length = tokens.length
+        break
+      }
     }
-    nameWords.pop()
   }
 
-  const name = nameWords.join(" ")
-  const given = Object.keys(parts).length > 0
+  const parts: Parts = {}
+  const rest: string[] = []
+  const unknown: string[] = []
+  words.forEach((word, i) => {
+    if (parent && i >= at && i < at + length) return
+    const w = word.toLowerCase()
+    const time = w.startsWith("@") ? parseClock(w.slice(1)) : null
+    const count = parseSessions(w)
+    const days = parseDays(w)
+    const window = WINDOW_PRESETS.find((p) => p.label.toLowerCase() === w.replace(/s$/, ""))
+    if (time && !parts.fixedAt) parts.fixedAt = { start: time }
+    else if (count !== null && parts.sessionsPerWeek === undefined) parts.sessionsPerWeek = count
+    else if (days && !parts.allowedDays) parts.allowedDays = days
+    else if (window && !parts.window) parts.window = { start: window.start, end: window.end }
+    else {
+      const minutes = w.startsWith("@") ? null : parseDuration(w)
+      if (minutes !== null && parts.durationMinutes === undefined) parts.durationMinutes = minutes
+      else if (parent) {
+        if (!FILLERS.has(w)) unknown.push(word)
+      } else rest.push(word)
+    }
+  })
+  return { parent, parts, name: parent ? parent.name : rest.join(" "), unknown }
+}
+
+/**
+ * "surf 1h10 4x MTSaSu morning always at 06:00", in any order: adds an
+ * activity, or changes one you have. With ADD, a line about one you have adds
+ * to it instead: "add gym" is one more session, and "add deep work monday 1h
+ * at 10:00" is an extra session of its own (`extraOf`), the regular ones untouched.
+ */
+function activityLine(words: string[], activities: Activity[], explicitAdd = false): CommandAction | CommandError {
+  const { parent, parts, name, unknown } = readLine(words, activities)
+  if (unknown.length) return error(`DIDN'T UNDERSTAND: ${unknown.join(" ").toUpperCase()}. TYPE HELP FOR WHAT GOES IN A LINE`)
+  if (!name) return error("WHICH ACTIVITY? E.G. ADD SURF 1H 2×")
   if (parts.sessionsPerWeek !== undefined && (parts.sessionsPerWeek < 1 || parts.sessionsPerWeek > MAX_SESSIONS)) {
     return error(`BETWEEN 1 AND ${MAX_SESSIONS} SESSIONS A WEEK`)
   }
   if (parts.durationMinutes !== undefined && parts.durationMinutes <= 0) return error("A SESSION NEEDS A LENGTH")
+  if (parts.allowedDays?.length === 7) parts.allowedDays = undefined
 
-  const existing = findActivity(name, activities)
-  if (existing) {
-    if (explicitAdd && !given) {
-      return error(`${upper(existing)} IS ALREADY ON YOUR LIST. TO CHANGE IT: ${upper(existing)} 2H 3×`)
+  if (parent && explicitAdd) return addTo(parent, parts)
+
+  if (parent) {
+    if (!Object.keys(parts).length) {
+      return error(`${upper(parent)}: WHAT SHOULD CHANGE? E.G. ${upper(parent)} 2H 3× MTW MORNING`)
     }
-    if (!given) return error(`${upper(existing)}: WHAT SHOULD CHANGE? E.G. ${upper(existing)} 2H 3× MTW MORNING`)
     const patch: Partial<Activity> = { ...parts }
     // A fixed time and a preferred window answer the same question; the newer answer wins.
     if (parts.fixedAt) patch.window = undefined
     else if (parts.window) patch.fixedAt = undefined
     // Every day is no restriction at all.
-    if (parts.allowedDays?.length === 7) patch.allowedDays = undefined
-    const next = { ...existing, ...patch }
+    if (words.some((w) => ["daily", "any"].includes(w.toLowerCase())) && !parts.allowedDays) patch.allowedDays = undefined
+    const next = { ...parent, ...patch }
     return {
       kind: "update",
-      id: existing.id,
+      id: parent.id,
       patch,
-      preview: `${upper(existing)} ${changes(existing, next).join(" · ")}`,
+      preview: `${upper(parent)} ${changes(parent, next).join(" · ")}`,
       reply: `CHANGED ${describe(next)}`,
     }
   }
@@ -292,7 +359,7 @@ function activityLine(words: string[], activities: Activity[], explicitAdd = fal
     durationMinutes: parts.durationMinutes ?? DEFAULT_LENGTH,
     sessionsPerWeek: parts.sessionsPerWeek ?? 1,
     priority: "medium",
-    ...(parts.allowedDays && parts.allowedDays.length < 7 ? { allowedDays: parts.allowedDays } : {}),
+    ...(parts.allowedDays ? { allowedDays: parts.allowedDays } : {}),
     ...(parts.fixedAt ? { fixedAt: parts.fixedAt } : parts.window ? { window: parts.window } : {}),
   }
   // The parts not given yet, as what could still be typed.
@@ -307,6 +374,290 @@ function activityLine(words: string[], activities: Activity[], explicitAdd = fal
     preview: `ADD ${describe(activity)}`,
     ...(optional.length ? { note: `OPTIONAL: ${optional.join(" · ")}` } : {}),
     reply: `ADDED ${describe(activity)}`,
+  }
+}
+
+/**
+ * ADD on an activity you already have. Only a count ("add gym", "add gym
+ * 2x") means more of the same sessions. Anything else (a length, days, a
+ * time) describes a different session, so it becomes an extra of its own,
+ * taking the rest from the activity.
+ */
+function addTo(parent: Activity, parts: Parts): CommandAction {
+  const { sessionsPerWeek, ...shape } = parts
+  if (!Object.keys(shape).length) {
+    const more = sessionsPerWeek ?? 1
+    const next = Math.min(MAX_SESSIONS, parent.sessionsPerWeek + more)
+    return {
+      kind: "update",
+      id: parent.id,
+      patch: { sessionsPerWeek: next },
+      preview: `${upper(parent)} +${more} SESSION${more > 1 ? "S" : ""} · ${parent.sessionsPerWeek}× → ${next}×`,
+      reply: `${upper(parent)} NOW ${next}×`,
+    }
+  }
+  const extra: Omit<Activity, "id"> = {
+    name: parent.name,
+    extraOf: parent.id,
+    priority: parent.priority,
+    durationMinutes: parts.durationMinutes ?? parent.durationMinutes,
+    sessionsPerWeek: sessionsPerWeek ?? 1,
+    ...(parts.allowedDays ? { allowedDays: parts.allowedDays } : parent.allowedDays ? { allowedDays: parent.allowedDays } : {}),
+    ...(parts.fixedAt
+      ? { fixedAt: parts.fixedAt }
+      : parts.window
+        ? { window: parts.window }
+        : parent.fixedAt
+          ? { fixedAt: { start: parent.fixedAt.start } }
+          : parent.window
+            ? { window: parent.window }
+            : {}),
+  }
+  return {
+    kind: "add",
+    activity: extra,
+    preview: `ADD ${upper(parent)} EXTRA SESSION · ${describeExtra(extra)}`,
+    reply: `ADDED ${upper(parent)} ${describeExtra(extra)}`,
+  }
+}
+
+/** An extra session as the terminal lists it after its activity: "+1H M AT 10:00". */
+export function describeExtra(a: Omit<Activity, "id">): string {
+  return [
+    `+${span(a.durationMinutes)}`,
+    a.sessionsPerWeek > 1 ? `${a.sessionsPerWeek}×` : "",
+    a.allowedDays && a.allowedDays.length < 7 ? formatDays(a.allowedDays) : "",
+    a.fixedAt ? `AT ${a.fixedAt.start}` : a.window ? windowName(a.window) : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+}
+
+/** The extra sessions that belong to an activity. */
+export function extrasOf(parent: Activity, activities: Activity[]): Activity[] {
+  return activities.filter((a) => a.extraOf === parent.id)
+}
+
+const DAY_WORDS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]
+
+function hhmm(minute: number): string {
+  const m = ((minute % 1440) + 1440) % 1440
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`
+}
+
+/**
+ * "edit deep work monday 3h", "edit deep work monday 10:00 to 3h at 11:00":
+ * which session (a day, and its start time when the day has several), then
+ * what changes. "to" separates the two when a time could be either. Without
+ * a day it changes every regular session, like a plain activity line.
+ */
+function editLine(input: string[], ctx: CommandContext): CommandAction | CommandError {
+  const { activities } = ctx
+  // In EDIT, "10:00" names a session's start (or a new one), never a 10-hour length.
+  const words = input.map((w) => (/^\d{1,2}:\d{2}$/.test(w) ? `@${w}` : w))
+  const split = words.findIndex((w) => w.toLowerCase() === "to")
+  const left = split >= 0 ? words.slice(0, split) : words
+  const { parent, parts: picked, unknown } = readLine(left, activities)
+  if (!parent) return error(notFound(left.join(" "), activities))
+  if (unknown.length) return error(`DIDN'T UNDERSTAND: ${unknown.join(" ").toUpperCase()}`)
+
+  let change: Parts
+  let sel: Parts
+  if (split >= 0) {
+    const right = readLine(words.slice(split + 1), [])
+    if (right.name) return error(`DIDN'T UNDERSTAND: ${right.name.toUpperCase()}`)
+    sel = picked
+    change = right.parts
+  } else {
+    // Without "to", the day picks; a time picks only if a session starts at it, otherwise it is the new start.
+    const { allowedDays, fixedAt, window, ...rest } = picked
+    sel = { allowedDays }
+    change = { ...rest, ...(window ? { window } : {}) }
+    if (fixedAt) {
+      const family = new Set([parent.id, ...extrasOf(parent, activities).map((x) => x.id)])
+      const startsThere = (ctx.sessions ?? []).some(
+        (s) => family.has(s.activityId) && allowedDays?.includes(s.day) && hhmm(s.start) === fixedAt.start,
+      )
+      if (startsThere) sel.fixedAt = fixedAt
+      else change.fixedAt = fixedAt
+    }
+  }
+
+  // No day: every regular session, as "deep work 2h" would.
+  if (!sel.allowedDays) return activityLine(words.filter((w) => w.toLowerCase() !== "to"), activities)
+  if (sel.allowedDays.length !== 1) return error("EDIT ONE DAY AT A TIME, E.G. EDIT DEEP WORK MONDAY 3H")
+  const day = sel.allowedDays[0]
+  const family = new Map([[parent.id, parent], ...extrasOf(parent, activities).map((x) => [x.id, x] as const)])
+  let candidates = (ctx.sessions ?? [])
+    .filter((s) => family.has(s.activityId) && s.day === day)
+    .sort((a, b) => a.start - b.start)
+  if (!candidates.length) {
+    return error(`NO ${upper(parent)} SESSION ON ${DAY_WORDS[day]}. TO ADD ONE: ADD ${upper(parent)} ${DAY_WORDS[day]} ${span(parent.durationMinutes)}`)
+  }
+  if (sel.fixedAt) candidates = candidates.filter((s) => hhmm(s.start) === sel.fixedAt!.start)
+  // A time of day narrows several down to one; with one session, it is a change instead.
+  if (candidates.length > 1 && change.window) {
+    const inWindow = candidates.filter((s) => hhmm(s.start) >= change.window!.start && hhmm(s.start) < change.window!.end)
+    if (inWindow.length === 1) {
+      candidates = inWindow
+      delete change.window
+    }
+  }
+  if (!Object.keys(change).length) return error(`${upper(parent)} ${DAY_WORDS[day]}: WHAT SHOULD CHANGE? E.G. 3H OR AT 11:00`)
+
+  const options = candidates.map((s) => {
+    const owner = family.get(s.activityId)!
+    const label = `${hhmm(s.start)} ${span(s.end - s.start)}${owner.extraOf ? " EXTRA" : ""}`
+    return { label, action: editSession(parent, owner, s, change) }
+  })
+  if (options.length === 1) return options[0].action
+  const list = options.map((o, i) => `[${i + 1}] ${o.label}`).join(" · ")
+  return {
+    kind: "choose",
+    options,
+    preview: `${upper(parent)} HAS ${options.length} SESSIONS ON ${DAY_WORDS[day]} · ${list} · WHICH?`,
+    reply: `${upper(parent)} ${DAY_WORDS[day]}: WHICH SESSION? ${list}`,
+  }
+}
+
+/** What editing one placed session does: an extra changes; a regular one becomes an extra of its own. */
+function editSession(parent: Activity, owner: Activity, session: SessionRef, change: Parts): CommandAction {
+  const where = `${upper(parent)} ${DAY_WORDS[session.day].slice(0, 3)} ${hhmm(session.start)}`
+  const when: Partial<Activity> = change.fixedAt
+    ? { fixedAt: change.fixedAt, window: undefined }
+    : change.window
+      ? { window: change.window, fixedAt: undefined }
+      : {}
+  const length = change.durationMinutes ?? owner.durationMinutes
+  const shown = [
+    change.durationMinutes !== undefined && change.durationMinutes !== owner.durationMinutes
+      ? `${span(owner.durationMinutes)} → ${span(change.durationMinutes)}`
+      : "",
+    change.fixedAt ? `→ AT ${change.fixedAt.start}` : change.window ? `→ ${windowName(change.window)}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ")
+
+  if (owner.extraOf || parent.sessionsPerWeek === 1) {
+    // Already a session of its own (or the only one): change it where it is.
+    const patch: Partial<Activity> = {
+      durationMinutes: length,
+      ...when,
+      ...(owner.extraOf ? {} : { allowedDays: [session.day] }),
+    }
+    return { kind: "update", id: owner.id, patch, preview: `${where} · ${shown || "NO CHANGE"}`, reply: `CHANGED ${where}` }
+  }
+
+  // A regular session can't change alone: it leaves the regular ones and becomes an extra, kept at its time.
+  const extra: Omit<Activity, "id"> = {
+    name: parent.name,
+    extraOf: parent.id,
+    priority: parent.priority,
+    durationMinutes: length,
+    sessionsPerWeek: 1,
+    allowedDays: [session.day],
+    ...(change.fixedAt ? { fixedAt: change.fixedAt } : change.window ? { window: change.window } : { fixedAt: { start: hhmm(session.start) } }),
+  }
+  const others = parent.sessionsPerWeek - 1
+  return {
+    kind: "split",
+    id: parent.id,
+    patch: { sessionsPerWeek: others },
+    extra,
+    preview: `${where} · ${shown || "NO CHANGE"} · THIS SESSION ONLY, THE OTHER ${others} STAY ${span(parent.durationMinutes)}`,
+    reply: `CHANGED ${where} · NOW AN EXTRA SESSION`,
+  }
+}
+
+/** In a MOVE line every hour is a time: "10h", "10h30", "10:00", "10", "7pm", "@10". Null if the word isn't one. */
+function asTime(word: string): string | null {
+  const w = word.toLowerCase().replace(/^@/, "")
+  return /^\d{1,2}(?:[:h.]\d{2}|h)?\s*(?:am|pm)?$/.test(w) ? parseClock(w) : null
+}
+
+/**
+ * "move gym monday 10h to 11h", "move gym monday to tuesday", "move deep work
+ * monday 10:00 to wednesday 9am": which session (a day, and its start when the
+ * day has several), then where it goes. Every hour here is a time, never a
+ * length. It does what the BLOCK screen's MOVE does: locks the session there.
+ */
+function moveLine(words: string[], ctx: CommandContext): CommandAction | CommandError {
+  const { activities } = ctx
+  const split = words.findIndex((w) => w.toLowerCase() === "to")
+  if (split < 0) return error("MOVE … TO A TIME OR A DAY, E.G. MOVE GYM MONDAY 10H TO 11H")
+
+  // Which session: the activity, a day, maybe its start.
+  const left = words.slice(0, split).map((w) => (asTime(w) ? `@${asTime(w)}` : w))
+  const { parent, parts, unknown } = readLine(left, activities)
+  if (!parent) return error(notFound(words.slice(0, split).join(" "), activities))
+  const stray = [...unknown, ...(parts.durationMinutes || parts.sessionsPerWeek || parts.window ? ["?"] : [])]
+  if (stray.length) return error("MOVE NAMES A SESSION BY ITS DAY AND START, E.G. MOVE GYM MONDAY 10H TO 11H")
+  if (!parts.allowedDays || parts.allowedDays.length !== 1) return error(`WHICH DAY'S ${upper(parent)}? E.G. MOVE ${upper(parent)} MONDAY TO 11H`)
+  const day = parts.allowedDays[0]
+
+  // Where it goes: a time, a day, or both.
+  let toDay: Day | undefined
+  let toTime: string | undefined
+  for (const w of words.slice(split + 1)) {
+    const time = asTime(w)
+    const days = parseDays(w)
+    if (time && !toTime) toTime = time
+    else if (days?.length === 1 && toDay === undefined) toDay = days[0]
+    else if (!["at", "on", "the"].includes(w.toLowerCase())) return error(`DIDN'T UNDERSTAND: ${w.toUpperCase()}. MOVE … TO 11H, TO TUESDAY, OR TO TUESDAY 11H`)
+  }
+  if (toDay === undefined && !toTime) return error("MOVE IT TO WHAT? A TIME, A DAY, OR BOTH")
+
+  const family = new Map([[parent.id, parent], ...extrasOf(parent, activities).map((x) => [x.id, x] as const)])
+  let candidates = (ctx.sessions ?? []).filter((s) => family.has(s.activityId) && s.day === day).sort((a, b) => a.start - b.start)
+  if (!candidates.length) return error(`NO ${upper(parent)} SESSION ON ${DAY_WORDS[day]}`)
+  if (parts.fixedAt) {
+    candidates = candidates.filter((s) => hhmm(s.start) === parts.fixedAt!.start)
+    if (!candidates.length) return error(`NO ${upper(parent)} SESSION STARTS AT ${parts.fixedAt.start} ON ${DAY_WORDS[day]}`)
+  }
+
+  const results = candidates.map((s) => {
+    const owner = family.get(s.activityId)!
+    const label = `${hhmm(s.start)} ${span(s.end - s.start)}${owner.extraOf ? " EXTRA" : ""}`
+    return { label, result: moveSession(parent, s, toDay, toTime, ctx) }
+  })
+  const options = results.flatMap(({ label, result }) => (result.kind === "error" ? [] : [{ label, action: result }]))
+  if (!options.length) return results[0].result
+  if (options.length === 1) return options[0].action
+  const list = options.map((o, i) => `[${i + 1}] ${o.label}`).join(" · ")
+  return {
+    kind: "choose",
+    options,
+    preview: `${upper(parent)} HAS ${options.length} SESSIONS ON ${DAY_WORDS[day]} · ${list} · WHICH?`,
+    reply: `${upper(parent)} ${DAY_WORDS[day]}: WHICH SESSION? ${list}`,
+  }
+}
+
+/** Where one session lands: the new day and/or start, refused when it wouldn't fit in the waking day. */
+function moveSession(parent: Activity, s: SessionRef, toDay: Day | undefined, toTime: string | undefined, ctx: CommandContext): CommandAction | CommandError {
+  const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3))
+  const length = s.end - s.start
+  const day = toDay ?? s.day
+  let start = toTime ? minutes(toTime) : s.start
+  if (ctx.wakeTime && ctx.sleepTime) {
+    const wake = minutes(ctx.wakeTime)
+    let sleep = minutes(ctx.sleepTime)
+    if (sleep <= wake) sleep += 1440
+    // Past midnight, on a day that ends after midnight, still belongs to that day.
+    if (start < wake && sleep > 1440) start += 1440
+    if (start < wake || start + length > sleep) {
+      return error(`${upper(parent)} HAS TO FIT BETWEEN ${ctx.wakeTime} AND ${ctx.sleepTime}`)
+    }
+  }
+  const from = `${DAY_WORDS[s.day].slice(0, 3)} ${hhmm(s.start)}`
+  const to = `${toDay !== undefined ? `${DAY_WORDS[day].slice(0, 3)} ` : ""}${hhmm(start)}`
+  return {
+    kind: "move",
+    blockId: s.id ?? "",
+    day,
+    start,
+    preview: `MOVE ${upper(parent)} ${from} → ${to}`,
+    note: "LOCKED THERE · CLEAR EDITS UNDOES IT",
+    reply: `MOVED ${upper(parent)} TO ${DAY_WORDS[day].slice(0, 3)} ${hhmm(start)} · LOCKED`,
   }
 }
 
@@ -347,6 +698,17 @@ export function formatDays(days: Day[]): string {
   return [...days].sort((a, b) => a - b).map((d) => DAY_CODES[d]).join("")
 }
 
+/** Days written out: "monday", "mon", "mondays". */
+const DAY_NAMES = [
+  ["monday", "mon"],
+  ["tuesday", "tue", "tues"],
+  ["wednesday", "wed"],
+  ["thursday", "thu", "thur", "thurs"],
+  ["friday", "fri"],
+  ["saturday", "sat"],
+  ["sunday", "sun"],
+]
+
 /** Letters that may stand for a day, and which days each could be. */
 const DAY_LETTERS: [string, Day[]][] = [
   ["tu", [1]],
@@ -362,13 +724,15 @@ const DAY_LETTERS: [string, Day[]][] = [
 
 /**
  * "MTSaSu" -> Mon, Tue, Sat, Sun. Letters are read in week order, each taking
- * the next day it can be, so "TT" is Tuesday and Thursday. Also "weekdays"
- * and "weekends". Null unless the whole word is days.
+ * the next day it can be, so "TT" is Tuesday and Thursday. Also a day's name
+ * ("monday", "mon"), "weekdays" and "weekends". Null unless the whole word is days.
  */
 export function parseDays(word: string): Day[] | null {
   const s = word.toLowerCase()
   if (s === "weekdays") return [0, 1, 2, 3, 4]
   if (s === "weekends" || s === "weekend") return [5, 6]
+  const named = DAY_NAMES.findIndex((names) => names.includes(s.replace(/s$/, "")))
+  if (named >= 0) return [named as Day]
   const days: Day[] = []
   let at = 0
   let next = 0
@@ -391,6 +755,11 @@ export function parseDays(word: string): Day[] | null {
 export function normalize(input: string): string {
   let s = ` ${input.trim().replace(/[,;]/g, " ").replace(/\s+/g, " ")} `
 
+  // Start times, marked "@" so they are never read as lengths: "at 10h00", "starting at 10", "from 7am".
+  const clock = "(\\d{1,2}(?:[:h.]\\d{2})?(?: ?[ap]m)?|\\d{1,2}h)"
+  s = s.replace(new RegExp(` (?:(?:always|starting|start|beginning) )?(?:at|from) ${clock}(?= )`, "gi"), (_, t) => ` @${t.replace(/ /g, "")}`)
+  s = s.replace(new RegExp(` (?:always|starting|start) ${clock}(?= )`, "gi"), (_, t) => ` @${t.replace(/ /g, "")}`)
+
   // Lengths.
   s = s.replace(
     / (\d+) ?(?:hours?|hrs?|h) ?(?:and )?(\d+) ?(?:minutes?|mins?|m)?(?= )/gi,
@@ -407,8 +776,8 @@ export function normalize(input: string): string {
   s = s.replace(/ once(?: (?:a|per) week)?(?= )/gi, " 1x")
   s = s.replace(/ twice(?: (?:a|per) week)?(?= )/gi, " 2x")
   s = s.replace(/ (?:(?:every|each) ?day|daily)(?= )/gi, " daily")
-  // Linking words before a number: "gym to 3x", "yoga for 45m".
-  s = s.replace(/ (?:to|for|at) (?=\d)/gi, " ")
+  // Linking words before a number: "gym to 3x", "yoga for 45m". In EDIT, "to" separates which session from what changes.
+  s = s.replace(/^\s*(?:edit|open|move)\s/i.test(input) ? / for (?=\d)/gi : / (?:to|for) (?=\d)/gi, " ")
 
   s = s.trim()
   // Verbs, only at the start of the line.
@@ -418,7 +787,7 @@ export function normalize(input: string): string {
   s = s.replace(/^(?:edit|open) /i, "edit ")
   s = s.replace(/^wake(?: up)? /i, "wake ")
   // Only before a time, so "Bedtime reading 30m" stays an activity.
-  s = s.replace(/^(?:go to sleep|go to bed|bedtime|bed) (?=\d)/i, "sleep ")
+  s = s.replace(/^(?:go to sleep|go to bed|bedtime|bed) (?=@?\d)/i, "sleep ")
   s = s.replace(/^free(?: time)? /i, "free ")
   return s
 }
@@ -434,7 +803,7 @@ export function complete(input: string, activities: Activity[]): string | null {
   const typed = verb ? verb[2] : input
   if (!typed) return null
   const lower = typed.toLowerCase()
-  const names = activities.map((a) => a.name)
+  const names = activities.filter((a) => !a.extraOf).map((a) => a.name)
   const editing = verb?.[1].toLowerCase().startsWith("edit")
   const pool = verb ? (editing ? [...names, "meals", "hours", "free time", "activities"] : names) : [...FUNCTIONS, ...names, ...VERBS]
   const match = pool.find((n) => n.toLowerCase().startsWith(lower) && n.length > typed.length)
@@ -461,7 +830,7 @@ export function commandFor(activity: Activity): string {
 
 export function findActivity(name: string, activities: Activity[]): Activity | undefined {
   const key = name.trim().toLowerCase()
-  return activities.find((a) => a.name.trim().toLowerCase() === key)
+  return activities.find((a) => !a.extraOf && a.name.trim().toLowerCase() === key)
 }
 
 function span(minutes: number): string {
@@ -518,7 +887,7 @@ function parseSessions(word: string): number | null {
 
 /** "7", "7:30", "0730", "7am", "11:30pm" -> "HH:MM", or null. */
 export function parseClock(input: string): string | null {
-  const m = /^(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?$/.exec(input.trim().toLowerCase())
+  const m = /^(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?$/.exec(input.trim().toLowerCase().replace(/^(\d{1,2})[h.](\d{2})?/, (_, h, mm) => (mm ? `${h}:${mm}` : h)))
   if (!m) return null
   let h = Number(m[1])
   const min = Number(m[2] ?? 0)

@@ -68,7 +68,8 @@ describe("interpret", () => {
       note: "OPTIONAL: MTWTFSaSu · MORNING · ALWAYS AT 07:00",
     })
     expect(interpret("add surf 3 times", ctx)).toMatchObject({ activity: { durationMinutes: 60, sessionsPerWeek: 3 } })
-    expect(interpret("add gym", ctx)).toMatchObject({ kind: "error", reply: expect.stringContaining("ALREADY") })
+    // ADD on an activity you have: one more of the same session.
+    expect(interpret("add gym", ctx)).toMatchObject({ kind: "update", patch: { sessionsPerWeek: 5 } })
     // Without "add", a lone new name is still a question, not an addition.
     expect(interpret("surf", ctx)).toMatchObject({ kind: "error", reply: expect.stringContaining("ADD SURF") })
   })
@@ -109,6 +110,149 @@ describe("interpret", () => {
     expect(interpret(line, ctx)).toMatchObject({
       kind: "add",
       activity: { durationMinutes: 70, sessionsPerWeek: 4, allowedDays: [0, 1, 5, 6], fixedAt: { start: "06:00" } },
+    })
+  })
+
+  it("reads a line in any order", () => {
+    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4, priority: "medium" }
+    const list = { ...ctx, activities: [gym, deep] }
+    const lines = [
+      "add deep work monday morning 1h starting at 10h00",
+      "add 1h starting at 10h00 monday deep work",
+      "add monday deep work at 10:00 1h",
+    ]
+    for (const line of lines) {
+      expect(interpret(line, list)).toMatchObject({
+        kind: "add",
+        activity: { name: "Deep work", extraOf: "deep-work", durationMinutes: 60, sessionsPerWeek: 1, allowedDays: [0], fixedAt: { start: "10:00" } },
+      })
+    }
+    // A new activity reads in any order too.
+    expect(interpret("add 2h tuesday yoga evening", ctx)).toMatchObject({
+      kind: "add",
+      activity: { name: "yoga", durationMinutes: 120, allowedDays: [1], window: { start: "18:00", end: "23:00" } },
+    })
+  })
+
+  it("adds to an activity you have: more sessions, or an extra one of its own", () => {
+    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4, priority: "high" }
+    const list = { ...ctx, activities: [deep] }
+    expect(interpret("add deep work 2x", list)).toMatchObject({ kind: "update", patch: { sessionsPerWeek: 6 } })
+    expect(interpret("add an extra session of deep work on friday", list)).toMatchObject({
+      kind: "add",
+      // What isn't said is taken from the activity.
+      activity: { extraOf: "deep-work", durationMinutes: 180, allowedDays: [4], priority: "high" },
+      preview: "ADD DEEP WORK EXTRA SESSION · +3H F",
+    })
+    // Without ADD, the same words change the regular sessions.
+    expect(interpret("deep work monday 1h", list)).toMatchObject({ kind: "update", patch: { allowedDays: [0], durationMinutes: 60 } })
+  })
+
+  it("removes an extra session, or the activity with its extras", () => {
+    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4, priority: "medium" }
+    const extra: Activity = { ...deep, id: "deep-work-2", extraOf: "deep-work", durationMinutes: 60, sessionsPerWeek: 1, allowedDays: [0], fixedAt: { start: "10:00" } }
+    const list = { ...ctx, activities: [deep, extra] }
+    expect(interpret("remove deep work monday", list)).toMatchObject({ kind: "remove", id: "deep-work-2" })
+    expect(interpret("remove deep work extra", list)).toMatchObject({ kind: "remove", id: "deep-work-2" })
+    expect(interpret("remove deep work", list)).toMatchObject({ kind: "remove", id: "deep-work", preview: expect.stringContaining("1 EXTRA SESSION") })
+    expect(interpret("remove deep work friday", list)).toMatchObject({ kind: "error" })
+  })
+
+  it("refuses words it can't place in a line about an activity you have", () => {
+    expect(interpret("gym 3x banana", ctx)).toMatchObject({ kind: "error", reply: expect.stringContaining("BANANA") })
+  })
+
+  it("keeps the old start-time forms working", () => {
+    expect(interpret("wake up at 7am", ctx)).toMatchObject({ patch: { wakeTime: "07:00" } })
+    expect(interpret("go to bed at 11pm", ctx)).toMatchObject({ patch: { sleepTime: "23:00" } })
+    expect(interpret("surf 1h always at 06:00", ctx)).toMatchObject({ activity: { fixedAt: { start: "06:00" } } })
+  })
+
+  describe("editing one session", () => {
+    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4, priority: "medium" }
+    const extra: Activity = { ...deep, id: "deep-work-2", extraOf: "deep-work", durationMinutes: 60, sessionsPerWeek: 1, allowedDays: [0], fixedAt: { start: "10:00" } }
+    const sessions = [
+      { activityId: "deep-work-2", day: 0 as const, start: 600, end: 660 },
+      { activityId: "deep-work", day: 0 as const, start: 885, end: 1065 },
+      { activityId: "deep-work", day: 1 as const, start: 885, end: 1065 },
+    ]
+    const both = { ...ctx, activities: [deep, extra], sessions }
+
+    it("splits a regular session into an extra, kept at its time", () => {
+      expect(interpret("edit deep work tuesday 2h", both)).toMatchObject({
+        kind: "split",
+        id: "deep-work",
+        patch: { sessionsPerWeek: 3 },
+        extra: { extraOf: "deep-work", durationMinutes: 120, allowedDays: [1], fixedAt: { start: "14:45" } },
+        preview: "DEEP WORK TUE 14:45 · 3H → 2H · THIS SESSION ONLY, THE OTHER 3 STAY 3H",
+      })
+    })
+
+    it("asks which one when a day has several", () => {
+      const action = interpret("edit deep work monday 3h", both)
+      expect(action).toMatchObject({ kind: "choose", preview: expect.stringContaining("[1] 10:00 1H EXTRA · [2] 14:45 3H") })
+      if (action?.kind !== "choose") throw new Error("expected a choice")
+      expect(action.options[0].action).toMatchObject({ kind: "update", id: "deep-work-2", patch: { durationMinutes: 180 } })
+      expect(action.options[1].action).toMatchObject({ kind: "split" })
+    })
+
+    it("picks by the start time, or by the time of day", () => {
+      expect(interpret("edit deep work monday 10:00 3h", both)).toMatchObject({ kind: "update", id: "deep-work-2", patch: { durationMinutes: 180 } })
+      expect(interpret("edit deep work monday morning 3h", both)).toMatchObject({ kind: "update", id: "deep-work-2" })
+      expect(interpret("edit deep work monday afternoon 2h", both)).toMatchObject({ kind: "split" })
+    })
+
+    it("reads a time after TO as the new start", () => {
+      expect(interpret("edit deep work monday 10:00 to 2h at 11:00", both)).toMatchObject({
+        kind: "update",
+        id: "deep-work-2",
+        patch: { durationMinutes: 120, fixedAt: { start: "11:00" } },
+      })
+      // A time no session starts at is a new start too.
+      expect(interpret("edit deep work tuesday at 16:00", both)).toMatchObject({ kind: "split", extra: { fixedAt: { start: "16:00" } } })
+    })
+
+    it("says so when the day has none, or nothing changes", () => {
+      expect(interpret("edit deep work friday 2h", both)).toMatchObject({ kind: "error", reply: expect.stringContaining("NO DEEP WORK SESSION ON FRIDAY") })
+      expect(interpret("edit deep work tuesday", both)).toMatchObject({ kind: "error", reply: expect.stringContaining("WHAT SHOULD CHANGE") })
+    })
+
+    it("without a day, changes every regular session; the name alone opens the screen", () => {
+      expect(interpret("edit deep work 2h", both)).toMatchObject({ kind: "update", id: "deep-work", patch: { durationMinutes: 120 } })
+      expect(interpret("edit deep work", both)).toMatchObject({ kind: "open", screen: "activities", id: "deep-work" })
+    })
+  })
+
+  describe("moving one session", () => {
+    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4, priority: "medium" }
+    const extra: Activity = { ...deep, id: "deep-work-2", extraOf: "deep-work", durationMinutes: 60, sessionsPerWeek: 1, allowedDays: [0], fixedAt: { start: "10:00" } }
+    const sessions = [
+      { id: "deep-work-2#0", activityId: "deep-work-2", day: 0 as const, start: 600, end: 660 },
+      { id: "deep-work#0", activityId: "deep-work", day: 0 as const, start: 885, end: 1065 },
+      { id: "deep-work#1", activityId: "deep-work", day: 1 as const, start: 885, end: 1065 },
+    ]
+    const both = { ...ctx, activities: [deep, extra], sessions }
+
+    it("reads every hour as a time, however it is written", () => {
+      for (const line of ["move deep work monday 10h to 11h", "move deep work monday 10:00 to 11:00", "move deep work monday at 10 to 11am"]) {
+        expect(interpret(line, both)).toMatchObject({ kind: "move", blockId: "deep-work-2#0", day: 0, start: 660, preview: "MOVE DEEP WORK MON 10:00 → 11:00" })
+      }
+    })
+
+    it("moves to another day, keeping the time, or to both", () => {
+      expect(interpret("move deep work tuesday to friday", both)).toMatchObject({ kind: "move", blockId: "deep-work#1", day: 4, start: 885 })
+      expect(interpret("move deep work tuesday to friday 9h", both)).toMatchObject({ day: 4, start: 540, preview: "MOVE DEEP WORK TUE 14:45 → FRI 09:00" })
+    })
+
+    it("asks which when the day has several and no start is given", () => {
+      expect(interpret("move deep work monday to 18h", both)).toMatchObject({ kind: "choose" })
+    })
+
+    it("refuses what can't work", () => {
+      expect(interpret("move deep work monday 9h to 11h", both)).toMatchObject({ kind: "error", reply: expect.stringContaining("STARTS AT 09:00") })
+      expect(interpret("move deep work tuesday to 22h", both)).toMatchObject({ kind: "error", reply: expect.stringContaining("HAS TO FIT") })
+      expect(interpret("move deep work monday 10h", both)).toMatchObject({ kind: "error", reply: expect.stringContaining("TO A TIME OR A DAY") })
+      expect(interpret("move deep work to 11h", both)).toMatchObject({ kind: "error", reply: expect.stringContaining("WHICH DAY") })
     })
   })
 
@@ -202,6 +346,9 @@ describe("parseDays", () => {
     expect(parseDays("Th")).toEqual([3])
     expect(parseDays("SS")).toEqual([5, 6])
     expect(parseDays("weekdays")).toEqual([0, 1, 2, 3, 4])
+    expect(parseDays("Monday")).toEqual([0])
+    expect(parseDays("thurs")).toEqual([3])
+    expect(parseDays("sundays")).toEqual([6])
     expect(parseDays("work")).toBeNull()
     expect(parseDays("FM")).toBeNull()
   })
@@ -217,5 +364,7 @@ describe("parseClock", () => {
     expect(parseClock("12am")).toBe("00:00")
     expect(parseClock("12pm")).toBe("12:00")
     expect(parseClock("25:00")).toBeNull()
+    expect(parseClock("10h00")).toBe("10:00")
+    expect(parseClock("10h")).toBe("10:00")
   })
 })

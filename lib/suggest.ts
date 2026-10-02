@@ -3,6 +3,7 @@ import { generate } from "./scheduler/generate"
 import { formatTime, parseTime } from "./scheduler/time"
 import { formatSpan } from "./locale"
 import { mealsOf } from "./meals"
+import { WINDOW_PRESETS } from "./draft"
 
 /** Cheap solve for screening candidates; the shortlist is re-checked in full. */
 const TRIAL_PASSES = 4
@@ -12,6 +13,7 @@ export type SuggestionKind =
   | "move-blocker"
   | "drop-buffer"
   | "unpin"
+  | "window"
   | "disable-meal"
   | "wake"
   | "sleep"
@@ -99,9 +101,22 @@ function buildCandidates(settings: Settings, conflict: Unplaced): Suggestion[] {
   const mealId = mealIdOf(conflict.activityId)
   const meal = mealId ? mealsOf(settings).find((m) => m.id === mealId) : undefined
 
-  // Move the thing that did not fit.
+  // Move the thing that did not fit: an hour either way, then the nearest starts
+  // anywhere in the waking day, so a pin far outside it still finds a home.
   if (activity?.fixedAt) {
-    for (const delta of [-60, -45, -30, -15, 15, 30, 45, 60]) {
+    const pinned = parseTime(activity.fixedAt.start)
+    const buffer = activity.bufferMinutes ?? 0
+    const wake = parseTime(settings.wakeTime)
+    let sleep = parseTime(settings.sleepTime)
+    if (sleep <= wake) sleep += 1440
+    const deltas = new Set([-60, -45, -30, -15, 15, 30, 45, 60])
+    const inDay: number[] = []
+    for (let start = wake + buffer; start + activity.durationMinutes + buffer <= sleep; start += 15) {
+      if (start !== pinned) inDay.push(start - pinned)
+    }
+    inDay.sort((a, b) => Math.abs(a) - Math.abs(b))
+    for (const delta of inDay.slice(0, 12)) deltas.add(delta)
+    for (const delta of deltas) {
       const at = shift(activity.fixedAt.start, delta)
       out.push({
         id: `move:${delta}`,
@@ -111,6 +126,42 @@ function buildCandidates(settings: Settings, conflict: Unplaced): Suggestion[] {
         settings: withActivity(settings, activity.id, { fixedAt: { ...activity.fixedAt, start: at } }),
       })
     }
+
+    // Keep the time, change the day around it: wake or sleep exactly where it needs.
+    if (pinned - buffer < wake) {
+      const at = formatTime(pinned - buffer)
+      out.push({
+        id: "wake:fit",
+        kind: "wake",
+        cost: 4 + (wake - (pinned - buffer)) / 15,
+        label: `Wake up at ${at} instead of ${settings.wakeTime}`,
+        settings: { ...settings, wakeTime: at },
+      })
+    }
+    const end = (pinned < wake ? pinned + 1440 : pinned) + activity.durationMinutes + buffer
+    if (end > sleep && pinned >= wake) {
+      const at = formatTime(end)
+      out.push({
+        id: "sleep:fit",
+        kind: "sleep",
+        cost: 4 + (end - sleep) / 15,
+        label: `Go to sleep at ${at} instead of ${settings.sleepTime}`,
+        settings: { ...settings, sleepTime: at },
+      })
+    }
+
+    // Looser than a time, tighter than no time at all: the part of the day it was meant for.
+    const window =
+      WINDOW_PRESETS.find((w) => pinned >= parseTime(w.start) && pinned < parseTime(w.end)) ??
+      (pinned < parseTime(WINDOW_PRESETS[0].start) ? WINDOW_PRESETS[0] : WINDOW_PRESETS[WINDOW_PRESETS.length - 1])
+    out.push({
+      id: "window",
+      kind: "window",
+      cost: 5,
+      label: `Do ${activity.name} in the ${window.label.toLowerCase()} instead of always at ${activity.fixedAt.start}`,
+      settings: withActivity(settings, activity.id, { fixedAt: undefined, window: { start: window.start, end: window.end } }),
+    })
+
     out.push({
       id: "unpin",
       kind: "unpin",
@@ -184,7 +235,7 @@ function buildCandidates(settings: Settings, conflict: Unplaced): Suggestion[] {
   }
 
   // Change the shape of the day. Dearer, because it touches every day of the week.
-  for (const minutes of [15, 30]) {
+  for (const minutes of [15, 30, 45, 60]) {
     out.push({
       id: `wake:${minutes}`,
       kind: "wake",
