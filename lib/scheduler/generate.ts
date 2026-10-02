@@ -27,6 +27,19 @@ import {
 /** Soft-constraint penalties. Lower total is a better week. */
 const P_OUTSIDE_WINDOW = 1000
 const P_SAME_DAY_REPEAT = 200
+/**
+ * Charged per session of the same activity on the day before or after, when it
+ * has fewer sessions than allowed days: Gym 4× reads Mon Wed Fri Sun, not two
+ * pairs of back-to-back days with nothing between. Under half P_SAME_DAY_REPEAT,
+ * so two neighbours never push a session onto a day that already has one.
+ */
+const P_ADJACENT_DAY = 80
+/**
+ * Charged for starting an activity with no window of its own in the first hour
+ * after waking. Without it, earliest-fit put everything the minute the alarm went off.
+ */
+const P_JUST_WOKE = 50
+const JUST_WOKE_SLOTS = 4
 const P_INCONSISTENT_PER_SLOT = 3
 const P_LATE_NIGHT = 60
 const P_ORPHAN_GAP = 40
@@ -68,8 +81,6 @@ const PASSES = 20
 export type GenerateOptions = {
   /** Blocks the user pinned. Never moved. */
   locked?: PlacedBlock[]
-  /** Nothing new is scheduled before this instant — used by "I missed this". */
-  notBefore?: { day: Day; minuteOfDay: number }
   /** Session keys the user removed from this week. Not placed at all. */
   skip?: string[]
   passes?: number
@@ -220,12 +231,6 @@ function seedState(settings: Settings, windows: DayWindow[], options: GenerateOp
     penalty: 0,
   }
 
-  // Everything before `notBefore` is the past: unavailable for new placements.
-  if (options.notBefore) {
-    const boundary = options.notBefore.day * SLOTS_PER_DAY + Math.floor(options.notBefore.minuteOfDay / SLOT_MINUTES)
-    for (let i = 0; i < Math.min(boundary, GRID_SLOTS); i++) state.occupied[i] = 1
-  }
-
   for (const block of options.locked ?? []) {
     const startAbs = block.day * SLOTS_PER_DAY + Math.floor(block.startMinute / SLOT_MINUTES)
     const endAbs = block.day * SLOTS_PER_DAY + Math.ceil(block.endMinute / SLOT_MINUTES)
@@ -354,6 +359,15 @@ function scoreCandidate(
 
   const repeats = state.countByActivityDay.get(`${activity.id}:${win.day}`) ?? 0
   score += repeats * P_SAME_DAY_REPEAT
+
+  if (activity.sessionsPerWeek < allowedDaysOf(activity).length) {
+    const neighbours =
+      (state.countByActivityDay.get(`${activity.id}:${win.day - 1}`) ?? 0) +
+      (state.countByActivityDay.get(`${activity.id}:${win.day + 1}`) ?? 0)
+    score += neighbours * P_ADJACENT_DAY
+  }
+
+  if (!activity.window && !activity.fixedAt && startAbs < win.startAbs + JUST_WOKE_SLOTS) score += P_JUST_WOKE
 
   const anchor = state.anchorByActivity.get(activity.id)
   let consistent = false

@@ -232,7 +232,7 @@ export function AddActivityFlow({
                 })}
               </div>
               {/* On its own line under the whole row, after Back / Next. */}
-              <p className="order-last basis-full font-crt text-[24px] uppercase tracking-[0.12em]">
+              <p className="order-last basis-full font-crt text-[24px] uppercase tracking-[0.12em] pointer-coarse:hidden">
                 Space to pick day
               </p>
             </>

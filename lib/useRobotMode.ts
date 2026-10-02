@@ -12,12 +12,6 @@ import { isoWeek, weekKey } from "./printout"
 /** How many filed weeks the binder keeps: two years. */
 const BINDER_SIZE = 104
 
-export type NotBefore = { day: Day; minuteOfDay: number }
-
-export function nowMarker(date = new Date()): NotBefore {
-  return { day: ((date.getDay() + 6) % 7) as Day, minuteOfDay: date.getHours() * 60 + date.getMinutes() }
-}
-
 const subscribe = () => () => {}
 
 function slugify(name: string): string {
@@ -27,7 +21,6 @@ function slugify(name: string): string {
 export function useRobotMode() {
   // `load()` returns the defaults on the server, so this initialiser is SSR-safe.
   const [stored, setStored] = useState<SavedState>(load)
-  const [notBefore, setNotBefore] = useState<NotBefore | null>(null)
 
   // False during SSR and the hydrating render, true afterwards.
   const hydrated = useSyncExternalStore(
@@ -48,14 +41,19 @@ export function useRobotMode() {
     if (hydrated) save(state)
   }, [state, hydrated])
 
+  // Ask the browser to keep the setup through storage clean-ups: Safari otherwise
+  // drops it after a week without a visit, which is exactly how often this is opened.
+  useEffect(() => {
+    if (hydrated) void navigator.storage?.persist?.().catch(() => {})
+  }, [hydrated])
+
   const schedule = useMemo(
     () =>
       generate(state.settings, {
         locked: state.locked,
         skip: state.skipped,
-        ...(notBefore ? { notBefore } : {}),
       }),
-    [state.settings, state.locked, state.skipped, notBefore],
+    [state.settings, state.locked, state.skipped],
   )
 
   // Independent of the solver so the bar can update while typing.
@@ -160,37 +158,17 @@ export function useRobotMode() {
     [schedule.blocks, state.locked],
   )
 
-  /**
-   * "I missed this": everything already done stays put, the missed session is
-   * dropped, and only the rest of the week is re-solved.
-   */
-  const markMissed = useCallback(
-    (blockId: string) => {
-      const marker = nowMarker()
-      const past = schedule.blocks.filter(
-        (b) => b.id !== blockId && (b.day < marker.day || (b.day === marker.day && b.startMinute < marker.minuteOfDay)),
-      )
-      setStored((s) => {
-        const keep = new Map(s.locked.map((b) => [b.id, b]))
-        for (const b of past) keep.set(b.id, { ...b, locked: true })
-        return {
-          ...s,
-          locked: [...keep.values()].filter((b) => b.id !== blockId),
-          skipped: s.skipped.includes(blockId) ? s.skipped : [...s.skipped, blockId],
-        }
-      })
-      setNotBefore(marker)
-    },
-    [schedule.blocks],
-  )
-
   const shuffle = useCallback(() => {
     setStored((s) => ({ ...s, settings: { ...s.settings, seed: s.settings.seed + 1 } }))
   }, [])
 
   const applyTemplate = useCallback((template: Template) => {
     setStored({ ...initialState, settings: { ...template.settings }, templateId: template.id })
-    setNotBefore(null)
+  }, [])
+
+  /** A setup opened from a link: it replaces the list and hours, and the week is solved afresh. */
+  const loadSetup = useCallback((settings: Settings) => {
+    setStored((s) => ({ ...initialState, settings, exportSequence: s.exportSequence, display: s.display, archive: s.archive }))
   }, [])
 
   /** Flipped by the Generate button. The week view only exists after this. */
@@ -222,7 +200,6 @@ export function useRobotMode() {
       exportSequence: s.exportSequence,
       templateId: activeTemplate.id,
     }))
-    setNotBefore(null)
   }, [activeTemplate])
 
   /**
@@ -253,7 +230,6 @@ export function useRobotMode() {
         archive: [filed, ...(s.archive ?? [])].slice(0, BINDER_SIZE),
       }
     })
-    setNotBefore(null)
   }, [schedule.blocks])
 
   /** Shred a filed week: gone from the binder for good. */
@@ -263,7 +239,6 @@ export function useRobotMode() {
 
   const freshWeek = useCallback(() => {
     setStored((s) => ({ ...s, locked: [], skipped: [] }))
-    setNotBefore(null)
   }, [])
 
   /**
@@ -275,7 +250,6 @@ export function useRobotMode() {
     // How times are shown is a preference, not part of the week: it survives.
     // The binder is history, not the week: it survives too.
     setStored((s) => ({ ...initialState, exportSequence: s.exportSequence, display: s.display, archive: s.archive }))
-    setNotBefore(null)
   }, [])
 
   /**
@@ -298,7 +272,6 @@ export function useRobotMode() {
 
   const replaceState = useCallback((next: SavedState) => {
     setStored(next)
-    setNotBefore(null)
   }, [])
 
   const bumpExport = useCallback(() => {
@@ -312,7 +285,6 @@ export function useRobotMode() {
     hydrated,
     schedule,
     budget,
-    notBefore,
     patchSettings,
     addActivity,
     updateActivity,
@@ -320,9 +292,9 @@ export function useRobotMode() {
     toggleLock,
     removeBlock,
     moveBlock,
-    markMissed,
     shuffle,
     applyTemplate,
+    loadSetup,
     markGenerated,
     unmarkGenerated,
     activeTemplate,

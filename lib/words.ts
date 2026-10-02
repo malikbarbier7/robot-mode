@@ -15,7 +15,7 @@ export type Words = {
   name: string
   /** The model number stamped on every unit. */
   model: string
-  boot: { subtitle: string; ready: string; start: string; display: string; screen: string }
+  boot: { subtitle: string; ready: string; start: string; tap: string; display: string; screen: string }
   printers: {
     line: { name: string; spec: string }
     plotter: { name: string; spec: string }
@@ -47,6 +47,7 @@ export const DEFAULT_WORDS: Words = {
     subtitle: "Personal scheduling computer",
     ready: "System ready",
     start: "Press Enter to start",
+    tap: "Tap to start",
     display: "Display 01",
     screen: "Amber phosphor · 80 col",
   },

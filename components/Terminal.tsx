@@ -26,6 +26,7 @@ const BACK: Partial<Record<Screen | "block" | "move", Screen | "block">> = {
   hours: "edit",
   meals: "edit",
   move: "block",
+  reset: "system",
 }
 
 const PATHS: Record<Screen | "block" | "move", string> = {
@@ -37,6 +38,7 @@ const PATHS: Record<Screen | "block" | "move", string> = {
   system: "System",
   fix: "Fix",
   restart: "System › Restart",
+  reset: "System › Reset",
   block: "Block",
   move: "Block › Move",
   help: "Help",
@@ -80,6 +82,11 @@ const LEGENDS: Record<Screen | "block" | "move", LegendKey[]> = {
   ],
   restart: [
     ["Y", "Erase", true],
+    ["N", "Keep"],
+    ["Esc", "Back"],
+  ],
+  reset: [
+    ["Y", "Reset", true],
     ["N", "Keep"],
     ["Esc", "Back"],
   ],
@@ -165,7 +172,7 @@ export function Terminal({
   // A BLOCK screen with no block left to show has nothing to say.
   const current = (screen?.name === "block" || screen?.name === "move") && !selected ? null : screen
   const conflicts = schedule.unplaced.length
-  const weekEdits = rm.state.locked.length + rm.state.skipped.length + (rm.notBefore ? 1 : 0)
+  const weekEdits = rm.state.locked.length + rm.state.skipped.length
 
   // What the line would do, worked out as it is typed. Enter takes the completion when the line alone means nothing.
   const completion = complete(text, activities)
@@ -188,7 +195,7 @@ export function Terminal({
     if (current?.name === "block" || current?.name === "move") onDeselect()
     onScreen(null)
     if (!keepReply) setReply(null)
-    prompt.current?.focus()
+    if (!touchOnly()) prompt.current?.focus()
   }
   const back = () => {
     const to = current ? BACK[current.name] : undefined
@@ -206,9 +213,10 @@ export function Terminal({
     }
   }, [current?.name, current?.id])
 
-  // The keyboard starts on the prompt; "/" brings it back from anywhere.
+  // The keyboard starts on the prompt; "/" brings it back from anywhere. A phone
+  // starts without it, or its on-screen keyboard would cover the week on arrival.
   useEffect(() => {
-    prompt.current?.focus()
+    if (!touchOnly()) prompt.current?.focus()
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "/" || e.defaultPrevented) return
       const t = e.target as HTMLElement | null
@@ -368,7 +376,7 @@ export function Terminal({
 
   return (
     <div
-      className={`crt no-print flex shrink-0 flex-col px-5 py-3 ${current ? "h-[min(68vh,760px)]" : ""}`}
+      className={`crt no-print flex shrink-0 flex-col px-3 py-2 sm:px-5 sm:py-3 ${current ? "h-[min(68vh,760px)]" : ""}`}
       style={{ borderWidth: 6 }}
     >
       {current && (
@@ -403,7 +411,8 @@ export function Terminal({
 
       {/* At rest: what the week is built from. Click anything to change it. */}
       {!current && (
-        <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 font-crt text-[20px] uppercase leading-tight [&_button]:uppercase">
+        // On a phone the function row's EDIT reaches all of this; the line itself would fill the dock.
+        <div className="hidden flex-wrap items-baseline gap-x-5 gap-y-1 font-crt text-[20px] uppercase leading-tight sm:flex [&_button]:uppercase">
           <button type="button" onClick={() => onScreen({ name: "hours" })} className="hover:bg-ink/15" title="Edit your hours">
             <span className="opacity-60">Wake </span>
             {formatClock(parseTime(settings.wakeTime), clock)}
@@ -445,7 +454,7 @@ export function Terminal({
       )}
 
       {/* The function row. The one Enter would run is lit. */}
-      <div className={`flex flex-wrap gap-x-4 gap-y-1 font-crt text-[20px] uppercase ${current ? "mt-2" : "mt-1.5"}`}>
+      <div className={`flex flex-wrap gap-x-4 gap-y-1 font-crt text-[20px] uppercase ${current ? "mt-2" : "sm:mt-1.5"}`}>
         {functionRow
           .filter((f) => f.show)
           .map((f) => (
@@ -554,12 +563,17 @@ export function Terminal({
   )
 }
 
+/** A touchscreen with no mouse: focusing a field there pops up the on-screen keyboard. */
+function touchOnly(): boolean {
+  return window.matchMedia("(pointer: coarse)").matches
+}
+
 /** Which function-row key a command amounts to, so the row can light it. */
 function functionOf(action: { kind: string; screen?: string; view?: string }): string | null {
   if (action.kind === "open") {
     const screen = action.screen as Screen
     if (["activities", "hours", "meals"].includes(screen)) return "edit"
-    if (screen === "restart") return "system"
+    if (screen === "restart" || screen === "reset") return "system"
     return screen
   }
   if (action.kind === "view") return action.view ?? null
@@ -622,7 +636,7 @@ function ScreenBody({
         />
       )
     case "system":
-      return <SystemScreen rm={rm} onRunWord={onRunWord} onScreen={onScreen} onClose={onClose} onSay={onSay} />
+      return <SystemScreen rm={rm} onRunWord={onRunWord} onScreen={onScreen} />
     case "restart":
       return (
         <MenuScreen
@@ -634,6 +648,28 @@ function ScreenBody({
           ]}
         />
       )
+    case "reset": {
+      const template = rm.activeTemplate
+      if (!template) return null
+      return (
+        <MenuScreen
+          title={`Reset to ${template.name}?`}
+          note={`Your changes go, and the ${template.name} activities, hours and meals come back.`}
+          items={[
+            {
+              key: "Y",
+              label: "Yes, reset",
+              onSelect: () => {
+                rm.resetToTemplate()
+                onSay(`RESET TO ${template.name.toUpperCase()}`)
+                onClose()
+              },
+            },
+            { key: "N", label: "No, keep my changes", onSelect: () => onScreen({ name: "system" }) },
+          ]}
+        />
+      )
+    }
     case "fix":
       return <FixScreen rm={rm} onClose={onClose} onSay={onSay} />
     case "block":
@@ -677,11 +713,12 @@ function MenuScreen({ title, note, items }: { title: ReactNode; note?: ReactNode
       {note && <p className="mt-3 text-[26px] tracking-[0.08em] text-ink/60">{note}</p>}
       <div className="mt-8 flex flex-col items-start gap-3">
         {items.map((item) => (
-          <div key={item.key} className="flex items-baseline gap-6">
+          // A phone has no room for the note beside its command: it goes underneath.
+          <div key={item.key} className="flex flex-col items-start sm:flex-row sm:items-baseline sm:gap-6">
             <Command keyName={item.key} onClick={item.onSelect} disabled={item.disabled}>
               {item.label}
             </Command>
-            {item.note && <span className="text-[24px] text-ink/50">{item.note}</span>}
+            {item.note && <span className="px-2 text-[24px] text-ink/50 sm:px-0">{item.note}</span>}
           </div>
         ))}
       </div>
@@ -693,14 +730,10 @@ function SystemScreen({
   rm,
   onRunWord,
   onScreen,
-  onClose,
-  onSay,
 }: {
   rm: RobotMode
   onRunWord: (word: string) => void
   onScreen: (screen: TerminalScreen) => void
-  onClose: () => void
-  onSay: (text: string, error?: boolean) => void
 }) {
   const { clock, weekStart } = rm.display
   const template = rm.activeTemplate
@@ -733,11 +766,7 @@ function SystemScreen({
       label: `Reset to ${template.name}`,
       note: rm.templateEdited ? "undo your changes to the template" : "unchanged",
       disabled: !rm.templateEdited,
-      onSelect: () => {
-        rm.resetToTemplate()
-        onSay(`RESET TO ${template.name.toUpperCase()}`)
-        onClose()
-      },
+      onSelect: () => onScreen({ name: "reset" }),
     })
   }
   items.push({ key: "6", label: "Restart terminal", note: "erase everything", onSelect: () => onScreen({ name: "restart" }) })
@@ -877,16 +906,6 @@ function BlockScreen({
       onSelect: () => {
         rm.toggleLock(block.id)
         onSay(block.locked ? `${name} UNLOCKED` : `${name} LOCKED`)
-      },
-    },
-    {
-      key: "X",
-      label: "I missed this",
-      note: "replan the rest of the week",
-      onSelect: () => {
-        rm.markMissed(block.id)
-        onSay(`${name} MISSED · REST OF THE WEEK REPLANNED`)
-        onClose()
       },
     },
     {
@@ -1114,7 +1133,7 @@ function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
 
       <ManualSection title="Blocks">
         <ManualLine cmd="Click a block">
-          On the printout or the grid: [E] edit · [S] this session only · [M] move · [L] lock · [X] missed · [R] remove.
+          On the printout or the grid: [E] edit · [S] this session only · [M] move · [L] lock · [R] remove.
         </ManualLine>
       </ManualSection>
 

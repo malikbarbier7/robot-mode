@@ -53,7 +53,8 @@ export function Paper({
   const { pull, handlers } = usePull(onTear && !printing && !tearing ? onTear : undefined)
 
   return (
-    <div className={`px-4 sm:px-6 ${compact ? "py-3" : "py-10"}`}>
+    // Grows to whatever is widest (a chart wider than the phone), keeping its margin on both sides.
+    <div className={`min-w-fit px-3 sm:px-6 ${compact ? "py-3" : "py-4 sm:py-10"}`}>
       {!bare && (
         <Printer
           {...printer}

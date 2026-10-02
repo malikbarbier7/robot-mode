@@ -83,9 +83,10 @@ export function WeekGrid({
     <div ref={frame}>
     <Paper
       compact
-      printer={{ ...words.printers.plotter, width: "max-w-[1080px]" }}
-      width="max-w-[1000px] min-w-[700px]"
-      className="sheet px-12 py-4 font-mono uppercase"
+      // The plotter is never narrower than its chart, so on a phone the two scroll sideways together.
+      printer={{ ...words.printers.plotter, width: "max-w-[1080px] min-w-[620px] sm:min-w-[700px]" }}
+      width="max-w-[1000px] min-w-[620px] sm:min-w-[700px]"
+      className="sheet px-5 py-4 font-mono uppercase sm:px-12"
       feed={feed}
       onFed={onFed}
       onReplay={onReplay}

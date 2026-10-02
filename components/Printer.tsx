@@ -51,12 +51,12 @@ export function Printer({
             <span key={i} className="h-3 w-[3px] bg-black/80" />
           ))}
         </span>
-        <span className="label text-paper/45">{spec ?? words.printers.line.spec}</span>
+        <span className="label hidden text-paper/45 sm:inline">{spec ?? words.printers.line.spec}</span>
       </div>
 
-      {/* Body: the head's window, then the control panel. */}
+      {/* Body: the head's window, then the control panel. A phone keeps only the keys. */}
       <div className={`flex flex-wrap items-center gap-x-5 gap-y-3 border-x border-black bg-[#c9c1ad] px-5 ${compact ? "py-1.5" : "py-3"}`}>
-        <div aria-hidden className={`relative ${compact ? "h-7" : "h-11"} min-w-[200px] flex-1 overflow-hidden border-2 border-black bg-screen`}>
+        <div aria-hidden className={`relative ${compact ? "h-7" : "h-11"} hidden min-w-[200px] flex-1 overflow-hidden border-2 border-black bg-screen sm:block`}>
           {/* Rail and ribbon the head rides along. */}
           <span className="absolute inset-x-2 top-1/2 h-px bg-phosphor/30" />
           <span className="absolute inset-x-2 bottom-2 h-[3px] bg-black" />
@@ -73,12 +73,12 @@ export function Printer({
         </div>
 
         <div className="flex items-center gap-5">
-          <div className={compact ? "flex gap-3" : "space-y-1"}>
+          <div className={`hidden sm:block ${compact ? "sm:flex sm:gap-3" : "space-y-1"}`}>
             <Indicator label="Power" on />
             <Indicator label="On line" on={printing} blink={printing} />
             <Indicator label="Paper" on />
           </div>
-          <div className={`flex gap-2 ${compact ? "" : "flex-col"}`}>
+          <div className={`flex gap-2 ${compact ? "" : "sm:flex-col"}`}>
             <button
               type="button"
               onClick={onFormFeed}
@@ -129,7 +129,7 @@ function Knob({ side, compact }: { side: "left" | "right"; compact: boolean }) {
   return (
     <span
       aria-hidden
-      className={`absolute w-4 border border-black ${compact ? "top-[30px] h-9" : "top-[46px] h-14"} ${side === "left" ? "-left-4" : "-right-4"}`}
+      className={`absolute hidden w-4 border border-black sm:block ${compact ? "top-[30px] h-9" : "top-[46px] h-14"} ${side === "left" ? "-left-4" : "-right-4"}`}
       style={{
         background: "repeating-linear-gradient(to bottom, #1b1914 0 3px, #3a342b 3px 5px)",
       }}
