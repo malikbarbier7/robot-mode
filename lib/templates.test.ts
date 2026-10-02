@@ -104,7 +104,7 @@ describe("matchesTemplate", () => {
   it("notices changed wake, sleep or free time", () => {
     expect(matchesTemplate({ ...student.settings, wakeTime: "06:00" }, student)).toBe(false)
     expect(matchesTemplate({ ...student.settings, sleepTime: "22:00" }, student)).toBe(false)
-    expect(matchesTemplate({ ...student.settings, minFreeMinutesPerDay: 30 }, student)).toBe(false)
+    expect(matchesTemplate({ ...student.settings, wakeTime: "05:00" }, student)).toBe(false)
   })
 
   it("does not match a different template", () => {

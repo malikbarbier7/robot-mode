@@ -4,7 +4,6 @@ import type { Settings } from "@/lib/types"
 export const comfortableWeek: Settings = {
   wakeTime: "07:30",
   sleepTime: "23:30",
-  minFreeMinutesPerDay: 120,
   seed: 42,
   activities: [
     { id: "breakfast", name: "Breakfast", durationMinutes: 30, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "08:00" } },
@@ -20,7 +19,6 @@ export const comfortableWeek: Settings = {
 /** Nearly full: should still place everything, but with little slack. */
 export const tightWeek: Settings = {
   ...comfortableWeek,
-  minFreeMinutesPerDay: 60,
   activities: [
     ...comfortableWeek.activities,
     { id: "study", name: "Class study", durationMinutes: 60, sessionsPerWeek: 5, priority: "high", allowedDays: [0, 1, 2, 3, 4] },
@@ -32,7 +30,6 @@ export const tightWeek: Settings = {
 export const impossibleWeek: Settings = {
   wakeTime: "08:00",
   sleepTime: "00:00",
-  minFreeMinutesPerDay: 120,
   seed: 42,
   activities: [
     { id: "work", name: "Work", durationMinutes: 240, sessionsPerWeek: 14, priority: "critical" },
@@ -48,7 +45,6 @@ export const impossibleWeek: Settings = {
 export const gymRestrictedWeek: Settings = {
   wakeTime: "07:00",
   sleepTime: "23:00",
-  minFreeMinutesPerDay: 180,
   seed: 7,
   activities: [
     { id: "gym", name: "Gym", durationMinutes: 75, sessionsPerWeek: 4, priority: "high", allowedDays: [0, 1, 3, 4], window: { start: "17:00", end: "20:00" }, bufferMinutes: 30 },
@@ -60,7 +56,6 @@ export const gymRestrictedWeek: Settings = {
 export const nightOwlWeek: Settings = {
   wakeTime: "10:00",
   sleepTime: "02:00",
-  minFreeMinutesPerDay: 120,
   seed: 3,
   activities: [
     { id: "work", name: "Work", durationMinutes: 180, sessionsPerWeek: 5, priority: "critical", allowedDays: [0, 1, 2, 3, 4] },

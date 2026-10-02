@@ -6,7 +6,6 @@ import { defaultMeals } from "@/lib/meals"
 const base: Settings = {
   wakeTime: "07:30",
   sleepTime: "23:30",
-  minFreeMinutesPerDay: 60,
   seed: 1,
   activities: [],
   meals: defaultMeals,
@@ -54,7 +53,6 @@ describe("conflict reporting", () => {
   it("reports the longest remaining gap when nothing long enough is left", () => {
     const [conflict] = generate({
       ...base,
-      minFreeMinutesPerDay: 0,
       activities: [
         { id: "work", name: "Work", durationMinutes: 240, sessionsPerWeek: 21, priority: "critical" },
         { id: "epic", name: "Epic session", durationMinutes: 480, sessionsPerWeek: 1, priority: "low" },

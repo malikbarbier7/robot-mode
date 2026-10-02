@@ -12,7 +12,7 @@ import { FUNCTIONS, commandFor, complete, describeExtra, interpret, nextHint, ty
 import { beep, buzz } from "@/lib/sound"
 import { Command, Legend, reject, useTerminal, type LegendKey } from "./Machine"
 import { ClockReadout } from "./Readout"
-import { ActivitiesTerminal, FreeTimeTerminal, HoursTerminal, MealsTerminal } from "./Terminals"
+import { ActivitiesTerminal, HoursTerminal, MealsTerminal } from "./Terminals"
 import { useDisplay } from "./Display"
 
 type View = "printout" | "grid" | "today" | "binder"
@@ -25,7 +25,6 @@ const BACK: Partial<Record<Screen | "block" | "move", Screen | "block">> = {
   activities: "edit",
   hours: "edit",
   meals: "edit",
-  free: "edit",
   move: "block",
 }
 
@@ -35,7 +34,6 @@ const PATHS: Record<Screen | "block" | "move", string> = {
   activities: "Edit › Activities",
   hours: "Edit › Hours",
   meals: "Edit › Meals",
-  free: "Edit › Free time",
   system: "System",
   fix: "Fix",
   restart: "System › Restart",
@@ -65,12 +63,8 @@ const LEGENDS: Record<Screen | "block" | "move", LegendKey[]> = {
     ["↑ ↓", "Adjust"],
     ["Esc", "Back"],
   ],
-  free: [
-    ["← →", "Adjust", true],
-    ["Esc", "Back"],
-  ],
   edit: [
-    ["1–4", "Choose", true],
+    ["1–3", "Choose", true],
     ["↑ ↓", "Move"],
     ["Esc", "Close"],
   ],
@@ -416,10 +410,6 @@ export function Terminal({
             <span className="opacity-60"> Sleep </span>
             {formatClock(parseTime(settings.sleepTime), clock)}
           </button>
-          <button type="button" onClick={() => onScreen({ name: "free" })} className="hover:bg-ink/15" title="Edit free time">
-            <span className="opacity-60">Free </span>
-            {formatSpan(settings.minFreeMinutesPerDay)}/day
-          </button>
           <span aria-hidden className="text-ink/30">│</span>
           {activities.filter((a) => !a.extraOf).map((a) => {
             const short = placed(a.id) < a.sessionsPerWeek
@@ -568,7 +558,7 @@ export function Terminal({
 function functionOf(action: { kind: string; screen?: string; view?: string }): string | null {
   if (action.kind === "open") {
     const screen = action.screen as Screen
-    if (["activities", "hours", "meals", "free"].includes(screen)) return "edit"
+    if (["activities", "hours", "meals"].includes(screen)) return "edit"
     if (screen === "restart") return "system"
     return screen
   }
@@ -620,8 +610,6 @@ function ScreenBody({
       return <HoursTerminal settings={settings} onPatchSettings={rm.patchSettings} />
     case "meals":
       return <MealsTerminal settings={settings} onPatchSettings={rm.patchSettings} />
-    case "free":
-      return <FreeTimeTerminal settings={settings} onPatchSettings={rm.patchSettings} />
     case "edit":
       return (
         <MenuScreen
@@ -630,7 +618,6 @@ function ScreenBody({
             { key: "1", label: "Activities", note: `${settings.activities.length} on the list`, onSelect: () => onScreen({ name: "activities" }) },
             { key: "2", label: "Hours", note: `wake ${settings.wakeTime} · sleep ${settings.sleepTime}`, onSelect: () => onScreen({ name: "hours" }) },
             { key: "3", label: "Meals", onSelect: () => onScreen({ name: "meals" }) },
-            { key: "4", label: "Free time", note: `${formatSpan(settings.minFreeMinutesPerDay)} a day`, onSelect: () => onScreen({ name: "free" }) },
           ]}
         />
       )
@@ -1022,7 +1009,7 @@ function MoveScreen({
 /** The functions as the manual lists them; each one runs from here. */
 const MANUAL_FUNCTIONS: [word: string, what: string][] = [
   ["add", "Add an activity. ADD SURF starts from 1H 1×; or type the whole line."],
-  ["edit", "Change activities, hours, meals or free time. EDIT GYM · EDIT MEALS."],
+  ["edit", "Change activities, hours or meals. EDIT GYM · EDIT MEALS."],
   ["shuffle", "Same rules, a different arrangement of the week."],
   ["export", "Download the week as .ics, for any calendar app. Also on the panel."],
   ["today", "Show just today, as a ticket to print and keep."],
@@ -1117,7 +1104,7 @@ function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
 
       <ManualSection title="Your day">
         <ManualLine cmd="WAKE 7:00 · SLEEP 23:30">When the day starts and ends.</ManualLine>
-        <ManualLine cmd="FREE 2H">Time kept free every day.</ManualLine>
+        <ManualLine cmd="Free time">What your activities leave empty. To keep a break, add it: ADD BREAK 1H DAILY.</ManualLine>
         <ManualLine cmd="12H · 24H · MON · SUN">How times read, and which day starts the week.</ManualLine>
       </ManualSection>
 

@@ -47,7 +47,6 @@ export type SavedState = {
 export const emptySettings: Settings = {
   wakeTime: "07:30",
   sleepTime: "23:30",
-  minFreeMinutesPerDay: 120,
   seed: 1,
   activities: [],
   meals: defaultMeals,
@@ -61,6 +60,16 @@ export const initialState: SavedState = {
   exportSequence: 0,
 }
 
+/**
+ * Saved settings, filled in with defaults. Saves from before free time was
+ * dropped carry a `minFreeMinutesPerDay`; it means nothing now, so it is left behind.
+ */
+function readSettings(saved: Partial<Settings> & { minFreeMinutesPerDay?: unknown }): Settings {
+  const { minFreeMinutesPerDay: _dropped, ...rest } = saved
+  void _dropped
+  return { ...emptySettings, ...rest, meals: rest.meals ?? defaultMeals }
+}
+
 /** Never throws: a stale or corrupt entry falls back to a clean slate. */
 export function load(): SavedState {
   if (typeof window === "undefined") return initialState
@@ -71,11 +80,7 @@ export function load(): SavedState {
     if (parsed.version !== 1 || !parsed.settings) return initialState
     return {
       version: 1,
-      settings: {
-        ...emptySettings,
-        ...parsed.settings,
-        meals: parsed.settings.meals ?? defaultMeals,
-      },
+      settings: readSettings(parsed.settings),
       locked: parsed.locked ?? [],
       skipped: parsed.skipped ?? [],
       exportSequence: parsed.exportSequence ?? 0,
@@ -109,11 +114,7 @@ export function fromJson(text: string): SavedState | null {
     if (!parsed.settings || !Array.isArray(parsed.settings.activities)) return null
     return {
       version: 1,
-      settings: {
-        ...emptySettings,
-        ...parsed.settings,
-        meals: parsed.settings.meals ?? defaultMeals,
-      },
+      settings: readSettings(parsed.settings),
       locked: parsed.locked ?? [],
       skipped: parsed.skipped ?? [],
       exportSequence: parsed.exportSequence ?? 0,

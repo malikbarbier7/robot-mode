@@ -14,7 +14,6 @@ export const templates: Template[] = [
       ...base,
       wakeTime: "08:00",
       sleepTime: "00:00",
-      minFreeMinutesPerDay: 150,
       meals: [
         { id: "breakfast", name: "Breakfast", start: "08:30", durationMinutes: 30, enabled: true },
         { id: "lunch", name: "Lunch", start: "13:00", durationMinutes: 60, enabled: true },
@@ -36,7 +35,6 @@ export const templates: Template[] = [
       ...base,
       wakeTime: "07:00",
       sleepTime: "23:30",
-      minFreeMinutesPerDay: 150,
       meals: [
         { id: "breakfast", name: "Breakfast", start: "08:00", durationMinutes: 30, enabled: false },
         { id: "lunch", name: "Lunch", start: "13:00", durationMinutes: 45, enabled: true },
@@ -61,7 +59,6 @@ export const templates: Template[] = [
       ...base,
       wakeTime: "07:00",
       sleepTime: "23:00",
-      minFreeMinutesPerDay: 150,
       meals: [
         { id: "breakfast", name: "Breakfast", start: "07:30", durationMinutes: 30, enabled: true },
         { id: "lunch", name: "Lunch", start: "13:00", durationMinutes: 60, enabled: true },
@@ -83,7 +80,6 @@ export const templates: Template[] = [
       ...base,
       wakeTime: "06:30",
       sleepTime: "22:30",
-      minFreeMinutesPerDay: 120,
       meals: [
         { id: "breakfast", name: "Breakfast", start: "09:30", durationMinutes: 30, enabled: true },
         { id: "lunch", name: "Lunch", start: "13:30", durationMinutes: 45, enabled: true },
@@ -104,7 +100,6 @@ export const templates: Template[] = [
       ...base,
       wakeTime: "07:30",
       sleepTime: "23:30",
-      minFreeMinutesPerDay: 180,
       meals: [
         { id: "breakfast", name: "Breakfast", start: "08:00", durationMinutes: 30, enabled: true },
         { id: "lunch", name: "Lunch", start: "13:00", durationMinutes: 60, enabled: true },
@@ -126,7 +121,6 @@ export const templates: Template[] = [
       ...base,
       wakeTime: "07:00",
       sleepTime: "23:00",
-      minFreeMinutesPerDay: 180,
       meals: [
         { id: "breakfast", name: "Breakfast", start: "08:00", durationMinutes: 30, enabled: false },
         { id: "lunch", name: "Lunch", start: "12:30", durationMinutes: 60, enabled: true },
@@ -149,7 +143,6 @@ export const templates: Template[] = [
       ...base,
       wakeTime: "07:30",
       sleepTime: "23:30",
-      minFreeMinutesPerDay: 120,
       meals: defaultMeals,
       activities: [],
     },
@@ -170,7 +163,6 @@ export function matchesTemplate(settings: Settings, template: Template): boolean
     JSON.stringify({
       wakeTime: s.wakeTime,
       sleepTime: s.sleepTime,
-      minFreeMinutesPerDay: s.minFreeMinutesPerDay,
       meals: mealsOf(s),
       activities: s.activities,
     })

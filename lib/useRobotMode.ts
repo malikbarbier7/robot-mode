@@ -212,7 +212,7 @@ export function useRobotMode() {
     [activeTemplate, state.settings],
   )
 
-  /** Put the activities, times and free time back the way the template had them. */
+  /** Put the activities, times and meals back the way the template had them. */
   const resetToTemplate = useCallback(() => {
     if (!activeTemplate) return
     setStored((s) => ({

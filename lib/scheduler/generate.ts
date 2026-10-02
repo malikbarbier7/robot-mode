@@ -111,8 +111,9 @@ export function generate(settings: Settings, options: GenerateOptions = {}): Sch
   const budget = computeBudget(settings)
   const passes = options.passes ?? PASSES
 
-  const capSlotsPerDay =
-    windows[0].endAbs - windows[0].startAbs - Math.ceil(Math.max(0, settings.minFreeMinutesPerDay) / SLOT_MINUTES)
+  // A day can be filled from waking to sleep: free time is whatever the week leaves empty
+  // (or an activity of its own), not a reserve kept back.
+  const capSlotsPerDay = windows[0].endAbs - windows[0].startAbs
 
   const activities = allActivities(settings)
 
@@ -410,7 +411,7 @@ function commit(session: SessionSpec, state: PassState, candidate: Candidate, re
 }
 
 function fitsCap(session: SessionSpec, state: PassState, candidate: Candidate, capSlotsPerDay: number): boolean {
-  // Critical activities are exempt: protected free time must not block work or sleep.
+  // The cap is the whole waking day; critical activities are exempt from even that.
   if (session.activity.priority === "critical") return true
   const cost = candidate.bufEnd - candidate.bufStart
   return state.allocatedByDay[candidate.day] + cost <= capSlotsPerDay

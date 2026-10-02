@@ -3,9 +3,9 @@
 import { useRef, useState } from "react"
 import type { Activity, Schedule, Settings } from "@/lib/types"
 import { Command, Console, SCREEN_HEIGHT, useTerminal, type LegendKey } from "./Machine"
-import { ActivitiesTerminal, FreeTimeTerminal, HoursTerminal, MealsTerminal } from "./Terminals"
+import { ActivitiesTerminal, HoursTerminal, MealsTerminal } from "./Terminals"
 
-const STEP_COUNT = 4
+const STEP_COUNT = 3
 
 /** The entry line of request 01, and each of its parameter steps, by index. */
 const ACTIVITY_LEGENDS: Record<"line" | number, LegendKey[]> = {
@@ -36,7 +36,7 @@ const ACTIVITY_LEGENDS: Record<"line" | number, LegendKey[]> = {
   ],
 }
 
-/** Requests 02–04. */
+/** Requests 02–03. */
 const LEGENDS: LegendKey[][] = [
   [],
   [
@@ -47,18 +47,13 @@ const LEGENDS: LegendKey[][] = [
   [
     ["Space", "Pick meal", true],
     ["↑ ↓", "Adjust"],
-    ["Enter", "Next field"],
-  ],
-  [
-    ["← →", "Adjust", true],
     ["Enter", "Make me a robot"],
-    ["Esc", "Back"],
   ],
 ]
 
 /**
  * The first run, fed to the machine one request at a time: what to do, the
- * operating hours, meals, free time. Every answer lands in the same settings
+ * operating hours, meals. Every answer lands in the same settings
  * the output side panel edits, so the week that follows is built from these.
  *
  * It is driven like a terminal: the commands are on the screen and the
@@ -119,7 +114,6 @@ export function Setup({
           )}
           {step === 1 && <HoursTerminal settings={settings} onPatchSettings={onPatchSettings} />}
           {step === 2 && <MealsTerminal settings={settings} onPatchSettings={onPatchSettings} />}
-          {step === 3 && <FreeTimeTerminal settings={settings} onPatchSettings={onPatchSettings} />}
 
           <div className="mt-auto flex flex-wrap items-center justify-between gap-4 border-t border-ink/30 pt-5">
             {step === 0 ? (
