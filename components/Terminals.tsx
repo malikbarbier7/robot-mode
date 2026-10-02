@@ -67,7 +67,7 @@ export function ActivitiesTerminal({
         )}
       </div>
       <AddActivityFlow onAdd={onAddActivity} onEmptyEnter={onEmptyEnter} onStepChange={onStepChange} />
-      <p className="label mt-3 text-ink/45">
+      <p className="label mt-3 text-ink/45 pointer-coarse:hidden">
         Enter moves field to field, then through the parameters and adds. Enter on a blank line to continue.
       </p>
     </>
@@ -84,7 +84,7 @@ export function HoursTerminal({
   return (
     <>
       <Request n={2} title="Define operating hours" />
-      <div className="mt-10 flex flex-wrap gap-x-16 gap-y-8">
+      <div className="mt-6 flex flex-wrap gap-x-16 gap-y-5 sm:mt-10 sm:gap-y-8">
         <TimeDial label="Wake" value={settings.wakeTime} onChange={(v) => onPatchSettings({ wakeTime: v })} />
         <TimeDial label="Sleep" value={settings.sleepTime} onChange={(v) => onPatchSettings({ sleepTime: v })} />
       </div>
@@ -107,7 +107,7 @@ export function MealsTerminal({
   return (
     <>
       <Request n={3} title="Meal parameters" note="Switch on the meals you have." />
-      <div className="mt-8 font-crt text-[36px] leading-none">
+      <div className="mt-8 font-crt text-[30px] leading-none sm:text-[36px]">
         {meals.map((meal) => {
           return (
             <div key={meal.id} className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-ink/20 py-3">
@@ -123,17 +123,18 @@ export function MealsTerminal({
                 {meal.enabled ? "■" : "□"}
               </button>
               {isDefaultMeal(meal.id) ? (
-                <span className={`min-w-0 flex-1 uppercase ${meal.enabled ? "" : "text-ink/35"}`}>{meal.name}</span>
+                // On a phone the name fills the line and the time and length wrap beneath it.
+                <span className={`min-w-0 flex-1 uppercase max-sm:basis-[calc(100%-4rem)] ${meal.enabled ? "" : "text-ink/35"}`}>{meal.name}</span>
               ) : (
                 <input
                   data-nav
                   value={meal.name}
                   onChange={(e) => patchMeal(meal.id, { name: e.target.value })}
                   aria-label="Meal name"
-                  className="min-w-0 flex-1 border-b border-ink/40 bg-transparent uppercase"
+                  className="min-w-0 flex-1 border-b border-ink/40 bg-transparent uppercase max-sm:basis-[calc(100%-4rem)]"
                 />
               )}
-              <span className={`flex items-baseline tabular-nums ${meal.enabled ? "" : "opacity-30"}`}>
+              <span className={`flex items-baseline tabular-nums max-sm:pl-16 ${meal.enabled ? "" : "opacity-30"}`}>
                 <ClockReadout
                   label={meal.name}
                   value={meal.start}
@@ -169,7 +170,7 @@ export function MealsTerminal({
         })}
       </div>
       {/* The same bright hint as the day chips: the key that matters here. */}
-      <p className="mt-4 font-crt text-[24px] uppercase tracking-[0.12em]">Space to pick meal</p>
+      <p className="mt-4 font-crt text-[24px] uppercase tracking-[0.12em] pointer-coarse:hidden">Space to pick meal</p>
       <button
         type="button"
         data-nav
@@ -186,8 +187,8 @@ export function MealsTerminal({
 function TimeDial({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex flex-col items-start gap-2 font-crt">
-      <span className="text-[34px] uppercase tracking-[0.2em] text-ink/70">{label}</span>
-      <span className="flex items-center border border-ink/50 px-4 text-[128px] leading-none tabular-nums">
+      <span className="text-[26px] uppercase tracking-[0.2em] text-ink/70 sm:text-[34px]">{label}</span>
+      <span className="flex items-center border border-ink/50 px-4 text-[80px] leading-none tabular-nums sm:text-[128px]">
         <ClockReadout label={label} value={value} arrows onChange={onChange} periodClassName="text-[44px]" />
       </span>
     </div>

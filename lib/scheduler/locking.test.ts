@@ -12,7 +12,7 @@ describe("locks and skips together", () => {
     const first = generate(student)
     expect(first.blocks).toHaveLength(totalSessions())
 
-    // Mimic "I missed this": lock everything before Saturday evening, skip one session.
+    // Lock everything before Saturday evening, and remove one session.
     const skipMe = first.blocks.find((b) => b.activityId === "reading" && b.day === 5)!
     const locked = first.blocks
       .filter((b) => b.id !== skipMe.id && (b.day < 5 || (b.day === 5 && b.startMinute < 1370)))

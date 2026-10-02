@@ -134,3 +134,31 @@ export function fromJson(text: string): SavedState | null {
     return null
   }
 }
+
+const SETUP_PREFIX = "#setup="
+
+/**
+ * The setup (hours, meals, activities) packed into a link, so it can be opened
+ * on another device or handed to someone else without an account. The week
+ * itself is not carried: the same setup solves to the same week anyway.
+ */
+export function setupLink(settings: Settings, base: string): string {
+  const { wakeTime, sleepTime, seed, activities, meals } = settings
+  const bytes = new TextEncoder().encode(JSON.stringify({ wakeTime, sleepTime, seed, activities, meals }))
+  const b64 = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+  return `${base.split("#")[0]}${SETUP_PREFIX}${b64}`
+}
+
+/** The setup in a link's hash, or null when there is none or it is not one of ours. */
+export function setupFromHash(hash: string): Settings | null {
+  if (!hash.startsWith(SETUP_PREFIX)) return null
+  try {
+    const b64 = hash.slice(SETUP_PREFIX.length).replace(/-/g, "+").replace(/_/g, "/")
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as Partial<Settings>
+    if (!Array.isArray(parsed.activities) || typeof parsed.wakeTime !== "string" || typeof parsed.sleepTime !== "string") return null
+    return readSettings(parsed)
+  } catch {
+    return null
+  }
+}

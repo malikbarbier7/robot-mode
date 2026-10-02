@@ -27,7 +27,8 @@ export function Boot({ onStart }: { onStart: () => void }) {
             onClick={onStart}
             className="mt-4 px-3 text-[22px] tracking-[0.2em] text-ink/80 sm:text-[30px]"
           >
-            <span className="uppercase">{words.boot.start}</span>
+            <span className="uppercase pointer-coarse:hidden">{words.boot.start}</span>
+            <span className="hidden uppercase pointer-coarse:inline">{words.boot.tap}</span>
             <span className="blink">_</span>
           </button>
         </div>

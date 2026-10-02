@@ -52,366 +52,262 @@ It will never say *"you should read more."* It only answers *"you told me you wa
 # 3. Core loop
 
 ```text
-DEFINE  →  GENERATE  →  LOCK / ADJUST  →  EXPORT  →  LIVE IT
+DEFINE  →  GENERATE  →  ADJUST  →  PRINT / EXPORT  →  LIVE IT
                 ↑                                        │
-                └──────────── something changed ─────────┘
+                └────────────── next week ───────────────┘
 ```
+
+Robot Mode plans a week ahead. The week is set out once, then printed or
+exported to a calendar and lived from there; the app is not where the day is
+followed minute by minute.
 
 ---
 
 # 4. Core experience
 
-## Step 1 — Your list
+The whole product is one machine: **RM-01**, a 1970s scheduling computer. It
+boots, asks its questions on an amber screen, and its output comes out of
+printers. The metaphor is the brand, and every action it dresses up is also a
+plain key or a plain word.
 
-The first screen is the list, and nothing else. A single line — name, duration,
-how many times a week — and everything you add stacks up beneath it, numbered.
+## Boot
 
-The list is the product. Anything that competes with it on the first screen,
-templates included, is pushing the user away from the thing they came to do.
+The idle machine: *Robot Mode · Personal scheduling computer · System ready*.
+Enter (or a tap) starts the input terminal. Newcomers meet the landing page
+first (§20); its Build my week skips the idle screen and opens Request 01.
 
-Above the input, the frame it all has to fit inside: **Wake** 07:30, **Sleep** 23:30,
-how much free time a day to protect, and **meals** — breakfast, lunch and dinner,
-each at a time, for a length.
+## Request 01 — What do you want to do?
 
-Every meal starts **off**. Reserving someone's evening for a dinner they never
-asked for is a worse default than asking for one click, and it would quietly make
-the week look fuller than their own list.
-
-Meals are part of the shape of a day rather than things you want to get done, so
-they belong here and never appear in the list. The hours come first — you decide how big
-the container is before you decide what goes in it.
-
-## Step 2 — Add activities
-
-Adding an activity takes **three fields**:
+The list, and nothing else. A single line takes **three fields** — name,
+duration (an hours / minutes readout), times a week:
 
 ```text
-Gym, 1h15, 4×
+Gym   1H 15M   4×
 ```
 
-**Add** commits it there and then. **Next** hands the same row over to a stepper
-that walks through the rest, one question at a time. It replaces the inputs rather
-than stacking above them, so the block never changes height and the eye stays in
-one place:
+From the last field, Enter walks a short stepper that replaces the line
+rather than stacking above it, so the eye stays in one place:
 
 ```text
-1/4  Days     2/4  Priority     3/4  Travel buffer
-4/4  When  ( Decide for me | Preferred window | Always at )
+1/3  Days     2/3  Travel buffer     3/3  When
 ```
 
-A preferred window and a fixed time are one question answered two ways, so they
-share the last step. The presets set a window directly — there is no mode to pick
-first — and choosing **Always at** hides them, since a fixed time makes a window
-meaningless. Custom start and end times live in the row editor, which has room.
+**When** offers *Decide for me*, *Always at* (a fixed time) and the presets
+*Morning*, *Afternoon*, *Evening*; choosing a fixed time hides the presets. Every
+step can be skipped, which stores nothing and leaves the choice to the engine —
+except the buffer, where skipping means zero. Added activities stack above the
+line; each can be reopened to change it.
 
-The row ends in two fixed slots. The right one is always the action that moves
-you forward — **Next**, becoming **Add** on the last step — and it never moves, so
-pressing the same place repeatedly walks the whole flow and commits at the end.
-The left slot holds **Add** before the stepper starts and **Back** once it has.
+**Load a template** sits under the list, never in front of it (§12).
 
-Both rules came from watching it go wrong: offering Add at every step invited
-committing a half-configured activity, and letting Next shift by one slot put
-Back exactly where the last click had been.
+## Request 02 — Operating hours
 
-Every step can be skipped, which stores nothing and leaves the choice to the
-engine. The wording matters — **Decide for me** on days, priority and when, but
-**No buffer** on travel time, because skipping that means zero rather than a
-decision handed to the scheduler. Nothing is echoed back between steps. The controls show their own state, and a
-running summary beside them was only noise.
+**Wake** and **Sleep**, set like instruments: two big clock readouts, ↑ ↓ or
+typed digits. Defaults 07:30 and 23:30.
 
-This is where preferences belong. Collected up front, the first generated week is
-one you can live with; collected afterwards, every week starts as something to fix
-by hand — which is the friction the product exists to remove.
+## Request 03 — Meals
 
-The promise is still "stop deciding", so the stepper is opt-in: three fields and
-Add remains the fast path.
+Breakfast, lunch and dinner, each at a time and for a length, and **every meal
+starts off**. Reserving someone's evening for a dinner they never asked for is a
+worse default than asking for one click. Extra meals can be added. Meals are
+the shape of a day, not things to get done, so they never appear in the list.
 
-## Step 3 — Watch the budget
+## Generate
 
-As activities are added, a live bar shows the week filling up:
-
-```text
-87h of 112 waking hours allocated          ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░
-```
-
-There is no separate "impossible schedule" error screen. Infeasibility is simply the bar going past 100%, with the lowest-priority offender named.
-
-A budget that fits is not the same as a week that fits: hours can be available and
-still be in the wrong places. When the solver cannot place something, a red panel
-lists every conflict and says why each one happened, naming what was in the way:
-
-```text
-3 CONFLICTS
-Gym       0/4  — 08:00 clashes with Breakfast at 09:00
-Standup   0/5  — 13:15 clashes with Lunch at 13:00
-Dawn run  0/2  — 05:00 doesn't fit between waking up and going to sleep
-```
-
-Red is the one exception to a single ink colour, and it appears only when there is
-a conflict. "It did not fit" on its own is useless — the name of the block sitting
-in the way is what makes it fixable.
-
-Each conflict has a **Fix** button offering up to three ways out:
-
-```text
-Move Gym to 07:30
-Move Breakfast to 09:30
-Let Robot Mode choose when Gym happens
-```
-
-These are not guesses. A short catalogue of small tweaks is generated from the
-conflict, each one is tried by re-running the solver, and only those that genuinely
-resolve it — without breaking more than they fix — are shown. The solver takes
-about 30ms, so trying two dozen is affordable on demand. Nothing is ever offered
-that has not been shown to work, which is exactly what a clever guess would get
-wrong.
-
-They are ranked by how little they disturb what was asked for: nudging one block
-beats changing wake time, which beats shortening an activity or dropping a session.
-Only the cheapest of each kind is shown, so three suggestions are three genuinely
-different moves rather than the same one at 15, 30 and 45 minutes.
-
-Applying one is the user's choice, never automatic, and one change at a time.
-When nothing small helps, the panel says so instead of offering something weak.
-
-## Step 4 — Generate
-
-**GENERATE MY WEEK** is the moment the product exists for. The solver finishes in
-about 30ms, but the reveal is paced over roughly four seconds, showing what it is
-actually doing — protecting sleep, placing sessions by priority, spreading them
-across seven days, reserving free time, comparing twenty arrangements. A click
-skips it.
-
-After that first reveal the week re-solves live on every edit, with locked blocks
-held in place. The pause belongs to the reveal, not to editing.
-
-Example Monday:
-
-| Time | |
-|---|---|
-| 07:30-08:00 | Breakfast |
-| 08:00-10:00 | Reading |
-| 10:00-11:00 | Language |
-| 11:00-12:00 | Work |
-| 12:00-13:00 | Lunch |
-| 13:00-16:00 | Work |
-| 16:00-17:15 | Gym |
-| 17:15-18:15 | Class study |
-| 18:15-19:15 | Dinner |
-| 19:15-23:30 | Free |
+**Make me a robot** runs the solver (about 30 ms) and paces the reveal over a
+few seconds, showing what it is actually doing; a click or Enter skips it.
+After the first reveal the week re-solves live on every edit. The pause belongs
+to the reveal, not to editing.
 
 ---
 
 # 5. Data model
 
-Deliberately small. Eight fields, five of them optional.
-
 ```ts
-type Day = 0 | 1 | 2 | 3 | 4 | 5 | 6
-
 type Activity = {
   id: string
   name: string
   durationMinutes: number        // length of ONE session
   sessionsPerWeek: number
-  priority: "critical" | "high" | "medium" | "low"
-
   allowedDays?: Day[]            // default: all
-  window?: { start: string; end: string }   // soft preference, e.g. "18:00"–"23:00"
-  bufferMinutes?: number         // travel / transition, applied both sides
-  fixedAt?: { day: Day; start: string }     // appointments
+  window?: { start: string; end: string }   // soft preference
+  bufferMinutes?: number         // travel / transition, both sides
+  fixedAt?: { start: string; days?: Day[] } // same clock time every session
+  extraOf?: string               // a one-off extra session of another activity
+  priority?: Priority            // internal only: meals are critical
 }
 
-type Meal = {
-  id: string
-  name: string
-  start: string                  // the same clock time every day
-  durationMinutes: number
-  enabled: boolean
-}
+type Meal = { id: string; name: string; start: string; durationMinutes: number; enabled: boolean }
 
 type Settings = {
   wakeTime: string
   sleepTime: string
   activities: Activity[]
-  meals?: Meal[]                 // breakfast, lunch, dinner; all off by default
-  minFreeMinutesPerDay: number   // protected unscheduled time
+  meals?: Meal[]                 // all off by default
   seed: number
 }
 ```
 
 ## Why it looks like this
 
-**No splittable/atomic distinction.** Duration is one session; frequency is sessions per week. "Work 4h/day" is expressed as `2h × 14/week` and the placer naturally puts two on each day. Splitting falls out of the model instead of needing a field.
+**No splittable/atomic distinction.** Duration is one session; frequency is
+sessions per week. "Work 4h/day" is `2h × 14/week`.
 
-**One `window` instead of `preferredTime` + `preferredDays` + `flexibility`.** The window is a *soft* preference — the engine violates it only when nothing else fits, and says so.
+**One `window`** instead of preferred time + preferred days + flexibility. It is
+soft: the engine leaves it only when nothing else fits, and says so.
 
-**Flexibility is derived.** `fixedAt` present means fixed. Otherwise flexible.
+**No priority for people.** Every activity they add weighs the same. Priority
+survives only inside the engine, so meals are placed first and never given up.
 
-**`bufferMinutes` earns its place.** Gym 16:00–17:15 ignores the commute and the shower. Ten lines of engine code, and the difference between a schedule that looks right and one that survives Tuesday.
+**No free-time setting.** Free time is what the activities leave. Anyone who
+wants a break kept adds it, like anything else: `ADD BREAK 1H DAILY`.
 
-**`minFreeMinutesPerDay` replaces a relaxed/balanced/rigid setting.** Same outcome, but concrete and directly enforceable rather than a mood the engine has to interpret.
-
-**Meals are not activities.** An enabled meal becomes a critical, fixed-time
-activity on all seven days when the week is solved, so it is locked and everything
-else works around it — but it stays out of the list the user is writing.
-
-**Dropped:** `minimumGap`, `maximumConsecutive`, `category`, `preferredDays`, `flexibility`. Add back only when a real test week needs them.
+**Meals are not activities.** An enabled meal becomes a fixed, critical session
+on all seven days when the week is solved, but it stays out of the list.
 
 ---
 
 # 6. Scheduling engine
 
-Deterministic, client-side, roughly 250 lines. No solver library.
+Deterministic, client-side, no solver library (`lib/scheduler/`).
 
 The week is a grid of 15-minute slots: **7 × 96 = 672**.
 
-1. Block out sleep, `fixedAt` activities, and locked blocks.
-2. Cap each day at `waking − minFreeMinutesPerDay`, so free time is structurally protected rather than hoped for.
-3. Sort sessions by priority.
-4. Place each session in its best-scoring free slot.
-5. Repeat with 20 seeded passes, shuffling order within each priority tier. Keep the best-scoring week.
+1. Block out sleep, fixed-time sessions and locked blocks.
+2. Place meals, then every other session by its best-scoring free slot.
+3. Repeat with 20 seeded passes, shuffling order within each tier. Keep the best week.
 
 ## Scoring a candidate slot
 
-- Is it inside the activity's `window`?
-- Is it at the same hour as this activity's already-placed sessions? *(consistency)*
-- Is this day already overloaded relative to the others? *(spread)*
-- Is it late at night for a high-priority activity?
-- Is it squatting on hours that a windowed activity is competing for? *(contention)*
+- Inside the activity's window?
+- Same time of day as its other sessions? *(consistency)*
+- A second session the same day? *(heavily penalised)*
+- A session of the same activity the day before or after, when it has fewer
+  sessions than allowed days? *(spread: Gym 4× reads Mon Wed Fri Sun, not two
+  back-to-back pairs)*
+- In the first hour after waking, for an activity with no window? *(nothing is
+  put the minute the alarm goes off)*
+- Squatting on hours a windowed activity is competing for? *(contention)*
+- Leaving an orphan gap of half an hour or less?
 
 ## Hard constraints
 
-Never violated:
-
-- No overlaps
-- Sleep is protected
-- `allowedDays` respected
-- `fixedAt` blocks cannot move
-- Locked blocks cannot move
-- Everything fits inside waking hours
-
-## Consistency is the default
-
-Same activity, same time, most days. Habits are built by repetition at a fixed hour; a language session that wanders across the morning is much harder to keep. Variety is not offered as an equal option.
+No overlaps; sleep protected; allowed days respected; fixed and locked blocks
+never move; everything inside waking hours.
 
 ## Determinism
 
-The RNG is seeded. Same input, same week — always. A scheduler that produces a different answer each time it runs feels arbitrary, and arbitrary kills trust.
-
-Two distinct actions:
-
-- **Re-solve** — after an edit. Stable, preserves locks.
-- **Shuffle** — explicitly asks for a different arrangement. New seed.
+The RNG is seeded. Same input, same week — always. **Shuffle** asks for a
+different arrangement with a new seed.
 
 ## Explainability
 
-Every placed block records a one-line reason:
-
-> *"Evening window; 18:00–19:15 taken by Gym; earliest evening fit."*
-
-This is a `reason: string` written during placement, not a reasoning engine. It's cheap here and impossible to retrofit later — and it's something no LLM planner can do honestly.
+Every placed block records a one-line reason (*"Inside 17:00–19:30 window; best
+fit at 17:15"*), shown when the block is picked.
 
 ---
 
 # 7. Time budget
 
-The most important screen element.
+On the terminal's status line, always visible once a week exists:
 
 ```text
-You've allocated 118h of 112 waking hours.
-
-Over by 6h.
-Lowest-priority activity: Extra leisure (7h/week).
+PLANNED 68.3H OF 112H AVAILABLE · over by 6H
 ```
 
-Live, always visible, updating as you type. This is the thing a calendar structurally cannot do, and it should be what the landing page animates.
+It stays out of the input terminal, which is kept to one question at a time.
 
 ---
 
-# 8. Locking and regenerating
+# 8. Conflicts
 
-Any block can be **locked**.
+A budget that fits is not a week that fits: hours can be free and still be in
+the wrong places. When something can't be placed, the terminal's **FIX** key
+lights red with the count, and the Fix screen says why each one failed, naming
+what was in the way:
 
 ```text
-Monday 16:00–17:15
-Gym  🔒
+Gym       0/4  — 08:00 clashes with Breakfast at 09:00
+Dawn run  0/2  — 05:00 doesn't fit between waking up and going to sleep
 ```
 
-Locked blocks never move. Everything else rearranges around them.
-
-Change reading from 2h to 1h, hit re-solve, and the week rebuilds while your locked blocks stay exactly where they are.
-
-**This is the intended editing model.** If a block is in the wrong place: lock what you like, re-solve. Manual dragging is the thing the product exists to eliminate.
+Each conflict offers up to three ways out, and **none is a guess**: a short
+catalogue of small tweaks is generated, each is tried by re-solving, and only
+those that genuinely resolve it without breaking more are shown. Cheapest
+first — nudge one block, then change wake time, then shorten or drop a session.
+Applying one is always the user's choice.
 
 ---
 
-# 9. Free time
+# 9. Editing the week
 
-Robot Mode does **not** fill every minute.
+Picking a block (on the list, grid or ticket) opens it on the terminal:
 
-`minFreeMinutesPerDay` is a hard cap on how much of a day can be allocated. The remainder is simply:
+- **Edit** the activity (length, times a week, days…)
+- **This session only** — change one session without touching the rest
+- **Move** to another day or time; it is locked there
+- **Lock** — keep it through shuffles and edits
+- **Remove** this session from this week
 
-```text
-Free — 19:15–23:30
-```
+Locking is the intended way to keep what is right: lock it, then shuffle or
+edit, and everything else rearranges around it. **No drag and drop and no
+resize**: dragging is manual scheduling, the thing the product exists to remove.
 
-The user decides spontaneously: partner, friends, family, a film, nothing at all.
-
-This is also how "people time" works. Rather than scheduling *"Girlfriend — Monday 20:00"*, you reserve 2h/day of unscheduled time and live in it.
-
-Without this, the product becomes another hyper-optimized productivity tool, which is exactly what it is trying not to be.
-
----
-
-# 10. Weekly view
-
-Desktop-first. Seven columns.
-
-```text
-MON   TUE   WED   THU   FRI   SAT   SUN
-```
-
-Per block: **lock**, **delete**, **why here?**
-
-The week should feel tangible — you look at it and immediately think *this is my week*.
-
-**No drag and drop in v1, and no resize.** Not only for build cost: dragging is manual scheduling. Resize edits a duration through a gesture that then contradicts the activity's declared duration, which is a modelling mess for little gain. If people reach for dragging anyway, that's real signal and it gets added then.
+There is no "I missed this": the week is printed or exported and lived from
+there, not followed inside the app.
 
 ---
 
-# 11. Now view
+# 10. The terminal
 
-The daily-use surface. One card, large type.
+Docked under the week: a status line (hours, activities, budget), a row of
+function keys — **ADD · EDIT · SHUFFLE · SYSTEM · HELP**, plus **FIX** and
+**CLEAR EDITS** when they apply — and a prompt that takes commands in shorthand
+or plain words, completing as you type:
 
 ```text
-🤖 NOW
-Work — until 13:00
-
-NEXT
-Lunch — 13:00–14:00
+gym 1h15 4x · add yoga 45 min twice · remove gym · wake 7 · sleep 11pm
+shuffle · export · grid · list · today · tear · help
 ```
 
-Without this, Robot Mode is a generator you use once and never open again. This is the screen that sits on a second monitor, and it's where the brand actually lands.
+Everything the prompt does is also reachable with the mouse or a tap. Anything
+that throws work away (restart, reset to a template) is confirmed on the
+terminal with Y / N, never by a browser dialog.
 
-## "I missed this"
+---
 
-One tap. The rest of today re-solves with `now` as the start boundary and past blocks frozen.
+# 11. Output
 
-The failure mode of any rigid schedule is that a single miss makes the whole plan feel dead. This is the repair valve — and mechanically it's the same code path as re-solve, so it's nearly free.
+The week comes out of the machine three ways, switched from the panel:
+
+- **List** — the line printer: each day as a printed list of times.
+- **Grid** — the plotter: seven columns, the whole week at a glance.
+- **Today** — the ticket printer: just today's lines, as a receipt to pocket.
+
+Each has **Print** (a real printer) and **Form feed** (print it again).
+
+**Tear off** files the week in the **binder** (the archive drawer at the right
+edge, up to two years of weeks), clears the week's locks and edits, and leaves
+the printer empty until a fresh sheet is asked for. When a new week has begun,
+the terminal offers TEAR. Filed sheets can be drawn out, read, printed, or
+**shredded**.
+
+## Phone
+
+On a phone the panel folds to one row of view keys under the nameplate, Export
+and Sound move into the Menu, the printers keep only their keys, and the week
+opens on the **List**, which reads top to bottom. The grid scrolls sideways.
+Keyboard hints are hidden on touchscreens, and the prompt doesn't grab focus,
+so no on-screen keyboard covers the week on arrival.
 
 ---
 
 # 12. Templates
 
-Templates are a shortcut for people who want one, not the front door. They live
-behind a single line under the list — *"Not sure where to start? Use a template →"* —
-and picking one fills the list and goes straight to the reveal.
-
-They must never take the first screen. Putting them there inverts the whole
-product: it turns "tell me what you want to do" into "pick one of ours".
-
-The define panel can roll the activity list back to the template it came from:
+A shortcut for people who want one, not the front door. **Load a template**
+under the list opens the library on the same screen; replacing a list already
+entered is confirmed first. Picking one fills the list and goes straight to
+the reveal. SYSTEM can later reset to the template the week came from.
 
 - Student
 - Entrepreneur
@@ -419,45 +315,54 @@ The define panel can roll the activity list back to the template it came from:
 - Fitness-focused
 - Exam preparation
 - Deep work
-- Blank week — no activities, for people who would rather start from nothing
+- Blank week
 
 ---
 
-# 13. Export
+# 13. Export and moving a setup
 
 ## ICS
 
-**Export to Calendar** produces a `.ics` importable into Google Calendar, Apple Calendar, or Outlook.
+**Export .ics** produces a file for Google Calendar, Apple Calendar or Outlook,
+for the Monday–Sunday of the current week.
 
-Two things that matter:
+- **Stable UIDs** from the session id, so re-exporting *replaces* events
+  instead of duplicating them.
+- A **sequence** bumped on every export, so calendars accept the update.
+- **`X-WR-CALNAME: Robot Mode`** — one named calendar, deletable in one click.
 
-- **Stable UIDs** — a hash of activity id + slot, so re-exporting *replaces* events instead of duplicating them. Without this, a second export wrecks someone's calendar and they never come back.
-- **`X-WR-CALNAME: Robot Mode`** — the whole thing lands as one named calendar, deletable in a single click.
+## Backup
 
-Plain discrete events, no `RRULE` compression. Sixty events is fine.
+**Save** downloads the full state as JSON (setup, locks, binder); **Load**
+reads it back. A file that isn't a backup is refused with a line under the
+panel.
 
-## JSON
+## Setup link
 
-Export and import the full configuration. Cheap insurance against losing a twenty-minute setup to a cleared browser.
+**Copy setup link** puts the hours, meals and activities into a link
+(`#setup=…`). Opened on another device, or by someone else, it loads that setup
+and solves the week afresh — the same setup gives the same week. A machine that
+already has a list asks before replacing it. No account and no server: the
+link carries everything.
 
 ---
 
 # 14. Architecture
 
 ```text
-Settings (localStorage)
+Settings + locks + binder (localStorage, versioned)
        ↓
-  Scheduler (client-side, ~250 lines)
+  Scheduler (client-side, deterministic)
        ↓
-  Weekly view  /  Now view
+  List / Grid / Today   +   Terminal
        ↓
-  ICS export
+  Print · ICS · JSON · setup link
 ```
 
-- Next.js, TypeScript, Tailwind
-- No backend, no database, no auth
-- No dependencies beyond the framework
-- localStorage with a `version` field and a try/catch fallback
+- Next.js, TypeScript, Tailwind; one client page
+- No backend, no database, no auth, no dependencies beyond the framework
+- localStorage with a version field and a try/catch fallback; the browser is
+  asked to keep it persistent (Safari otherwise clears it after a week unvisited)
 
 No API costs. No AI costs. Effectively free to operate.
 
@@ -465,33 +370,29 @@ No API costs. No AI costs. Effectively free to operate.
 
 # 15. Privacy
 
-Because it runs locally, this is a genuine position and not a marketing line:
-
 > **Your schedule stays on your device.**
 
-No routines sent to a model. No account required. Nothing collected.
+No routines sent to a model. No account. Nothing collected. A setup link
+carries the setup inside the link itself; nothing is uploaded.
 
-Calendar integration (V2) obviously changes this, and should be opt-in and clearly explained.
+Calendar integration (V2) changes this, and should be opt-in and clearly explained.
 
 ---
 
-# 16. MVP scope
+# 16. Scope
 
-## Build
+## Built
 
-- Wake / sleep times
-- Two-field activity add, advanced fields collapsed
-- Priority, allowed days, soft time window, buffers
-- Live time budget
-- Deterministic weekly generation
-- Weekly calendar view
-- Lock, delete, "why here?"
-- Re-solve and shuffle
+- Three-field activity line, with days, travel buffer and when
+- Wake / sleep, meals
+- Deterministic weekly generation, conflicts with verified fixes
+- List, grid and today ticket; print
+- Edit, this-session-only, move, lock, remove; shuffle
 - Templates
-- Now view + "I missed this"
-- ICS export with stable UIDs
-- JSON export / import
-- localStorage
+- Terminal with commands
+- Binder: tear off, file, shred
+- ICS export, JSON backup, setup link
+- Phone layout
 
 ## Don't build
 
@@ -500,45 +401,25 @@ Calendar integration (V2) obviously changes this, and should be opt-in and clear
 - Accounts, backend, cloud sync
 - Two-way calendar sync
 - Mobile app
-- Habit tracking, streaks, analytics, gamification
+- Habit tracking, streaks, gamification
 - Notifications
 - Social features, collaboration
+
+## Next
+
+- Analytics, privacy-friendly, once there are users to learn from
 
 ## The only question that matters
 
 > **Can Robot Mode generate a week that people actually follow?**
 
-Everything else is downstream of that.
+Give it to ~10 people and ask after a week whether they followed it. Calendar
+sync is where OAuth, a backend and real complexity begin — don't start it
+until that question is answered.
 
 ---
 
-# 17. Build plan
-
-Roughly one week of focused work.
-
-**Phase 0 — Scaffold** *(½ day)*
-Next.js + TS + Tailwind. `lib/types.ts`. localStorage with version field and fallback.
-
-**Phase 1 — Engine, headless** *(1–2 days)*
-`lib/scheduler/`. No UI. Five fixture weeks as tests: comfortable, tight, impossible, all-locked, gym-restricted-to-four-days. Everything else is a view over this, and it's the only phase where being wrong is expensive.
-
-**Phase 2 — Define screen** *(1 day)*
-Wake/sleep, activity list, two-field quick-add, advanced panel, live time budget, templates as empty state.
-
-**Phase 3 — Weekly view** *(1–2 days)*
-Seven columns, blocks, lock, delete, re-solve on edit, "why here?" popover.
-
-**Phase 4 — Export** *(½ day)*
-ICS with stable UIDs and calendar name. JSON export/import.
-
-**Phase 5 — Now view** *(1 day)*
-Now/Next card, "I missed this".
-
-**Then stop.** Ship it, give it to ~10 people, ask after seven days whether they followed the week they generated. Google Calendar sync is where OAuth, a backend, and real complexity begin — don't start it until the core question is answered.
-
----
-
-# 18. V2
+# 17. V2
 
 Only after validation:
 
@@ -548,7 +429,7 @@ Only after validation:
 - Saved / multiple schedules
 - "I have less time today" — recalculate the remainder around a shortened day
 
-# 19. V3
+# 18. V3
 
 - Apple Calendar
 - Adaptive scheduling — learn which times actually get honoured
@@ -556,9 +437,9 @@ Only after validation:
 
 ---
 
-# 20. Business model
+# 19. Business model
 
-**Free** — schedules, local storage, ICS export, Now view. Genuinely useful on its own.
+**Free** — schedules, local storage, printing, ICS export, setup links. Genuinely useful on its own.
 
 **Pro, €4–8/month** — calendar sync, automatic rescheduling, multiple schedules, cloud sync, history.
 
@@ -566,7 +447,7 @@ The free tier has to be good enough that people use it daily. Pro sells convenie
 
 ---
 
-# 21. Positioning
+# 20. Positioning
 
 Not:
 
@@ -599,11 +480,17 @@ Tell Robot Mode when you wake, when you sleep, and everything you want to get do
 
 *No AI. No setup. No account.*
 
-**Demo** — the time-budget bar filling as activities appear, then the week snapping into place.
+**Demo** — a sample setup on the screen (five lines, wake and sleep), and what
+the machine prints from it: the plotted week and Wednesday's ticket. Solved by
+the real engine when the page is built, not drawn.
+
+The landing page is `/`; the machine is `/app`. Someone with a week already
+printed skips straight to it (`/?home` shows the landing anyway), and setup
+links made for `/` are passed on to `/app`.
 
 ---
 
-# 22. Naming
+# 21. Naming
 
 **Robot Mode** is the product name. Playful, memorable, and it supports a real visual identity.
 
@@ -611,15 +498,15 @@ It isn't about becoming a robot. It describes the feeling of not having to decid
 
 *Rigid Schedule* — the working directory name — describes the concept accurately but is utilitarian and forgettable.
 
-**Open decision:** settle this before Phase 0. It touches the package name, the repo, and any domain purchase.
+Decided: **Robot Mode**, presented as the RM-01.
 
 ---
 
-# 23. Design principles
+# 22. Design principles
 
-1. **Two fields to add an activity.** Everything else is advanced.
+1. **Three fields to add an activity.** Everything else is optional.
 2. **Never show an error where a live number would do.**
 3. **Same input, same week.** Always.
 4. **Every block can explain itself.**
-5. **Free time is a feature, not leftover space.**
+5. **Free time is what the week leaves.** Anyone who wants a break kept adds it.
 6. **When in doubt, cut the field.**

@@ -247,16 +247,6 @@ describe("night owl week", () => {
   })
 })
 
-describe("I missed this", () => {
-  it("does not reschedule anything into the past", () => {
-    const schedule = generate(comfortableWeek, { notBefore: { day: 2, minuteOfDay: parseTime("14:00") } })
-    const stale = schedule.blocks.filter(
-      (b) => b.day < 2 || (b.day === 2 && b.startMinute < parseTime("14:00")),
-    )
-    expect(stale).toEqual([])
-  })
-})
-
 describe("budget", () => {
   it("is feasible for an empty week", () => {
     const empty: Settings = { ...comfortableWeek, activities: [] }
@@ -271,5 +261,31 @@ describe("budget", () => {
       activities: [{ id: "x", name: "X", durationMinutes: 60, sessionsPerWeek: 1, bufferMinutes: 15 }],
     })
     expect(withBuffer.requestedMinutes).toBe(90)
+  })
+})
+
+describe("unconstrained defaults", () => {
+  const gym = (sessionsPerWeek: number): Settings => ({
+    wakeTime: "07:30",
+    sleepTime: "23:30",
+    seed: 1,
+    meals: [],
+    activities: [{ id: "gym", name: "Gym", durationMinutes: 75, sessionsPerWeek }],
+  })
+
+  it("spreads sessions so none fall on back-to-back days when they don't have to", () => {
+    const days = generate(gym(4)).blocks.map((b) => b.day).sort()
+    for (let i = 1; i < days.length; i++) expect(days[i] - days[i - 1]).toBeGreaterThan(1)
+  })
+
+  it("never doubles up a day to avoid a neighbour", () => {
+    for (const n of [5, 6]) {
+      const days = generate(gym(n)).blocks.map((b) => b.day)
+      expect(new Set(days).size).toBe(n)
+    }
+  })
+
+  it("leaves the first hour after waking alone", () => {
+    for (const b of generate(gym(4)).blocks) expect(b.startMinute).toBeGreaterThanOrEqual(parseTime("08:30"))
   })
 })

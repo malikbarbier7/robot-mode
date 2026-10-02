@@ -62,7 +62,7 @@ export function Printout({
   return (
     <Paper
       width="max-w-[680px]"
-      className="sheet px-12 py-10 font-mono text-[13px] uppercase leading-relaxed sm:px-16"
+      className="sheet px-6 py-8 font-mono text-[13px] uppercase leading-relaxed sm:px-16 sm:py-10"
       feed={feed}
       onFed={onFed}
       onReplay={onReplay}

@@ -38,7 +38,7 @@ export type CommandAction = { preview: string; reply: string; note?: string } & 
 export type CommandError = { kind: "error"; reply: string }
 
 /** The terminal's screens, each opened by a function. */
-export type Screen = "add" | "edit" | "activities" | "hours" | "meals" | "system" | "fix" | "restart" | "help"
+export type Screen = "add" | "edit" | "activities" | "hours" | "meals" | "system" | "fix" | "restart" | "reset" | "help"
 
 /** What the command line needs to know to read a line against. */
 export type CommandContext = {
@@ -88,6 +88,7 @@ const SCREEN_NAMES: Record<Screen, string> = {
   system: "SYSTEM",
   fix: "FIX CONFLICTS",
   restart: "RESTART",
+  reset: "RESET TO TEMPLATE",
   help: "HELP",
 }
 

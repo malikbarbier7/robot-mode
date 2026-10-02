@@ -226,10 +226,10 @@ export function Command({
       onClick={onClick}
       disabled={disabled}
       className={`font-crt uppercase tracking-[0.08em] disabled:opacity-30 ${
-        primary ? "border-2 border-ink px-5 py-2 text-[34px] hover:bg-ink/15" : "px-2 text-[26px] hover:bg-ink/15"
+        primary ? "border-2 border-ink px-4 py-2 text-[28px] hover:bg-ink/15 sm:px-5 sm:text-[34px]" : "px-2 text-[26px] hover:bg-ink/15"
       }`}
     >
-      {keyName && <span className="text-ink/60">[{keyName}] </span>}
+      {keyName && <span className="text-ink/60 pointer-coarse:hidden">[{keyName}] </span>}
       {children}
     </button>
   )
@@ -244,7 +244,8 @@ export type LegendKey = [key: string, what: string, now?: boolean]
  */
 export function Legend({ keys }: { keys: LegendKey[] }) {
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 sm:px-0">
+    // Keys mean nothing on a touchscreen: the legend is only printed where there is a keyboard to read it for.
+    <div className="mt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 sm:px-0 pointer-coarse:hidden">
       {keys.slice(0, 3).map(([key, what, now]) => (
         <span key={`${key} ${what}`} className={`label flex items-center gap-2 ${now ? "text-ink" : "text-ink/35"}`}>
           <kbd
