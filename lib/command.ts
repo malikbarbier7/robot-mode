@@ -15,15 +15,16 @@ export type CommandAction = { preview: string; reply: string; note?: string } & 
   | { kind: "remove"; id: string }
   /** Open one of the terminal's screens; `id` is the activity to open on it. */
   | { kind: "open"; screen: Screen; id?: string }
-  | { kind: "clear" | "save" | "load" }
-  /** Show the week as the printed list or as the calendar grid. */
-  | { kind: "view"; view: "printout" | "grid" | "today" | "binder" }
+  /** BACKUP downloads the whole state as JSON; LOAD opens one. */
+  | { kind: "clear" | "backup" | "load" }
+  /** Show the draft on the screen, or the week on paper as the list, the grid or today's ticket. */
+  | { kind: "view"; view: "screen" | "printout" | "grid" | "today" | "binder" }
   /** Tear the sheet off: file this week in the binder; the printer stays empty. */
   | { kind: "tear" }
-  /** Print a fresh sheet of the week in front of you, after it was torn off. */
-  | { kind: "feed" }
-  /** Send what is showing to a real printer. */
+  /** PRINT: the draft on the screen goes onto paper. */
   | { kind: "print" }
+  /** SAVE: the sheet on paper goes to a real printer, or a PDF. */
+  | { kind: "save" }
   /** Shred a filed week from the binder, by its week number. */
   | { kind: "shred"; week: number }
   | { kind: "settings"; patch: { wakeTime?: string; sleepTime?: string } }
@@ -68,7 +69,7 @@ const FREE_TIME = "FREE TIME IS WHAT YOUR ACTIVITIES LEAVE EMPTY · TO KEEP A BR
  * EDIT before EXPORT. They come before activity names, so one letter and
  * Enter is enough to open a function.
  */
-export const FUNCTIONS = ["add", "edit", "today", "tear", "feed", "shuffle", "print", "export", "grid", "list", "binder", "system", "fix", "clear", "restart", "save", "load", "help"]
+export const FUNCTIONS = ["add", "edit", "today", "tear", "shuffle", "print", "save", "screen", "export", "grid", "list", "binder", "backup", "system", "fix", "clear", "restart", "load", "help"]
 /** Other command words, offered after activity names. */
 const VERBS = ["wake", "sleep", "remove", "move", "meals", "hours"]
 /** What EDIT can open besides an activity. */
@@ -141,10 +142,18 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
     case "tear":
     case "file":
       return { kind: "tear", preview: "TEAR OFF THE SHEET ON SHOW · FILE IT IN THE BINDER", reply: "SHEET FILED IN THE BINDER" }
-    case "feed":
-      return { kind: "feed", preview: "PRINT A FRESH SHEET OF THE WEEK", reply: "PRINTED" }
     case "print":
-      return { kind: "print", preview: "SEND THE SHEET TO YOUR PRINTER", reply: "SENT TO THE PRINTER" }
+    case "feed":
+      return { kind: "print", preview: "PRINT THE WEEK ON THE SCREEN ONTO PAPER", reply: "PRINTED" }
+    case "save":
+    case "pdf":
+      // Only on their own: "screen time 1h" or "draft essay 2h" are activities.
+      if (rest.length) break
+      return { kind: "save", preview: "SAVE THE SHEET ON PAPER · YOUR PRINTER OR A PDF", reply: "SAVING THE SHEET" }
+    case "screen":
+    case "draft":
+      if (rest.length) break
+      return { kind: "view", view: "screen", preview: "SHOW THE DRAFT ON THE SCREEN", reply: "SCREEN" }
     case "shred": {
       // "shred 39", "shred w39", "shred week 39".
       const m = /^(?:week\s*|w)?(\d{1,2})$/i.exec(arg.trim())
@@ -175,8 +184,8 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
       return { kind: "view", view: "printout", preview: "SHOW THE WEEK AS A LIST", reply: "LIST VIEW" }
     case "clear":
       return { kind: "clear", preview: "UNLOCK EVERYTHING AND RESTORE REMOVED BLOCKS", reply: "EDITS CLEARED" }
-    case "save":
-      return { kind: "save", preview: "DOWNLOAD A BACKUP OF YOUR SETUP", reply: "SAVED" }
+    case "backup":
+      return { kind: "backup", preview: "DOWNLOAD A BACKUP OF YOUR SETUP", reply: "BACKED UP" }
     case "load":
       return { kind: "load", preview: "OPEN A SAVED SETUP", reply: "LOADING" }
     case "help":

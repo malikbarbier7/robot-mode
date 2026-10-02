@@ -366,3 +366,38 @@
     animation: none;
   }
 }
+
+/* On the screen: a session the last edit moved flashes twice, so the re-solve can be followed. */
+@keyframes changed {
+  0%,
+  50% {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+}
+
+.changed {
+  animation: changed 0.45s steps(1) 2;
+}
+
+/* The reveal: each session is traced onto the screen top to bottom, a day's column after another. */
+@keyframes draw-in {
+  from {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+  }
+  1% {
+    opacity: 1;
+  }
+}
+
+.draw-in {
+  animation: draw-in 0.22s steps(4) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .changed,
+  .draw-in {
+    animation: none;
+  }
+}

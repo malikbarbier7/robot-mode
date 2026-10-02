@@ -1,10 +1,11 @@
 "use client"
 
 import { useWords } from "@/lib/words"
-import { useEffect, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { Boot } from "@/components/Boot"
 import { Terminal, type TerminalScreen } from "@/components/Terminal"
 import { Generating } from "@/components/Generating"
+import { DraftScreen } from "@/components/DraftScreen"
 import { Lamp, PanelSwitch } from "@/components/Machine"
 import { Menu, MenuItem } from "@/components/Menu"
 import { DisplayProvider } from "@/components/Display"
@@ -23,10 +24,10 @@ import { beep, buzz, chime, rip, rustle, shred } from "@/lib/sound"
 import { dayKey, weekKey } from "@/lib/printout"
 import { BinderDrawer, useArmed } from "@/components/BinderDrawer"
 
-type View = "boot" | "setup" | "print" | "week" | "today" | "generating"
-/** The three ways the week comes out of the machine, as the terminal names them. */
-type Output = "printout" | "grid" | "today"
-const OUTPUT_VIEW: Record<Output, View> = { printout: "print", grid: "week", today: "today" }
+type View = "boot" | "setup" | "screen" | "print" | "week" | "today" | "generating"
+/** The draft on the screen, and the three ways the week comes out of the machine, as the terminal names them. */
+type Output = "screen" | "printout" | "grid" | "today"
+const OUTPUT_VIEW: Record<Output, View> = { screen: "screen", printout: "print", grid: "week", today: "today" }
 
 export default function Page() {
   const rm = useRobotMode()
@@ -39,20 +40,22 @@ export default function Page() {
   // The screen open on the terminal, if any.
   const [screen, setScreen] = useState<TerminalScreen>(null)
   const fileInput = useRef<HTMLInputElement>(null)
-  // Set when a week has just been generated: the printout is printed in front of you once.
+  // Set on PRINT: the sheet is printed in front of you once.
   const [feed, setFeed] = useState(false)
-  // Set when a week has just been generated: today's ticket is pointed out until another view is opened.
+  // Set on the first PRINT: today's ticket is pointed out until another view is opened.
   const [todayTip, setTodayTip] = useState(false)
+  // Set when a week has just been generated: the screen draws it in.
+  const [reveal, setReveal] = useState(false)
 
   // Today's date, for the day's ticket.
   const now = useNow()
   const empty = rm.state.settings.activities.length === 0
   const generated = rm.state.generated === true
   const phone = usePhone()
-  // Once a week exists, it opens on the grid: the whole week at a glance. A phone
-  // has no room for seven columns, so it opens on the printed list instead.
-  const weekView: View = phone ? "print" : "week"
-  const home: View = generated ? weekView : "boot"
+  // Once a week exists, it opens on the screen, where the draft is edited. Its paper is the
+  // grid, the whole week at a glance; a phone has no room for seven columns, so the printed list.
+  const paperView: View = phone ? "print" : "week"
+  const home: View = generated ? "screen" : "boot"
   // Once the first run has started it stays on its path, whatever it saves.
   // Arriving from the landing page's Build my week (?start), the machine is already on: straight to the questions.
   const [start] = useState(startRequested)
@@ -66,6 +69,13 @@ export default function Page() {
 
   const selected = rm.schedule.blocks.find((b) => b.id === selectedId) ?? null
 
+  // What the paper shows: the week as last PRINTed, never the draft.
+  const printed = rm.state.printed ?? null
+  const paperSettings = printed ? { ...rm.state.settings, wakeTime: printed.wakeTime, sleepTime: printed.sleepTime } : rm.state.settings
+  const paperSchedule = { ...rm.schedule, blocks: printed?.blocks ?? [], unplaced: [] }
+  // The last sheet looked at, for SAVE from the screen.
+  const [lastPaper, setLastPaper] = useState<View | null>(null)
+
   // Each view is printed by its own unit, so switching prints it in front of you.
   const showView = (next: Output | "binder") => {
     setTodayTip(false)
@@ -76,8 +86,9 @@ export default function Page() {
     setFiledId(null)
     if (OUTPUT_VIEW[next] === view && !wasOut) return
     // The week was printed once; switching between views shows it, it doesn't print it again.
-    // A printer left empty by a tear-off stays empty until FORM FEED: coming back to it isn't asking for a copy.
+    // A printer left empty by a tear-off stays empty until PRINT: coming back to it isn't asking for a copy.
     setFeed(false)
+    if (next !== "screen") setLastPaper(OUTPUT_VIEW[next])
     setView(OUTPUT_VIEW[next])
   }
 
@@ -103,24 +114,59 @@ export default function Page() {
   })
 
   // Tearing a sheet off: it flies into the binder with a rip, and that printer alone is left
-  // empty until a fresh sheet is asked for (FORM FEED in the empty slot, or FEED). Switching
-  // views or reloading leaves it empty; the other printers keep their sheets.
+  // empty until the next PRINT (the empty slot's key, or typed). Switching views or
+  // reloading leaves it empty; the other printers keep their sheets.
   const [tearing, setTearing] = useState(false)
   // Kept with the week, so a reload doesn't print again what was torn off.
   const listTorn = (rm.state.emptied ?? []).includes("list")
   const gridTorn = (rm.state.emptied ?? []).includes("grid")
   // The ticket printer's own empty slot: today's ticket torn off, the week untouched. Tomorrow prints anew.
   const ticketTorn = !!now && rm.state.ticketTornOn === dayKey(now)
-  /** FORM FEED: a fresh sheet in the printers left empty, printed in front of you. Only the empty ones, or all when given. */
-  const printFresh = (which: "list" | "grid" | "ticket" | "all" = "all") => {
-    rm.refillPrinters(which)
+
+  /**
+   * PRINT: the draft on the screen goes onto paper, every printer refilled. The first
+   * time, the machine turns to the paper to show it coming out; after that you stay on
+   * the screen, unless you printed from the paper itself.
+   */
+  const print = () => {
+    const first = printed === null
+    rm.printWeek()
     setFeed(true)
+    if (first) {
+      setTodayTip(true)
+      setSelectedId(null)
+      setScreen(null)
+      setLastPaper(paperView)
+      setView(paperView)
+    }
   }
-  const tear = () => {
+
+  /** SAVE: the sheet on paper to a real printer, or a PDF. From the screen, the last sheet looked at. */
+  const saveSheet = (): string | void => {
+    if (!printed) return "NOTHING ON PAPER YET · PRINT FIRST"
+    const paper = view === "print" || view === "week" || view === "today"
+    if (!paper) {
+      setFeed(false)
+      setFiledId(null)
+      setView(lastPaper ?? paperView)
+    }
+    // After the sheet is on show and the reply is drawn, so the dialog doesn't open over a half-updated page.
+    window.setTimeout(() => window.print(), paper ? 0 : 300)
+  }
+
+  const tear = (): string | void => {
     if (tearing) return
+    // Nothing on paper: a week that is over still starts the next one; otherwise there is nothing to file.
+    if (!printed) {
+      if (!weekDue) return "NOTHING ON PAPER TO TEAR OFF · PRINT FIRST"
+      rm.tearWeek("grid", true)
+      return
+    }
     // On the ticket printer, the ticket is what comes off, unless the week is over: then it's the week's turn.
     if (view === "today" && !weekDue) return tearTicket()
-    const format = view === "print" ? "list" : "grid"
+    // From the screen, the paper it tears is the one the machine prints on: the grid, or a phone's list.
+    const format = view === "print" || (view !== "week" && phone) ? "list" : "grid"
+    if (view !== "print" && view !== "week") setView(format === "list" ? "print" : "week")
     setTearing(true)
     setSelectedId(null)
     setScreen(null)
@@ -133,8 +179,6 @@ export default function Page() {
       // that is over starts the next one; mid-week it is only a copy filed.
       rm.tearWeek(format, weekDue)
       setTearing(false)
-      // That printer stays empty (tearWeek says so): printing the same week again at once would only make a copy.
-      if (view !== "print" && view !== "week") setView(weekView)
     }, 600)
     window.setTimeout(() => setReceiving(false), 1700)
   }
@@ -172,14 +216,24 @@ export default function Page() {
 
 
   // Shown once the sheet is out of the printer.
-  const tipVisible = todayTip && showWeekChrome && view === "week" && !feed
+  const tipVisible = todayTip && showWeekChrome && view === paperView && !feed
   // A new week has begun since this sheet was printed: time to tear it off.
   const weekDue = generated && !!now && !!rm.state.currentWeek && rm.state.currentWeek !== weekKey(now)
 
-  // Picking a block on the printout or grid opens it on the terminal.
+  // Picking a session on the screen opens its keys beside it; a phone has no room, so it opens on the terminal.
   const select = (id: string | null) => {
     setSelectedId(id)
-    setScreen(id ? { name: "block" } : null)
+    if (phone) setScreen(id ? { name: "block" } : null)
+    else if (screen?.name === "block" || screen?.name === "move") setScreen(null)
+  }
+
+  // The paper is a record: picking a session on it goes back to the screen, where it can be changed.
+  const selectOnPaper = (id: string | null) => {
+    if (!id) return
+    setFiledId(null)
+    setView("screen")
+    setSelectedId(id)
+    setScreen(phone ? { name: "block" } : null)
   }
 
   const saveJson = () => downloadText(toJson(rm.state), "robot-mode.json")
@@ -191,9 +245,14 @@ export default function Page() {
     setView("boot")
   }
 
-  const exportIcs = () => {
-    if (!empty) downloadIcs(rm.schedule.blocks, { sequence: rm.bumpExport() })
+  // What leaves the machine is what is on paper.
+  const exportIcs = (): string | void => {
+    if (!printed) return "NOTHING ON PAPER YET · PRINT FIRST"
+    downloadIcs(printed.blocks, { sequence: rm.bumpExport() })
   }
+
+  // Stable, so the screen's reveal timer isn't restarted by every render.
+  const stopReveal = useCallback(() => setReveal(false), [])
 
   const generate = () => {
     setSelectedId(null)
@@ -263,7 +322,7 @@ export default function Page() {
     }
     setNotice(null)
     rm.replaceState(parsed)
-    setView(parsed.generated ? weekView : "boot")
+    setView(parsed.generated ? "screen" : "boot")
   }
 
   return (
@@ -301,6 +360,18 @@ export default function Page() {
             {showWeekChrome && (
               // The three ways to see the week, as keys: the one showing stays pressed.
               <div role="group" aria-label="View" className="order-last flex w-full items-center gap-1.5 sm:order-none sm:w-auto [&>button]:max-sm:flex-1 [&>button]:max-sm:justify-center">
+                {/* The screen, where the draft is edited; then the three sheets of paper. */}
+                <button
+                  type="button"
+                  aria-pressed={view === "screen" && !filed}
+                  onClick={() => showView("screen")}
+                  title="The draft: edit the week here, then print it"
+                  className="key flex items-center gap-2 whitespace-nowrap px-3 py-1.5 max-sm:px-2"
+                >
+                  ▣ Screen
+                  {rm.unprinted && view !== "screen" && <span aria-hidden title="Changes not printed yet" className="inline-block h-1.5 w-1.5 bg-alert" />}
+                </button>
+                <span aria-hidden className="mx-1 hidden h-5 w-px bg-ink/30 sm:block" />
                 <button type="button" aria-pressed={view === "print" && !filed} onClick={() => showView("printout")} className="key px-3 py-1.5">
                   ≡ List
                 </button>
@@ -353,9 +424,9 @@ export default function Page() {
               <MenuItem
                 onClick={saveJson}
                 disabled={empty}
-                title="Back up your setup"
+                title="Download your setup, week and binder as a file"
               >
-                Save
+                Backup
               </MenuItem>
               <MenuItem onClick={() => fileInput.current?.click()} title="Open a saved setup">
                 Load
@@ -501,9 +572,8 @@ export default function Page() {
                 onDone={() => {
                   rm.markGenerated()
                   chime()
-                  setTodayTip(true)
-                  setFeed(true)
-                  setView(weekView)
+                  setReveal(true)
+                  setView("screen")
                 }}
               />
             ) : view === "setup" ? (
@@ -517,46 +587,62 @@ export default function Page() {
                 onDone={generate}
                 onPickTemplate={pickTemplate}
               />
-            ) : view === "print" && generated ? (
-              <Printout
-                settings={rm.state.settings}
-                schedule={rm.schedule}
+            ) : view === "screen" && generated ? (
+              <DraftScreen
+                rm={rm}
                 selectedId={selectedId}
                 onSelect={select}
+                phone={phone}
+                docked={!!screen}
+                reveal={reveal}
+                onRevealed={stopReveal}
+                onEdit={(id) => setScreen({ name: "activities", id })}
+                onMore={() => setScreen({ name: "block" })}
+                onPrint={print}
+              />
+            ) : view === "print" && generated ? (
+              <Printout
+                settings={paperSettings}
+                schedule={paperSchedule}
+                selectedId={null}
+                onSelect={selectOnPaper}
                 feed={feed}
                 onFed={() => setFeed(false)}
                 onTear={tear}
                 tearing={tearing}
-                empty={listTorn}
-                onFormFeed={() => printFresh("list")}
+                empty={listTorn || !printed}
+                never={!printed}
+                onFormFeed={print}
               />
             ) : view === "week" && generated ? (
               <WeekGrid
-                settings={rm.state.settings}
-                schedule={rm.schedule}
-                selectedId={selectedId}
-                onSelect={select}
+                settings={paperSettings}
+                schedule={paperSchedule}
+                selectedId={null}
+                onSelect={selectOnPaper}
                 feed={feed}
                 onFed={() => setFeed(false)}
                 onTear={tear}
                 tearing={tearing}
-                empty={gridTorn}
-                onFormFeed={() => printFresh("grid")}
+                empty={gridTorn || !printed}
+                never={!printed}
+                onFormFeed={print}
               />
             ) : view === "today" && generated ? (
               now && (
                 <Ticket
-                  settings={rm.state.settings}
-                  schedule={rm.schedule}
+                  settings={paperSettings}
+                  schedule={paperSchedule}
                   now={now}
-                  selectedId={selectedId}
-                  onSelect={select}
+                  selectedId={null}
+                  onSelect={selectOnPaper}
                   feed={feed}
                   onFed={() => setFeed(false)}
                   onTear={tearTicket}
                   tearing={tearing}
-                  empty={ticketTorn}
-                  onFormFeed={() => printFresh("ticket")}
+                  empty={ticketTorn || !printed}
+                  never={!printed}
+                  onFormFeed={print}
                 />
               )
             ) : (
@@ -578,12 +664,13 @@ export default function Page() {
             selected={selected}
             onDeselect={() => setSelectedId(null)}
             onExport={exportIcs}
-            onSave={saveJson}
+            onSave={saveSheet}
+            onBackup={saveJson}
+            onPrint={print}
             onLoad={() => fileInput.current?.click()}
             onRestart={restart}
             onView={showView}
             onTear={tear}
-            onFeed={() => printFresh()}
             onShred={(week) => {
               // The latest filed sheet of that week (a week's, not a day's ticket).
               const found = (rm.state.archive ?? []).find((w) => w.week === week && w.format !== "ticket")
@@ -593,9 +680,14 @@ export default function Page() {
               return true
             }}
             weekDue={weekDue}
+            unprinted={rm.unprinted}
             tip={
-              (view === "print" && listTorn) || (view === "week" && gridTorn) || (view === "today" && ticketTorn)
-                ? "SHEET FILED · PRESS FORM FEED, OR TYPE FEED, FOR A FRESH ONE"
+              printed && ((view === "print" && listTorn) || (view === "week" && gridTorn) || (view === "today" && ticketTorn))
+                ? "SHEET FILED · TYPE PRINT FOR A FRESH ONE"
+                : !printed && view !== "screen"
+                ? "NOTHING ON PAPER YET · TYPE PRINT TO PRINT THE DRAFT ON THE SCREEN"
+                : rm.unprinted && printed
+                ? "THE SCREEN HAS CHANGES THE PAPER DOESN'T · TYPE PRINT TO UPDATE IT"
                 : weekDue
                 ? `NEW WEEK · TYPE TEAR TO FILE WEEK ${rm.state.currentWeek?.split("-W")[1]} IN THE BINDER AND START THIS ONE`
                 : tipVisible
@@ -627,7 +719,7 @@ function dropStartFlag() {
 }
 
 function onOutput(view: View): boolean {
-  return view === "print" || view === "week" || view === "today"
+  return view === "screen" || view === "print" || view === "week" || view === "today"
 }
 
 

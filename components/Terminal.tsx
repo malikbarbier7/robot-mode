@@ -15,7 +15,7 @@ import { ClockReadout } from "./Readout"
 import { ActivitiesTerminal, HoursTerminal, MealsTerminal } from "./Terminals"
 import { useDisplay } from "./Display"
 
-type View = "printout" | "grid" | "today" | "binder"
+type View = "screen" | "printout" | "grid" | "today" | "binder"
 
 /** What the terminal shows above its prompt: nothing, a function's screen, or the picked block. */
 export type TerminalScreen = { name: Screen | "block" | "move"; id?: string } | null
@@ -124,35 +124,43 @@ export function Terminal({
   onDeselect,
   onExport,
   onSave,
+  onBackup,
+  onPrint,
   onLoad,
   onRestart,
   onView,
   onTear,
-  onFeed,
   onShred,
   weekDue = false,
+  unprinted = false,
   tip,
 }: {
   rm: RobotMode
   screen: TerminalScreen
   onScreen: (screen: TerminalScreen) => void
-  /** The block picked on the printout or grid, shown on the BLOCK screen. */
+  /** The session picked on the screen, shown on the BLOCK screen. */
   selected: PlacedBlock | null
   onDeselect: () => void
-  onExport: () => void
-  onSave: () => void
+  /** The week on paper as .ics; a reason when it can't be. */
+  onExport: () => string | void
+  /** SAVE: the sheet on paper to a real printer or a PDF; a reason when it can't be. */
+  onSave: () => string | void
+  /** BACKUP: everything, as a file. */
+  onBackup: () => void
+  /** PRINT: the draft on the screen onto paper. */
+  onPrint: () => void
   onLoad: () => void
   onRestart: () => void
-  /** Switch how the week is shown above (typed: list, grid, today, binder). */
+  /** Switch what is shown above (typed: screen, list, grid, today, binder). */
   onView: (view: View) => void
-  /** Tear this week's sheet off into the binder; the printer stays empty. */
-  onTear: () => void
-  /** Print a fresh sheet of the week. */
-  onFeed: () => void
+  /** Tear the sheet on paper off into the binder; a reason when there is none. */
+  onTear: () => string | void
   /** Shred a filed week by its number; false when the binder has no such week. */
   onShred: (week: number) => boolean
   /** A new week has begun since the sheet was printed: TEAR is offered in the row. */
   weekDue?: boolean
+  /** The screen has changes the paper doesn't: PRINT is lit. */
+  unprinted?: boolean
   /** A hint, shown under the prompt when there is nothing else to say. */
   tip?: string | null
 }) {
@@ -266,29 +274,30 @@ export function Terminal({
         rm.shuffle()
         break
       case "export":
-        onExport()
+      case "save":
+      case "tear": {
+        // These take what is on paper: with nothing there, the machine says so.
+        const refused = { export: onExport, save: onSave, tear: onTear }[a.kind]()
+        if (refused) {
+          buzz()
+          return say(refused, true)
+        }
         break
+      }
       case "print":
-        // After the reply is drawn, so the dialog doesn't open over a half-updated line.
-        window.setTimeout(() => window.print(), 0)
+        onPrint()
         break
       case "clear":
         rm.freshWeek()
         break
-      case "save":
-        onSave()
+      case "backup":
+        onBackup()
         break
       case "load":
         onLoad()
         break
       case "view":
         onView(a.view)
-        break
-      case "tear":
-        onTear()
-        break
-      case "feed":
-        onFeed()
         break
       case "shred":
         if (!onShred(a.week)) {
@@ -376,8 +385,10 @@ export function Terminal({
     { word: "add", label: "Add", show: true },
     { word: "edit", label: "Edit", show: true },
     { word: "shuffle", label: "Shuffle", show: true },
-    // Taking the week out of the machine: the keys for it live here, not on the printer.
-    { word: "print", label: "Print", show: true },
+    // Taking the week out of the machine: PRINT puts the screen on paper (lit while they differ),
+    // SAVE and EXPORT take the paper out. The keys live here, not on the printers.
+    { word: "print", label: "Print", show: true, alert: unprinted },
+    { word: "save", label: "Save", show: true },
     { word: "export", label: "Export .ics", show: true },
     { word: "tear", label: "Tear off · new week", show: weekDue, alert: true },
     { word: "system", label: "System", show: true },
@@ -635,7 +646,7 @@ function ScreenBody({
       return (
         <MenuScreen
           title="Erase everything?"
-          note="The week, your activities, hours and meals. Save first if you want to keep them."
+          note="The week, your activities, hours and meals. Back them up first if you want to keep them."
           items={[
             { key: "Y", label: "Yes, erase and start over", onSelect: onRestart },
             { key: "N", label: "No, keep it", onSelect: () => onScreen({ name: "system" }) },
@@ -732,7 +743,7 @@ function SystemScreen({
   const { clock, weekStart } = rm.display
   const template = rm.activeTemplate
   const items: MenuItem[] = [
-    { key: "1", label: "Save a backup", onSelect: () => onRunWord("save") },
+    { key: "1", label: "Save a backup", note: "setup, week and binder, as a file", onSelect: () => onRunWord("backup") },
     { key: "2", label: "Load a backup", onSelect: () => onRunWord("load") },
     {
       key: "3",
@@ -1024,14 +1035,18 @@ const MANUAL_FUNCTIONS: [word: string, what: string][] = [
   ["add", "Add an activity. ADD SURF starts from 1H 1×; or type the whole line."],
   ["edit", "Change activities, hours or meals. EDIT GYM · EDIT MEALS."],
   ["shuffle", "Same rules, a different arrangement of the week."],
-  ["export", "Download the week as .ics, for any calendar app. Also on the panel."],
-  ["today", "Show just today, as a ticket to print and keep."],
-  ["list", "Show the week as the printed list, day after day."],
-  ["grid", "Show the week as a calendar grid."],
-  ["system", "Save, load, 12H / 24H clock, week start, reset, restart."],
+  ["screen", "The draft: the week on the screen, where it is changed. Paper only changes on PRINT."],
+  ["print", "Print the draft on the screen onto paper. Lit while the screen has changes the paper doesn't."],
+  ["save", "Save the sheet on paper: send it to your printer, or keep it as a PDF."],
+  ["export", "Download the week on paper as .ics, for any calendar app."],
+  ["today", "Today's ticket, from the paper: print it and keep it."],
+  ["list", "The week on paper as the printed list, day after day."],
+  ["grid", "The week on paper as a calendar grid."],
+  ["backup", "Download your setup, week and binder as a file. LOAD opens one."],
+  ["system", "Backup, load, 12H / 24H clock, week start, reset, restart."],
   ["fix", "Shown when a session doesn't fit: suggested fixes, one key each."],
   ["clear", "Shown after moving or locking blocks: undo those edits."],
-  ["tear", "File the sheet on show in the binder; only its printer empties. Once the week is over, it also clears the week's edits. Also: pull the sheet down. FEED prints a fresh sheet."],
+  ["tear", "File the sheet on paper in the binder; only its printer empties. Once the week is over, it also clears the week's edits. Also: pull the sheet down. PRINT fills it again."],
   ["shred", "Shred a filed week for good: SHRED 39. Or ✕ on its sheet in the binder, twice."],
   ["binder", "The filing unit at the right edge (or bring the pointer there): torn-off weeks. Pull a sheet out to read it, Esc to put it back."],
 ]
@@ -1125,10 +1140,13 @@ function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
         <ManualLine cmd="SOUND · MUTE">The machine’s clicks, printer and hum. Also SYSTEM [S] and ♪ on the panel.</ManualLine>
       </ManualSection>
 
-      <ManualSection title="Blocks">
-        <ManualLine cmd="Click a block">
-          On the printout or the grid: [E] edit · [S] this session only · [M] move · [L] lock · [R] remove.
+      <ManualSection title="Sessions">
+        <ManualLine cmd="Click a session">
+          On the screen: [M] move · [L] lock · [R] remove · [E] edit the activity · [Enter] more, such as this session only.
         </ManualLine>
+        <ManualLine cmd="Tab · ← ↑ ↓ →">Onto the screen, then from session to session.</ManualLine>
+        <ManualLine cmd="[M] then ← ↑ ↓ →">Move it a day or 15 minutes at a time; Enter puts it down, locked there.</ManualLine>
+        <ManualLine cmd="On paper">Paper is a record: clicking a session there takes you to it on the screen.</ManualLine>
       </ManualSection>
 
       <ManualSection title="Keys">

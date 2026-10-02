@@ -14,7 +14,7 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 
 /**
  * The week as the machine prints it: a timetable on continuous-feed paper,
- * one day after another. Blocks can still be picked, to lock or remove them.
+ * one day after another. Picking a session goes to it on the screen, where it is edited.
  *
  * With `feed`, the sheet is printed in front of you first: it feeds out of
  * the printer's slot a line at a time while the head shuttles. The page stays
@@ -30,6 +30,7 @@ export function Printout({
   onTear,
   tearing = false,
   empty = false,
+  never = false,
   onFormFeed,
   filed,
 }: {
@@ -43,7 +44,9 @@ export function Printout({
   tearing?: boolean
   /** Torn off and not printed again yet: the printer stands empty. */
   empty?: boolean
-  /** The empty slot's FORM FEED key: a fresh sheet. */
+  /** Nothing printed yet: the week is still a draft on the screen. */
+  never?: boolean
+  /** The empty slot's PRINT key. */
   onFormFeed?: () => void
   /** A sheet from the binder: its own week, the date it was filed, and no printer above it. */
   filed?: { week: number; year: number; at: Date }
@@ -68,6 +71,7 @@ export function Printout({
       onTear={onTear}
       tearing={tearing}
       empty={empty}
+      never={never}
       onFormFeed={onFormFeed}
       bare={!!filed}
     >

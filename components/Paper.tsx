@@ -24,6 +24,7 @@ export function Paper({
   onTear,
   tearing = false,
   empty = false,
+  never = false,
   onFormFeed,
   children,
 }: {
@@ -43,7 +44,9 @@ export function Paper({
   tearing?: boolean
   /** No paper out: the sheet has been torn off and nothing printed since. */
   empty?: boolean
-  /** The empty slot's key: print a fresh sheet. */
+  /** Nothing printed yet: the week is still a draft on the screen. */
+  never?: boolean
+  /** The empty slot's key: PRINT, the draft on the screen onto paper. */
   onFormFeed?: () => void
   children: ReactNode
 }) {
@@ -71,16 +74,24 @@ export function Paper({
       )}
 
       {empty && (
-        // Only the slot: the week is in the binder until a fresh sheet is asked for.
+        // Only the slot: nothing printed yet, or the sheet is in the binder until the next PRINT.
         <div className="label mx-auto mt-8 flex max-w-[480px] flex-col items-center gap-4 border-2 border-dashed border-ink/30 px-6 py-8 text-center leading-relaxed text-ink/55 no-print">
-          <span>
-            Sheet torn off and filed in the binder.
-            <br />
-            The printer stays empty until you ask for a fresh one.
-          </span>
+          {never ? (
+            <span>
+              Nothing printed yet.
+              <br />
+              The week is a draft on the screen until you print it.
+            </span>
+          ) : (
+            <span>
+              Sheet torn off and filed in the binder.
+              <br />
+              The printer stays empty until the next print.
+            </span>
+          )}
           {onFormFeed && (
-            <button type="button" onClick={onFormFeed} title="Print a fresh sheet (or type FEED)" className="key px-3 py-1.5">
-              Form feed ▼
+            <button type="button" onClick={onFormFeed} title="Print the draft on the screen (or type PRINT)" className="key px-3 py-1.5">
+              Print ▼
             </button>
           )}
         </div>

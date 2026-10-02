@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { dayTimeline, isoWeek } from "./printout"
+import { dayTimeline, isoWeek, samePrint } from "./printout"
 import type { PlacedBlock } from "./types"
 
 const block = (id: string, start: number, end: number): PlacedBlock => ({
@@ -35,5 +35,27 @@ describe("isoWeek", () => {
   it("numbers weeks the ISO way, including across a year boundary", () => {
     expect(isoWeek(new Date(2026, 8, 29))).toEqual({ week: 40, year: 2026 })
     expect(isoWeek(new Date(2027, 0, 1))).toEqual({ week: 53, year: 2026 })
+  })
+})
+
+describe("samePrint", () => {
+  const hours = { wakeTime: "07:00", sleepTime: "23:00" }
+  const week = [block("gym", 600, 660), block("read", 1200, 1260)]
+  const printed = { at: 0, ...hours, blocks: week }
+
+  it("is true while the screen shows what is on paper", () => {
+    expect(samePrint(printed, hours, [...week].reverse())).toBe(true)
+  })
+
+  it("is false once anything is moved, locked, added or the hours change", () => {
+    expect(samePrint(printed, hours, [week[0], { ...week[1], startMinute: 1230, endMinute: 1290 }])).toBe(false)
+    expect(samePrint(printed, hours, [week[0], { ...week[1], locked: true }])).toBe(false)
+    expect(samePrint(printed, hours, [...week, block("walk", 800, 830)])).toBe(false)
+    expect(samePrint(printed, { ...hours, sleepTime: "23:30" }, week)).toBe(false)
+  })
+
+  it("is false with nothing printed yet", () => {
+    expect(samePrint(null, hours, week)).toBe(false)
+    expect(samePrint(undefined, hours, [])).toBe(false)
   })
 })

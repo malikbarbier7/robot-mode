@@ -17,8 +17,9 @@ const STAGES = ["Checking constraints", "Allocating time", "Balancing load", "Re
 /**
  * The solver finishes in about 30ms. This is deliberate theatre: the week is
  * the payoff, and it lands better with a beat before it. Every figure is read
- * from the real input and the real result. Enter or a click skips to the end;
- * the week is only shown on a second Enter.
+ * from the real input and the real result. Enter or a click skips to the end.
+ * Once complete, the screen goes on by itself to draw the week in, as a draft
+ * to adjust before it is printed.
  */
 export function Generating({
   settings,
@@ -65,14 +66,25 @@ export function Generating({
   }
   useTerminal(root, { onEnter: complete ? onDone : skip, focusKey: complete })
 
+  // A beat on the result, then on to the week.
+  const done = useRef(onDone)
+  useEffect(() => {
+    done.current = onDone
+  })
+  useEffect(() => {
+    if (!complete) return
+    const t = window.setTimeout(() => done.current(), 1400)
+    return () => clearTimeout(t)
+  }, [complete])
+
   const allocated = schedule.blocks.reduce((n, b) => n + b.endMinute - b.startMinute, 0)
   const conflicts = schedule.unplaced.length
 
   return (
     <div ref={root}>
       <Console
-        captions={["Process 04", complete ? `Output ready · ${schedule.blocks.length} blocks` : "Do not switch off the unit"]}
-        legend={[["Enter", complete ? "View output" : "Skip", true]]}
+        captions={["Process 04", complete ? `Draft ready · ${schedule.blocks.length} blocks` : "Do not switch off the unit"]}
+        legend={[["Enter", complete ? "Show the draft" : "Skip", true]]}
       >
         <div
           onClick={skip}
@@ -95,7 +107,7 @@ export function Generating({
                 generated.
               </div>
               <div className="mt-6 text-ink/60">
-                Output ready<span className="blink">_</span>
+                Drawing the draft<span className="blink">_</span>
               </div>
             </div>
           ) : (
@@ -150,7 +162,7 @@ export function Generating({
 
           <div className="mt-auto flex justify-end border-t border-ink/30 pt-5">
             <Command keyName="Enter" onClick={complete ? onDone : skip} primary={complete}>
-              {complete ? "View output ▶" : "Skip"}
+              {complete ? "Show the draft ▶" : "Skip"}
             </Command>
           </div>
         </div>

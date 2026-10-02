@@ -15,7 +15,7 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 /**
  * Today, as a receipt from the machine's ticket printer: the day's lines,
  * made to be printed and pocketed, so nothing on it depends on the time it is
- * read at. Blocks can be picked, as on the other views.
+ * read at. Picking a session goes to it on the screen, as on the other sheets.
  */
 export function Ticket({
   settings,
@@ -28,6 +28,7 @@ export function Ticket({
   onTear,
   tearing = false,
   empty = false,
+  never = false,
   onFormFeed,
   filed = false,
 }: {
@@ -44,7 +45,9 @@ export function Ticket({
   tearing?: boolean
   /** Torn off and not printed again yet: the ticket printer stands empty. */
   empty?: boolean
-  /** The empty slot's FORM FEED key: a fresh sheet. */
+  /** Nothing printed yet: the week is still a draft on the screen. */
+  never?: boolean
+  /** The empty slot's PRINT key. */
   onFormFeed?: () => void
   /** A ticket from the binder: no printer above it. */
   filed?: boolean
@@ -71,6 +74,7 @@ export function Ticket({
       onTear={onTear}
       tearing={tearing}
       empty={empty}
+      never={never}
       onFormFeed={onFormFeed}
       bare={filed}
     >

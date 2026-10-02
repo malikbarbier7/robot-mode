@@ -7,7 +7,7 @@ import { computeBudget } from "./scheduler/budget"
 import { initialState, load, save, type ArchivedWeek, type Display, type SavedState, type Sheet } from "./storage"
 import { detectClock, type Clock, type WeekStart } from "./locale"
 import { matchesTemplate, templateById, type Template } from "./templates"
-import { dayKey, isoWeek, weekKey } from "./printout"
+import { dayKey, isoWeek, samePrint, weekKey } from "./printout"
 
 /** How many filed weeks the binder keeps: two years. */
 const BINDER_SIZE = 104
@@ -188,10 +188,27 @@ export function useRobotMode() {
     setStored((s) => ({ ...initialState, settings, exportSequence: s.exportSequence, display: s.display, archive: s.archive }))
   }, [])
 
-  /** Flipped by the Generate button. The week view only exists after this. */
+  /** Flipped by the Generate button. The week view only exists after this. Nothing is on paper until PRINT. */
   const markGenerated = useCallback(() => {
-    setStored((s) => ({ ...s, generated: true, currentWeek: weekKey(new Date()) }))
+    setStored((s) => ({ ...s, generated: true, currentWeek: weekKey(new Date()), printed: null }))
   }, [])
+
+  /**
+   * PRINT: the draft on the screen goes onto paper, and every printer that
+   * stood empty gets a fresh sheet. Until the next PRINT the paper stays as it is.
+   */
+  const printWeek = useCallback(() => {
+    setStored((s) => ({
+      ...s,
+      printed: { at: Date.now(), wakeTime: s.settings.wakeTime, sleepTime: s.settings.sleepTime, blocks: schedule.blocks },
+      emptied: [],
+      ticketTornOn: undefined,
+      currentWeek: s.currentWeek ?? weekKey(new Date()),
+    }))
+  }, [schedule.blocks])
+
+  /** The screen has changes the paper doesn't: PRINT is lit until they are printed. */
+  const unprinted = useMemo(() => !samePrint(state.printed, state.settings, schedule.blocks), [state.printed, state.settings, schedule.blocks])
 
   /** Back to the list, without throwing the schedule away. */
   const unmarkGenerated = useCallback(() => {
@@ -220,7 +237,7 @@ export function useRobotMode() {
   }, [activeTemplate])
 
   /**
-   * Tear a sheet off: the week as it stood goes into the binder and that
+   * Tear a sheet off: the week on paper goes into the binder and that
    * printer stands empty; the other keeps its sheet. Mid-week that is all: a
    * copy filed. Once the week is over (`newWeek`), its adjustments are cleared
    * too, and the activities and settings stay for the next one.
@@ -230,14 +247,16 @@ export function useRobotMode() {
     setStored((s) => {
       const [year, w] = (s.currentWeek ?? weekKey(now)).split("-W").map(Number)
       const { week: thisWeek, year: thisYear } = isoWeek(now)
+      // Nothing on paper to file: a week that is over still gives way to the next.
+      if (!s.printed) return newWeek ? { ...s, locked: [], skipped: [], currentWeek: weekKey(now) } : s
       const filed: ArchivedWeek = {
         id: `${year}-W${w}-${now.getTime()}-${Math.random().toString(36).slice(2, 7)}`,
         week: w || thisWeek,
         year: year || thisYear,
         filedAt: now.getTime(),
-        wakeTime: s.settings.wakeTime,
-        sleepTime: s.settings.sleepTime,
-        blocks: schedule.blocks,
+        wakeTime: s.printed.wakeTime,
+        sleepTime: s.printed.sleepTime,
+        blocks: s.printed.blocks,
         format,
       }
       return {
@@ -247,7 +266,7 @@ export function useRobotMode() {
         emptied: [...new Set([...(s.emptied ?? []), format])],
       }
     })
-  }, [schedule.blocks])
+  }, [])
 
   /**
    * File today's ticket: that day's lines, as they stand. Unlike tearing the
@@ -260,14 +279,15 @@ export function useRobotMode() {
       // Its own id, whatever the clock says: two tickets torn within the same minute are still two sheets.
       const id = `${dayKey(now)}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
       setStored((s) => {
+        if (!s.printed) return s
         const filed: ArchivedWeek = {
           id,
           week,
           year,
           filedAt: now.getTime(),
-          wakeTime: s.settings.wakeTime,
-          sleepTime: s.settings.sleepTime,
-          blocks: schedule.blocks.filter((b) => b.day === day),
+          wakeTime: s.printed.wakeTime,
+          sleepTime: s.printed.sleepTime,
+          blocks: s.printed.blocks.filter((b) => b.day === day),
           format: "ticket",
         }
         // One ticket a day: a fresh one torn off later the same day replaces the earlier.
@@ -275,17 +295,8 @@ export function useRobotMode() {
         return { ...s, archive: fileSheet(others, filed), ticketTornOn: dayKey(now) }
       })
     },
-    [schedule.blocks],
+    [],
   )
-
-  /** A fresh sheet asked for: one printer (the list's, the grid's or the ticket's), or every empty one, prints again. */
-  const refillPrinters = useCallback((which: Sheet | "ticket" | "all") => {
-    setStored((s) => ({
-      ...s,
-      emptied: which === "all" ? [] : (s.emptied ?? []).filter((x) => x !== which),
-      ...(which === "ticket" || which === "all" ? { ticketTornOn: undefined } : {}),
-    }))
-  }, [])
 
   /** Shred a filed week: gone from the binder for good. */
   const shredFiled = useCallback((id: string) => {
@@ -352,13 +363,14 @@ export function useRobotMode() {
     loadSetup,
     markGenerated,
     unmarkGenerated,
+    printWeek,
+    unprinted,
     activeTemplate,
     templateEdited,
     resetToTemplate,
     freshWeek,
     tearWeek,
     tearTicket,
-    refillPrinters,
     shredFiled,
     wipe,
     display,
@@ -369,4 +381,4 @@ export function useRobotMode() {
 }
 
 export type RobotMode = ReturnType<typeof useRobotMode>
-export type { PlacedBlock }
+

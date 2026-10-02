@@ -1,4 +1,5 @@
 import { defaultMeals } from "./meals"
+import { generate } from "./scheduler/generate"
 import type { Clock, WeekStart } from "./locale"
 import type { PlacedBlock, Settings } from "./types"
 
@@ -27,6 +28,29 @@ export type ArchivedWeek = {
    * day's ticket (then `blocks` is that day's, and `filedAt` its date). Older sheets were grids.
    */
   format?: "list" | "grid" | "ticket"
+}
+
+/**
+ * The week as it was last PRINTed: what the paper shows, and everything that
+ * leaves the machine (the binder, the ticket, .ics) is taken from. The screen
+ * holds the draft; this changes only on PRINT.
+ */
+export type PrintedWeek = {
+  /** When it was printed (ms since epoch). */
+  at: number
+  wakeTime: string
+  sleepTime: string
+  blocks: PlacedBlock[]
+}
+
+/** A saved printed week, or null when it isn't one. */
+function readPrinted(value: unknown): PrintedWeek | null | undefined {
+  // Null is a week drafted and never printed; missing is a save from before there was paper to print on.
+  if (value === null) return null
+  if (!value || typeof value !== "object") return undefined
+  const p = value as Partial<PrintedWeek>
+  if (!Array.isArray(p.blocks) || typeof p.wakeTime !== "string" || typeof p.sleepTime !== "string") return undefined
+  return { at: typeof p.at === "number" ? p.at : 0, wakeTime: p.wakeTime, sleepTime: p.sleepTime, blocks: p.blocks }
 }
 
 /** The week's two printers: the line printer's list and the plotter's grid. */
@@ -58,6 +82,12 @@ export type SavedState = {
   emptied?: Sheet[]
   /** The day ("2026-10-02") whose ticket was torn off: the ticket printer stays empty until the next day, or a fresh one is asked for. */
   ticketTornOn?: string
+  /**
+   * The week on paper. Null once a week has been drafted and not yet printed;
+   * missing in saves from before the draft moved to the screen (their week is
+   * then printed as it stands, so nobody's paper goes blank).
+   */
+  printed?: PrintedWeek | null
 }
 
 export const emptySettings: Settings = {
@@ -92,6 +122,16 @@ function readSettings(saved: Partial<Settings> & { minFreeMinutesPerDay?: unknow
   return { ...emptySettings, ...rest, activities, meals: rest.meals ?? defaultMeals }
 }
 
+/**
+ * A save from before the paper was a copy of the screen: its week was on paper
+ * as it stood, so it is printed now, and nobody's paper goes blank.
+ */
+function withPaper(state: SavedState): SavedState {
+  if (!state.generated || state.printed !== undefined) return state
+  const { blocks } = generate(state.settings, { locked: state.locked, skip: state.skipped })
+  return { ...state, printed: { at: Date.now(), wakeTime: state.settings.wakeTime, sleepTime: state.settings.sleepTime, blocks } }
+}
+
 /** Never throws: a stale or corrupt entry falls back to a clean slate. */
 export function load(): SavedState {
   if (typeof window === "undefined") return initialState
@@ -100,7 +140,7 @@ export function load(): SavedState {
     if (!raw) return initialState
     const parsed = JSON.parse(raw) as Partial<SavedState>
     if (parsed.version !== 1 || !parsed.settings) return initialState
-    return {
+    return withPaper({
       version: 1,
       settings: readSettings(parsed.settings),
       locked: parsed.locked ?? [],
@@ -113,7 +153,8 @@ export function load(): SavedState {
       archive: Array.isArray(parsed.archive) ? parsed.archive : [],
       emptied: readEmptied(parsed),
       ticketTornOn: typeof parsed.ticketTornOn === "string" ? parsed.ticketTornOn : undefined,
-    }
+      printed: readPrinted(parsed.printed),
+    })
   } catch {
     return initialState
   }
@@ -136,7 +177,7 @@ export function fromJson(text: string): SavedState | null {
   try {
     const parsed = JSON.parse(text) as Partial<SavedState>
     if (!parsed.settings || !Array.isArray(parsed.settings.activities)) return null
-    return {
+    return withPaper({
       version: 1,
       settings: readSettings(parsed.settings),
       locked: parsed.locked ?? [],
@@ -149,7 +190,8 @@ export function fromJson(text: string): SavedState | null {
       archive: Array.isArray(parsed.archive) ? parsed.archive : [],
       emptied: readEmptied(parsed),
       ticketTornOn: typeof parsed.ticketTornOn === "string" ? parsed.ticketTornOn : undefined,
-    }
+      printed: readPrinted(parsed.printed),
+    })
   } catch {
     return null
   }
