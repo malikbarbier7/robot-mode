@@ -35,6 +35,18 @@ describe("locks and skips together", () => {
     expect(again.blocks).toHaveLength(totalSessions() - 3)
   })
 
+  it("leaves the gap on the day a session was removed from", () => {
+    // Reading is every day: taking Wednesday's out must leave Wednesday without it, whatever the re-solve does.
+    const first = generate(student)
+    const wednesday = first.blocks.find((b) => b.activityId === "reading" && b.day === 2)!
+    const again = generate(student, { skip: [`${wednesday.id}@2`] })
+    const reading = again.blocks.filter((b) => b.activityId === "reading")
+    expect(reading).toHaveLength(6)
+    expect(reading.map((b) => b.day)).not.toContain(2)
+    // A key without a day, as saved before days were kept, still works.
+    expect(generate(student, { skip: [wednesday.id] }).blocks.filter((b) => b.activityId === "reading")).toHaveLength(6)
+  })
+
   it("keeps every locked block exactly where it was, exactly once", () => {
     const first = generate(student)
     const locked = first.blocks.filter((b) => b.day <= 2).map((b) => ({ ...b, locked: true }))

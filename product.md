@@ -261,14 +261,18 @@ there, not followed inside the app.
 # 10. The terminal
 
 Docked under the week: a status line (hours, activities, budget), a row of
-function keys — **ADD · EDIT · SHUFFLE · SYSTEM · HELP**, plus **FIX** and
-**CLEAR EDITS** when they apply — and a prompt that takes commands in shorthand
+function keys — **ADD · EDIT · SHUFFLE · PRINT · EXPORT .ICS · SYSTEM · HELP**,
+plus **FIX**, **CLEAR EDITS** and **TEAR OFF** when they apply — and a prompt that takes commands in shorthand
 or plain words, completing as you type:
 
 ```text
 gym 1h15 4x · add yoga 45 min twice · remove gym · wake 7 · sleep 11pm
-shuffle · export · grid · list · today · tear · help
+remove gym wednesday · shuffle · print · export · grid · list · today · tear · feed · help
 ```
+
+The terminal is where things are done; the rest of the machine only shows.
+The panel keeps the three view keys and the Menu (sound, clock, backup), and
+the printers keep only their lamps.
 
 Everything the prompt does is also reachable with the mouse or a tap. Anything
 that throws work away (restart, reset to a template) is confirmed on the
@@ -284,18 +288,27 @@ The week comes out of the machine three ways, switched from the panel:
 - **Grid** — the plotter: seven columns, the whole week at a glance.
 - **Today** — the ticket printer: just today's lines, as a receipt to pocket.
 
-Each has **Print** (a real printer) and **Form feed** (print it again).
+**PRINT** sends whichever is showing to a real printer; **EXPORT .ICS** sends
+the week to a calendar (§13).
 
-**Tear off** files the week in the **binder** (the archive drawer at the right
-edge, up to two years of weeks), clears the week's locks and edits, and leaves
-the printer empty until a fresh sheet is asked for. When a new week has begun,
-the terminal offers TEAR. Filed sheets can be drawn out, read, printed, or
+**Tear off** (pull the paper down, or TEAR) files the sheet on show in the
+**binder** (the archive drawer at the right edge, up to two years of weeks).
+Only that printer empties: each has its own paper, so tearing the grid leaves
+the list where it is. It stays empty, through view switches and reloads, until
+a fresh sheet is asked for (the empty slot's FORM FEED key, or FEED). Mid-week
+a tear-off only files a copy; once the week is over the terminal lights
+TEAR OFF · NEW WEEK, and that tear-off also clears the week's locks and edits. Filed sheets can be drawn out, read, printed, or
 **shredded**.
+
+**Today's ticket** tears off the same way and is filed behind its own divider,
+◫ Tickets, one per day: a fresh ticket torn off later that day replaces the
+earlier one. Only the ticket printer empties; the week is untouched, and the
+next day's ticket prints by itself.
 
 ## Phone
 
-On a phone the panel folds to one row of view keys under the nameplate, Export
-and Sound move into the Menu, the printers keep only their keys, and the week
+On a phone the panel folds to one row of view keys under the nameplate, the
+terminal's function keys wrap onto two lines, the printers show only their slot, and the week
 opens on the **List**, which reads top to bottom. The grid scrolls sideways.
 Keyboard hints are hidden on touchscreens, and the prompt doesn't grab focus,
 so no on-screen keyboard covers the week on arrival.

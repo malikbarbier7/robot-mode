@@ -330,6 +330,23 @@
   }
 }
 
+/* The tear-off hint's arrows: a short stepped nudge downwards, the way to pull. */
+@keyframes nudge {
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+.nudge {
+  animation: nudge 0.9s steps(1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nudge {
+    animation: none;
+  }
+}
+
 /* The print head shuttling across the line it is printing, in steps. */
 @keyframes carriage {
   from {

@@ -81,7 +81,11 @@ const PASSES = 20
 export type GenerateOptions = {
   /** Blocks the user pinned. Never moved. */
   locked?: PlacedBlock[]
-  /** Session keys the user removed from this week. Not placed at all. */
+  /**
+   * Sessions the user removed from this week. Not placed at all. A key may
+   * carry the day it was on ("gym#1@2"): the activity then stays off that day
+   * this week, so the gap is where it was taken from, not wherever the re-solve frees.
+   */
   skip?: string[]
   passes?: number
 }
@@ -126,11 +130,22 @@ export function generate(settings: Settings, options: GenerateOptions = {}): Sch
   // (or an activity of its own), not a reserve kept back.
   const capSlotsPerDay = windows[0].endAbs - windows[0].startAbs
 
-  const activities = allActivities(settings)
+  const skipped = (options.skip ?? []).map(readSkip)
+  const avoided = new Map<string, Set<Day>>()
+  for (const { key, day } of skipped) {
+    if (day === undefined) continue
+    const id = key.slice(0, key.lastIndexOf("#"))
+    avoided.set(id, (avoided.get(id) ?? new Set()).add(day))
+  }
+  const activities = allActivities(settings).map((a) => {
+    const off = avoided.get(a.id)
+    const left = off && allowedDaysOf(a).filter((d) => !off.has(d))
+    return left?.length ? { ...a, allowedDays: left } : a
+  })
 
   // A locked block already satisfies its session, so it must not be placed a second time.
   const lockedKeys = new Set((options.locked ?? []).map((b) => b.id))
-  const skippedKeys = new Set(options.skip ?? [])
+  const skippedKeys = new Set(skipped.map((s) => s.key))
   const demand = buildDemand(activities, windows)
   const sessions = expandSessions(activities).filter(
     (s) => !lockedKeys.has(s.key) && !skippedKeys.has(s.key),
@@ -255,6 +270,14 @@ function notePlacement(state: PassState, activityId: string, day: Day, startAbs:
   }
   const key = `${activityId}:${day}`
   state.countByActivityDay.set(key, (state.countByActivityDay.get(key) ?? 0) + 1)
+}
+
+/** A skip key, and the day it was taken from when it says ("gym#1@2"). */
+export function readSkip(entry: string): { key: string; day?: Day } {
+  const at = entry.lastIndexOf("@")
+  if (at < 0) return { key: entry }
+  const day = Number(entry.slice(at + 1))
+  return Number.isInteger(day) && day >= 0 && day <= 6 ? { key: entry.slice(0, at), day: day as Day } : { key: entry }
 }
 
 function allowedDaysOf(activity: Activity): Day[] {
