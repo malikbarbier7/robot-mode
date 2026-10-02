@@ -14,7 +14,7 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 
 /**
  * The week as the machine prints it: a timetable on continuous-feed paper,
- * one day after another. Picking a session goes to it on the screen, where it is edited.
+ * one day after another. A record: the week is changed on the screen, from the terminal.
  *
  * With `feed`, the sheet is printed in front of you first: it feeds out of
  * the printer's slot a line at a time while the head shuttles. The page stays
@@ -23,8 +23,6 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 export function Printout({
   settings,
   schedule,
-  selectedId,
-  onSelect,
   feed = false,
   onFed,
   onTear,
@@ -36,8 +34,6 @@ export function Printout({
 }: {
   settings: Settings
   schedule: Schedule
-  selectedId: string | null
-  onSelect: (id: string | null) => void
   feed?: boolean
   onFed?: () => void
   onTear?: () => void
@@ -101,25 +97,14 @@ export function Printout({
                 )
                 if (row.kind === "block") {
                   const { block } = row
-                  const picked = block.id === selectedId
                   return (
-                    <li key={block.id}>
-                      <button
-                        type="button"
-                        onClick={() => onSelect(picked ? null : block.id)}
-                        className={`-mx-2 flex w-[calc(100%+1rem)] items-baseline gap-2 px-2 text-left uppercase ${
-                          picked ? "bg-ink text-paper" : "hover:bg-ink/[0.07]"
-                        }`}
-                      >
-                        {time}
-                        <span className="min-w-0 flex-1 truncate">
-                          {block.name}
-                          {block.locked && " ■"}
-                        </span>
-                        <span className={`tabular-nums ${picked ? "" : "text-ink/45"}`}>
-                          {formatSpan(block.endMinute - block.startMinute)}
-                        </span>
-                      </button>
+                    <li key={block.id} className="flex items-baseline gap-2">
+                      {time}
+                      <span className="min-w-0 flex-1 truncate">
+                        {block.name}
+                        {block.locked && " ■"}
+                      </span>
+                      <span className="tabular-nums text-ink/45">{formatSpan(block.endMinute - block.startMinute)}</span>
                     </li>
                   )
                 }

@@ -2,34 +2,32 @@
 
 import { useWords } from "@/lib/words"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import type { Day, PlacedBlock } from "@/lib/types"
+import { createPortal } from "react-dom"
 import type { RobotMode } from "@/lib/useRobotMode"
-import { formatClock, formatSpan, localizeTimes, weekOrder } from "@/lib/locale"
-import { DAY_NAMES, parseTime } from "@/lib/scheduler/time"
+import { formatClock, localizeTimes } from "@/lib/locale"
+import { parseTime } from "@/lib/scheduler/time"
 import { formatHours } from "@/lib/duration"
 import { suggestFixes } from "@/lib/suggest"
 import { FUNCTIONS, commandFor, complete, interpret, nextHint, type CommandAction, type Screen } from "@/lib/command"
 import { beep, buzz } from "@/lib/sound"
-import { Command, Legend, reject, useTerminal, type LegendKey } from "./Machine"
-import { ClockReadout } from "./Readout"
+import { Command, Console, SCREEN_HEIGHT, reject, useTerminal, type LegendKey } from "./Machine"
 import { ActivitiesTerminal, HoursTerminal, MealsTerminal } from "./Terminals"
 import { useDisplay } from "./Display"
 
 type View = "screen" | "printout" | "grid" | "today" | "binder"
 
-/** What the terminal shows above its prompt: nothing, a function's screen, or the picked block. */
-export type TerminalScreen = { name: Screen | "block" | "move"; id?: string } | null
+/** The function's screen open on the machine's screen, if any. */
+export type TerminalScreen = { name: Screen; id?: string } | null
 
 /** Where Esc goes from each screen. */
-const BACK: Partial<Record<Screen | "block" | "move", Screen | "block">> = {
+const BACK: Partial<Record<Screen, Screen>> = {
   activities: "edit",
   hours: "edit",
   meals: "edit",
-  move: "block",
   reset: "system",
 }
 
-const PATHS: Record<Screen | "block" | "move", string> = {
+const PATHS: Record<Screen, string> = {
   add: "Add",
   edit: "Edit",
   activities: "Edit › Activities",
@@ -39,12 +37,10 @@ const PATHS: Record<Screen | "block" | "move", string> = {
   fix: "Fix",
   restart: "System › Restart",
   reset: "System › Reset",
-  block: "Block",
-  move: "Block › Move",
   help: "Help",
 }
 
-const LEGENDS: Record<Screen | "block" | "move", LegendKey[]> = {
+const LEGENDS: Record<Screen, LegendKey[]> = {
   add: [
     ["Enter", "Next field", true],
     ["← →", "Field"],
@@ -90,16 +86,6 @@ const LEGENDS: Record<Screen | "block" | "move", LegendKey[]> = {
     ["N", "Keep"],
     ["Esc", "Back"],
   ],
-  block: [
-    ["S", "This session", true],
-    ["M", "Move"],
-    ["Esc", "Close"],
-  ],
-  move: [
-    ["↑ ↓", "Adjust", true],
-    ["Enter", "Move"],
-    ["Esc", "Back"],
-  ],
   help: [
     ["Enter", "Run function", true],
     ["↑ ↓", "Move"],
@@ -108,10 +94,10 @@ const LEGENDS: Record<Screen | "block" | "move", LegendKey[]> = {
 }
 
 /**
- * The machine's one control surface, docked under the week. At rest it is
- * three lines: what the week is built from, the function row, and a prompt.
- * A function (ADD, EDIT, SYSTEM…) or a picked block grows it into one of the
- * setup's screens, driven by the same keys, and Esc folds it back.
+ * The machine's keyboard unit, under the screen or the printers: what the
+ * week is built from, the function keys, and a one-line readout to type on.
+ * A function (ADD, EDIT, SYSTEM…) opens its screen on the machine's one
+ * screen (`slot`), in place of the week, driven by the same keys; Esc closes it.
  *
  * The prompt takes commands in shorthand or plain words; it completes as you
  * type, and Enter takes the completion, so "e" then Enter opens EDIT.
@@ -120,10 +106,7 @@ export function Terminal({
   rm,
   screen,
   onScreen,
-  selected,
-  onDeselect,
   onExport,
-  onSave,
   onBackup,
   onPrint,
   onLoad,
@@ -131,20 +114,15 @@ export function Terminal({
   onView,
   onTear,
   onShred,
-  weekDue = false,
   unprinted = false,
   tip,
+  slot,
 }: {
   rm: RobotMode
   screen: TerminalScreen
   onScreen: (screen: TerminalScreen) => void
-  /** The session picked on the screen, shown on the BLOCK screen. */
-  selected: PlacedBlock | null
-  onDeselect: () => void
   /** The week on paper as .ics; a reason when it can't be. */
   onExport: () => string | void
-  /** SAVE: the sheet on paper to a real printer or a PDF; a reason when it can't be. */
-  onSave: () => string | void
   /** BACKUP: everything, as a file. */
   onBackup: () => void
   /** PRINT: the draft on the screen onto paper. */
@@ -157,12 +135,12 @@ export function Terminal({
   onTear: () => string | void
   /** Shred a filed week by its number; false when the binder has no such week. */
   onShred: (week: number) => boolean
-  /** A new week has begun since the sheet was printed: TEAR is offered in the row. */
-  weekDue?: boolean
   /** The screen has changes the paper doesn't: PRINT is lit. */
   unprinted?: boolean
   /** A hint, shown under the prompt when there is nothing else to say. */
   tip?: string | null
+  /** Where on the machine's screen a function's screen opens, in place of the week. */
+  slot: HTMLElement | null
 }) {
   const { clock } = useDisplay()
   const settings = rm.state.settings
@@ -177,8 +155,7 @@ export function Terminal({
   // A question waiting on which session a line meant: the options, by number.
   const [choice, setChoice] = useState<{ label: string; action: CommandAction }[] | null>(null)
 
-  // A BLOCK screen with no block left to show has nothing to say.
-  const current = (screen?.name === "block" || screen?.name === "move") && !selected ? null : screen
+  const current = screen
   const conflicts = schedule.unplaced.length
   const weekEdits = rm.state.locked.length + rm.state.skipped.length
 
@@ -189,7 +166,7 @@ export function Terminal({
     ...settings,
     activities,
     sound: rm.display.sound ?? true,
-    sessions: schedule.blocks.map((b) => ({ id: b.id, activityId: b.activityId, day: b.day, start: b.startMinute, end: b.endMinute })),
+    sessions: schedule.blocks.map((b) => ({ id: b.id, activityId: b.activityId, day: b.day, start: b.startMinute, end: b.endMinute, locked: b.locked })),
   }
   const typed = text.trim() ? interpret(text, ctx) : null
   const completed = completion ? interpret(completion, ctx) : null
@@ -200,7 +177,6 @@ export function Terminal({
 
   /** `keepReply` when an action closes the screen and has just said what it did. */
   const close = (keepReply = false) => {
-    if (current?.name === "block" || current?.name === "move") onDeselect()
     onScreen(null)
     if (!keepReply) setReply(null)
     if (!touchOnly()) prompt.current?.focus()
@@ -274,10 +250,9 @@ export function Terminal({
         rm.shuffle()
         break
       case "export":
-      case "save":
       case "tear": {
         // These take what is on paper: with nothing there, the machine says so.
-        const refused = { export: onExport, save: onSave, tear: onTear }[a.kind]()
+        const refused = { export: onExport, tear: onTear }[a.kind]()
         if (refused) {
           buzz()
           return say(refused, true)
@@ -310,11 +285,15 @@ export function Terminal({
         rm.addActivity(a.extra)
         break
       case "skip":
-        // The same as the BLOCK screen's REMOVE: out of this week, the activity untouched.
+        // Out of this week only: the activity is untouched.
         a.blockIds.forEach(rm.removeBlock)
         break
+      case "lock":
+        // Only the ones not already as asked: locking twice would unlock.
+        a.blockIds.filter((id) => schedule.blocks.find((b) => b.id === id)?.locked !== a.locked).forEach(rm.toggleLock)
+        break
       case "move": {
-        // The same as the BLOCK screen's MOVE: locked there, refused if another locked block is in the way.
+        // Locked there; refused if another locked session is in the way.
         const refused = rm.moveBlock(a.blockId, a.day, a.start)
         if (refused) {
           buzz()
@@ -328,12 +307,6 @@ export function Terminal({
         break
     }
     say(a.reply)
-  }
-
-  /** Close the screen and put a line on the prompt, ready to finish. */
-  const promptWith = (line: string) => {
-    close(true)
-    load(line)
   }
 
   /** Pick one of the sessions a line could have meant. */
@@ -386,11 +359,9 @@ export function Terminal({
     { word: "edit", label: "Edit", show: true },
     { word: "shuffle", label: "Shuffle", show: true },
     // Taking the week out of the machine: PRINT puts the screen on paper (lit while they differ),
-    // SAVE and EXPORT take the paper out. The keys live here, not on the printers.
+    // EXPORT sends it to a calendar. Tearing off is done on the paper itself (or typed: TEAR).
     { word: "print", label: "Print", show: true, alert: unprinted },
-    { word: "save", label: "Save", show: true },
     { word: "export", label: "Export .ics", show: true },
-    { word: "tear", label: "Tear off · new week", show: weekDue, alert: true },
     { word: "system", label: "System", show: true },
     { word: "help", label: "Help", show: true },
     { word: "clear", label: `Clear edits (${weekEdits})`, show: weekEdits > 0 },
@@ -398,173 +369,161 @@ export function Terminal({
   ]
 
   return (
-    <div
-      className={`crt no-print flex shrink-0 flex-col px-3 py-2 sm:px-5 sm:py-3 ${current ? "h-[min(68vh,760px)]" : ""}`}
-      style={{ borderWidth: 6 }}
-    >
-      {current && (
-        <>
-          <div className="flex items-baseline justify-between border-b border-ink/30 pb-1 font-crt text-[20px] uppercase">
-            <span className="tracking-[0.12em]">&gt; {PATHS[current.name]}</span>
-            <button type="button" onClick={() => back()} className="text-ink/55 hover:text-ink">
-              [Esc] {BACK[current.name] ? "Back" : "Close"}
-            </button>
-          </div>
-          {/* The setup's screens, drawn a size smaller so they fit the dock. */}
-          <div ref={root} className="min-h-0 flex-1 overflow-y-auto py-4">
-            <div style={{ zoom: 0.72 }}>
+    <>
+      {/* A function's screen opens on the machine's one screen, in place of the week, at its full size. */}
+      {current &&
+        slot &&
+        createPortal(
+          <Console
+            captions={[`> ${PATHS[current.name]}`, <button key="esc" type="button" onClick={() => back()} className="hover:text-ink">[Esc] {BACK[current.name] ? "Back" : "Close"}</button>]}
+            legend={LEGENDS[current.name]}
+          >
+            <div ref={root} className={`${SCREEN_HEIGHT} sm:overflow-y-auto`}>
               <ScreenBody
                 screen={current}
                 rm={rm}
-                selected={selected}
                 onScreen={onScreen}
                 onClose={() => close(true)}
                 onRunWord={runWord}
                 onSay={say}
                 onRestart={onRestart}
-                onPrompt={promptWith}
               />
             </div>
-          </div>
-          <div className="border-t border-ink/30 pb-1" style={{ zoom: 0.9 }}>
-            <Legend keys={LEGENDS[current.name]} />
-          </div>
-        </>
-      )}
+          </Console>,
+          slot,
+        )}
 
-      {/* At rest: what the week is built from. Click anything to change it. */}
-      {!current && (
-        // On a phone the function row's EDIT reaches all of this; the line itself would fill the dock.
-        <div className="hidden flex-wrap items-baseline gap-x-5 gap-y-1 font-crt text-[20px] uppercase leading-tight sm:flex [&_button]:uppercase">
-          <button type="button" onClick={() => onScreen({ name: "hours" })} className="hover:bg-ink/15" title="Edit your hours">
+      {/* The keyboard unit: part of the machine's casing, not a second screen. Its keys, and a one-line readout. */}
+      <div className="no-print shrink-0 border-t-2 border-ink bg-[#cdc5b1] px-3 pb-3 pt-2 shadow-[inset_0_1px_0_rgb(255_255_255/0.4)] sm:px-6">
+        {/* What the week is built from, printed on the casing. Click anything to change it. */}
+        <div className="label hidden flex-wrap items-baseline gap-x-5 gap-y-1 text-ink/70 sm:flex [&_button]:uppercase">
+          <button type="button" onClick={() => onScreen({ name: "hours" })} className="hover:text-ink" title="Edit your hours">
             <span className="opacity-60">Wake </span>
             {formatClock(parseTime(settings.wakeTime), clock)}
-            <span className="opacity-60"> Sleep </span>
+            <span className="opacity-60"> · Sleep </span>
             {formatClock(parseTime(settings.sleepTime), clock)}
           </button>
           <span aria-hidden className="text-ink/30">│</span>
-          {/* The list itself is on the paper already; here, just how long it is, and the way to it. */}
-          <button type="button" onClick={() => onScreen({ name: "activities" })} className="hover:bg-ink/15" title="Edit your activities">
+          <button type="button" onClick={() => onScreen({ name: "activities" })} className="hover:text-ink" title="Edit your activities">
             {mains.length} <span className="opacity-60">{mains.length === 1 ? "activity" : "activities"}</span>
           </button>
-          <span className="ml-auto tabular-nums text-ink/60" title="Hours your activities ask for, out of the hours the week has for them">
+          <span className="ml-auto tabular-nums" title="Hours your activities ask for, out of the hours the week has for them">
             <span className="opacity-60">Planned </span>
             {formatHours(rm.budget.requestedMinutes)}
             <span className="opacity-60"> of </span>
             {formatHours(rm.budget.allocatableMinutesPerWeek)}
             <span className="opacity-60"> available</span>
-            {!rm.budget.feasible && <span className="text-alert [text-shadow:none]"> · over by {formatHours(rm.budget.overByMinutes)}</span>}
+            {!rm.budget.feasible && <span className="text-alert"> · over by {formatHours(rm.budget.overByMinutes)}</span>}
           </span>
         </div>
-      )}
 
-      {/* The function row. The one Enter would run is lit. */}
-      <div className={`flex flex-wrap gap-x-4 gap-y-1 font-crt text-[20px] uppercase ${current ? "mt-2" : "sm:mt-1.5"}`}>
-        {functionRow
-          .filter((f) => f.show)
-          .map((f) => (
-            <button
-              key={f.word}
-              type="button"
-              onClick={() => runWord(f.word)}
-              className={`uppercase ${
-                lit === f.word || (current && functionOf({ kind: "open", screen: current.name }) === f.word)
-                  ? "bg-ink text-paper [text-shadow:none]"
-                  : f.alert
-                    ? "text-alert [text-shadow:none] hover:bg-alert/20"
-                    : "text-ink/75 hover:bg-ink/15"
-              }`}
-            >
-              [{f.label}]
-            </button>
-          ))}
-      </div>
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          run()
-        }}
-        className="mt-1 flex items-baseline gap-3 font-crt text-[24px]"
-      >
-        <span className="text-ink/60">&gt;</span>
-        <div className="relative min-w-0 flex-1">
-          {/* The rest of the word being typed, dimmed behind the cursor: Enter, Tab or → takes it. */}
-          {completion && (
-            <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre uppercase">
-              <span className="invisible">{text}</span>
-              <span className="text-ink/35">{completion.slice(text.length)}</span>
-            </div>
-          )}
-          <input
-            ref={prompt}
-            value={text}
-            spellCheck={false}
-            autoComplete="off"
-            aria-label="Command"
-            placeholder="Type a function"
-            onChange={(e) => {
-              setText(e.target.value)
-              setPickedId(null)
-              setReply(null)
-            }}
-            onKeyDown={(e) => {
-              const atEnd = e.currentTarget.selectionStart === text.length
-              if (completion && (e.key === "Tab" || (e.key === "ArrowRight" && atEnd))) {
-                e.preventDefault()
-                setText(completion)
-              } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-                // Step through the activities, one on the line at a time, ready to change.
-                if (activities.length === 0) return
-                e.preventDefault()
-                const at = activities.findIndex((a) => a.id === pickedId)
-                const next =
-                  e.key === "ArrowDown"
-                    ? at + 1 >= activities.length ? -1 : at + 1
-                    : at <= -1 ? activities.length - 1 : at - 1
-                const activity = activities[next]
-                setReply(null)
-                if (activity) load(commandFor(activity), activity.id)
-                else load("")
-              } else if (e.key === "Escape") {
-                e.preventDefault()
-                if (choice) {
-                  setChoice(null)
-                  setReply(null)
-                  load("")
-                } else if (text || reply) {
-                  setReply(null)
-                  load("")
-                } else if (current) back()
-              }
-            }}
-            className="relative w-full bg-transparent outline-none"
-          />
-        </div>
-        <span className="hidden shrink-0 text-[18px] text-ink/45 sm:block">
-          {completion ? "[Enter] run · [Tab] complete" : "[↑↓] activities · [/] type"}
-        </span>
-      </form>
-      <div
-        aria-live="polite"
-        className={`min-h-[1.4em] font-crt text-[18px] ${status?.error ? "text-alert [text-shadow:none]" : "text-ink/55"}`}
-      >
-        {choice && !text ? (
-          // Which session the line meant: typed (1, 2… then Enter) or clicked.
-          <span className="text-ink">
-            WHICH SESSION?{" "}
-            {choice.map((o, i) => (
-              <button key={o.label} type="button" onClick={() => pickOption(i)} className="px-1 hover:bg-ink/15">
-                [{i + 1}] {localizeTimes(o.label, clock)}
+        {/* The function keys. The one Enter would run, or whose screen is open, is held down; a key that wants attention has its lamp lit. */}
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {functionRow
+            .filter((f) => f.show)
+            .map((f) => (
+              <button
+                key={f.word}
+                type="button"
+                onClick={() => runWord(f.word)}
+                aria-pressed={lit === f.word || (current ? functionOf({ kind: "open", screen: current.name }) === f.word : false)}
+                className="key flex items-center gap-2 px-2.5 py-1.5"
+              >
+                {f.alert && <span aria-hidden className="inline-block h-1.5 w-1.5 bg-alert" style={{ boxShadow: "0 0 4px var(--color-alert)" }} />}
+                {f.label}
               </button>
             ))}
-            <span className="text-ink/45"> · [ESC] CANCEL</span>
+        </div>
+
+        {/* The readout: one line to type on, one for the answer. */}
+        <div className="crt mt-2 px-3 py-1 sm:px-4" style={{ borderWidth: 4 }}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            run()
+          }}
+          className="flex items-baseline gap-3 font-crt text-[22px]"
+        >
+          <span className="text-ink/60">&gt;</span>
+          <div className="relative min-w-0 flex-1">
+            {/* The rest of the word being typed, dimmed behind the cursor: Enter, Tab or → takes it. */}
+            {completion && (
+              <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre uppercase">
+                <span className="invisible">{text}</span>
+                <span className="text-ink/35">{completion.slice(text.length)}</span>
+              </div>
+            )}
+            <input
+              ref={prompt}
+              value={text}
+              spellCheck={false}
+              autoComplete="off"
+              aria-label="Command"
+              placeholder="Type a function"
+              onChange={(e) => {
+                setText(e.target.value)
+                setPickedId(null)
+                setReply(null)
+              }}
+              onKeyDown={(e) => {
+                const atEnd = e.currentTarget.selectionStart === text.length
+                if (completion && (e.key === "Tab" || (e.key === "ArrowRight" && atEnd))) {
+                  e.preventDefault()
+                  setText(completion)
+                } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                  // Step through the activities, one on the line at a time, ready to change.
+                  if (activities.length === 0) return
+                  e.preventDefault()
+                  const at = activities.findIndex((a) => a.id === pickedId)
+                  const next =
+                    e.key === "ArrowDown"
+                      ? at + 1 >= activities.length ? -1 : at + 1
+                      : at <= -1 ? activities.length - 1 : at - 1
+                  const activity = activities[next]
+                  setReply(null)
+                  if (activity) load(commandFor(activity), activity.id)
+                  else load("")
+                } else if (e.key === "Escape") {
+                  e.preventDefault()
+                  if (choice) {
+                    setChoice(null)
+                    setReply(null)
+                    load("")
+                  } else if (text || reply) {
+                    setReply(null)
+                    load("")
+                  } else if (current) back()
+                }
+              }}
+              className="relative w-full bg-transparent outline-none"
+            />
+          </div>
+          <span className="hidden shrink-0 text-[18px] text-ink/45 sm:block">
+            {completion ? "[Enter] run · [Tab] complete" : "[↑↓] activities"}
           </span>
-        ) : (
-          status && localizeTimes(status.text, clock)
-        )}
+        </form>
+        <div
+          aria-live="polite"
+          className={`min-h-[1.4em] font-crt text-[17px] leading-tight ${status?.error ? "text-alert [text-shadow:none]" : "text-ink/55"}`}
+        >
+          {choice && !text ? (
+            // Which session the line meant: typed (1, 2… then Enter) or clicked.
+            <span className="text-ink">
+              WHICH SESSION?{" "}
+              {choice.map((o, i) => (
+                <button key={o.label} type="button" onClick={() => pickOption(i)} className="px-1 hover:bg-ink/15">
+                  [{i + 1}] {localizeTimes(o.label, clock)}
+                </button>
+              ))}
+              <span className="text-ink/45"> · [ESC] CANCEL</span>
+            </span>
+          ) : (
+            status && localizeTimes(status.text, clock)
+          )}
+        </div>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -588,23 +547,19 @@ function functionOf(action: { kind: string; screen?: string; view?: string }): s
 function ScreenBody({
   screen,
   rm,
-  selected,
   onScreen,
   onClose,
   onRunWord,
   onSay,
   onRestart,
-  onPrompt,
 }: {
   screen: NonNullable<TerminalScreen>
   rm: RobotMode
-  selected: PlacedBlock | null
   onScreen: (screen: TerminalScreen) => void
   onClose: () => void
   onRunWord: (word: string) => void
   onSay: (text: string, error?: boolean) => void
   onRestart: () => void
-  onPrompt: (line: string) => void
 }) {
   const settings = rm.state.settings
 
@@ -677,12 +632,8 @@ function ScreenBody({
     }
     case "fix":
       return <FixScreen rm={rm} onClose={onClose} onSay={onSay} />
-    case "block":
-      return selected && <BlockScreen block={selected} rm={rm} onScreen={onScreen} onClose={onClose} onSay={onSay} onPrompt={onPrompt} />
     case "help":
       return <HelpScreen onRunWord={onRunWord} />
-    case "move":
-      return selected && <MoveScreen block={selected} rm={rm} onScreen={onScreen} onSay={onSay} />
   }
 }
 
@@ -872,164 +823,6 @@ function FixKeys({ items, children }: { items: MenuItem[]; children: ReactNode }
   return <>{children}</>
 }
 
-function BlockScreen({
-  block,
-  rm,
-  onScreen,
-  onClose,
-  onSay,
-  onPrompt,
-}: {
-  block: PlacedBlock
-  rm: RobotMode
-  onScreen: (screen: TerminalScreen) => void
-  onClose: () => void
-  onSay: (text: string, error?: boolean) => void
-  onPrompt: (line: string) => void
-}) {
-  const { clock } = useDisplay()
-  const activity = rm.state.settings.activities.find((a) => a.id === block.activityId)
-  const name = block.name.toUpperCase()
-  const items: MenuItem[] = []
-  if (activity) {
-    items.push({ key: "E", label: `Edit ${block.name}`, note: "length, times a week, days…", onSelect: () => onScreen({ name: "activities", id: activity.id }) })
-    // This one session, by its day and start, so the terminal never has to ask which.
-    const start = `${String(Math.floor((block.startMinute % 1440) / 60)).padStart(2, "0")}:${String(block.startMinute % 60).padStart(2, "0")}`
-    items.push({
-      key: "S",
-      label: "This session only",
-      note: "type what changes: 2h · at 11:00",
-      onSelect: () => onPrompt(`edit ${block.name.toLowerCase()} ${FULL_DAYS[block.day]} ${start} to `),
-    })
-  }
-  items.push(
-    { key: "M", label: "Move", note: "pick another day or time", onSelect: () => onScreen({ name: "move" }) },
-    {
-      key: "L",
-      label: block.locked ? "Unlock" : "Lock",
-      note: block.locked ? "let shuffles move it again" : "keep it here through shuffles",
-      onSelect: () => {
-        rm.toggleLock(block.id)
-        onSay(block.locked ? `${name} UNLOCKED` : `${name} LOCKED`)
-      },
-    },
-    {
-      key: "R",
-      label: "Remove this session",
-      onSelect: () => {
-        rm.removeBlock(block.id)
-        onSay(`${name} REMOVED THIS ONCE`)
-        onClose()
-      },
-    },
-  )
-
-  return (
-    <MenuScreen
-      title={
-        <>
-          {block.name}
-          {block.locked && " ■"}
-        </>
-      }
-      note={
-        <>
-          {DAY_NAMES[block.day]} {formatClock(block.startMinute, clock)}–{formatClock(block.endMinute, clock)} ·{" "}
-          {localizeTimes(block.reason, clock)}
-        </>
-      }
-      items={items}
-    />
-  )
-}
-
-const FULL_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-
-function hhmm(minutes: number): string {
-  const m = ((minutes % 1440) + 1440) % 1440
-  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`
-}
-
-function MoveScreen({
-  block,
-  rm,
-  onScreen,
-  onSay,
-}: {
-  block: PlacedBlock
-  rm: RobotMode
-  onScreen: (screen: TerminalScreen) => void
-  onSay: (text: string, error?: boolean) => void
-}) {
-  const { clock, weekStart } = useDisplay()
-  const [day, setDay] = useState<Day>(block.day)
-  const [time, setTime] = useState(hhmm(block.startMinute))
-  const [problem, setProblem] = useState<string | null>(null)
-  const settings = rm.state.settings
-  const wake = parseTime(settings.wakeTime)
-  const sleepRaw = parseTime(settings.sleepTime)
-  const sleep = sleepRaw <= wake ? sleepRaw + 1440 : sleepRaw
-  const length = block.endMinute - block.startMinute
-
-  const move = () => {
-    let start = parseTime(time)
-    // Past midnight, on a day that ends after midnight, still belongs to that day.
-    if (start < wake && sleep > 1440) start += 1440
-    if (start < wake || start + length > sleep) {
-      setProblem(`It has to fit between ${formatClock(wake, clock)} and ${formatClock(sleep, clock)}`)
-      return
-    }
-    const refused = rm.moveBlock(block.id, day, start)
-    if (refused) {
-      setProblem(refused)
-      return
-    }
-    onSay(`${block.name.toUpperCase()} MOVED TO ${DAY_NAMES[day].toUpperCase()} ${formatClock(start, clock)} · LOCKED`)
-    onScreen({ name: "block" })
-  }
-
-  return (
-    <div className="font-crt uppercase">
-      <h2 className="text-[56px] leading-none tracking-[0.04em]">Move {block.name}</h2>
-      <p className="mt-3 text-[26px] tracking-[0.08em] text-ink/60">
-        It stays locked there; the rest of the week fits around it.
-      </p>
-
-      <div className="mt-8 text-[28px] tracking-[0.2em] text-ink/60">Day</div>
-      <div className="mt-2 flex flex-wrap gap-3 text-[34px]">
-        {weekOrder(weekStart).map((d) => (
-          <button
-            key={d}
-            type="button"
-            data-nav
-            aria-pressed={d === day}
-            onClick={() => setDay(d)}
-            className={`border px-3 ${d === day ? "border-ink bg-ink/20" : "border-ink/30 text-ink/50"}`}
-          >
-            {DAY_NAMES[d]}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-8 text-[28px] tracking-[0.2em] text-ink/60">Start</div>
-      <div className="mt-2 flex items-center">
-        <span className="flex items-center border border-ink/50 px-4 text-[96px] leading-none tabular-nums">
-          <ClockReadout label="Start" value={time} arrows minuteStep={15} onChange={setTime} periodClassName="text-[36px]" />
-        </span>
-        <span className="ml-6 text-[30px] text-ink/60">for {formatSpan(length)}</span>
-      </div>
-
-      {problem && <p className="mt-6 text-[26px] text-alert [text-shadow:none]">{problem}</p>}
-
-      <div className="mt-8">
-        <Command keyName="Enter" onClick={move} primary>
-          Move ▶
-        </Command>
-      </div>
-    </div>
-  )
-}
-
 /** The functions as the manual lists them; each one runs from here. */
 const MANUAL_FUNCTIONS: [word: string, what: string][] = [
   ["add", "Add an activity. ADD SURF starts from 1H 1×; or type the whole line."],
@@ -1037,7 +830,6 @@ const MANUAL_FUNCTIONS: [word: string, what: string][] = [
   ["shuffle", "Same rules, a different arrangement of the week."],
   ["screen", "The draft: the week on the screen, where it is changed. Paper only changes on PRINT."],
   ["print", "Print the draft on the screen onto paper. Lit while the screen has changes the paper doesn't."],
-  ["save", "Save the sheet on paper: send it to your printer, or keep it as a PDF."],
   ["export", "Download the week on paper as .ics, for any calendar app."],
   ["today", "Today's ticket, from the paper: print it and keep it."],
   ["list", "The week on paper as the printed list, day after day."],
@@ -1046,7 +838,7 @@ const MANUAL_FUNCTIONS: [word: string, what: string][] = [
   ["system", "Backup, load, 12H / 24H clock, week start, reset, restart."],
   ["fix", "Shown when a session doesn't fit: suggested fixes, one key each."],
   ["clear", "Shown after moving or locking blocks: undo those edits."],
-  ["tear", "File the sheet on paper in the binder; only its printer empties. Once the week is over, it also clears the week's edits. Also: pull the sheet down. PRINT fills it again."],
+  ["tear", "File the sheet on paper in the binder; only its printer empties. From the binder, DOWNLOAD keeps it as a PDF, or sends it to your printer. Once the week is over, it also clears the week's edits. Or pull the sheet down by its tab. PRINT fills it again."],
   ["shred", "Shred a filed week for good: SHRED 39. Or ✕ on its sheet in the binder, twice."],
   ["binder", "The filing unit at the right edge (or bring the pointer there): torn-off weeks. Pull a sheet out to read it, Esc to put it back."],
 ]
@@ -1141,12 +933,9 @@ function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
       </ManualSection>
 
       <ManualSection title="Sessions">
-        <ManualLine cmd="Click a session">
-          On the screen: [M] move · [L] lock · [R] remove · [E] edit the activity · [Enter] more, such as this session only.
-        </ManualLine>
-        <ManualLine cmd="Tab · ← ↑ ↓ →">Onto the screen, then from session to session.</ManualLine>
-        <ManualLine cmd="[M] then ← ↑ ↓ →">Move it a day or 15 minutes at a time; Enter puts it down, locked there.</ManualLine>
-        <ManualLine cmd="On paper">Paper is a record: clicking a session there takes you to it on the screen.</ManualLine>
+        <ManualLine cmd="The screen · the paper">They only show the week. Every change is typed here.</ManualLine>
+        <ManualLine cmd="LOCK GYM MONDAY">Keep that session where it is, through shuffles and edits. LOCK GYM locks every one.</ManualLine>
+        <ManualLine cmd="UNLOCK GYM MONDAY">Let shuffles move it again. CLEAR EDITS unlocks everything.</ManualLine>
       </ManualSection>
 
       <ManualSection title="Keys">

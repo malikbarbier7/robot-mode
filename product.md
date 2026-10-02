@@ -52,7 +52,7 @@ It will never say *"you should read more."* It only answers *"you told me you wa
 # 3. Core loop
 
 ```text
-DEFINE  →  GENERATE  →  ADJUST ON SCREEN  →  PRINT  →  SAVE / EXPORT  →  LIVE IT
+DEFINE  →  GENERATE  →  ADJUST ON SCREEN  →  PRINT  →  TEAR OFF / EXPORT  →  LIVE IT
                 ↑                                                          │
                 └──────────────────────── next week ───────────────────────┘
 ```
@@ -64,7 +64,7 @@ followed minute by minute.
 The **screen is the draft, the paper is the commitment**. The week is changed
 only on the machine's screen, where it re-solves live. **PRINT** copies it onto
 paper, and the paper doesn't change again until the next PRINT. Everything that
-leaves the machine (SAVE, EXPORT .ICS, today's ticket, the binder) is taken
+leaves the machine (the binder, EXPORT .ICS, today's ticket) is taken
 from the paper, so nothing goes out that hasn't been seen on paper.
 
 ---
@@ -122,8 +122,8 @@ the shape of a day, not things to get done, so they never appear in the list.
 
 **Make me a robot** runs the solver (about 30 ms) and paces the reveal over a
 few seconds, showing what it is actually doing; a click or Enter skips it. The
-screen then draws the week in, a day's column at a time, as a draft. It ends on
-one key, **[Enter] PRINT ▶**: the first print turns to the paper and shows the
+screen then draws the week in, a day's column at a time, as a draft, with the
+keyboard's PRINT lamp lit. The first PRINT turns to the paper and shows the
 sheet coming out of the printer. After the reveal the draft re-solves live on
 every edit. The pause belongs to the reveal, not to editing.
 
@@ -249,27 +249,27 @@ Applying one is always the user's choice.
 
 # 9. Editing the week
 
-The week is edited on the **screen**, never on paper. Pick a session with a
-click, or Tab onto the screen and step between sessions with the arrows. Its
-keys open beside it:
+The screen and the paper only **show** the week. Every change is typed on the
+keyboard unit's readout (or reached through its function keys); nothing is
+changed by clicking a session:
 
-- **[M] Move**: a ghost of the session steps with the arrows (↑ ↓ 15 minutes,
-  ← → a day); Enter puts it down and locks it there, Esc cancels. A clash with
-  a locked session is refused, and the screen says why.
-- **[L] Lock**: keep it through shuffles and edits
-- **[R] Remove** this session from this week
-- **[E] Edit** the activity (length, times a week, days…)
-- **[Enter] More**: the terminal's BLOCK screen, with **This session only**
-  (change one session without touching the rest)
+```text
+move gym monday 10h to 11h · lock gym monday · unlock gym monday · lock gym
+remove gym wednesday · edit deep work monday 2h · shuffle · clear
+```
 
-After any edit, the sessions the re-solve moved flash, so its effect can be
-followed. Clicking a session on paper goes back to the screen with it picked:
-paper is a record. On a phone there's no room for the keys beside a session,
-so a picked session opens on the terminal's BLOCK screen.
+- **Move** a session to another day or time; it is locked there
+- **Lock** / **Unlock**: keep it through shuffles and edits (a day, a day and
+  a start, or every session of the activity)
+- **Remove** one session from this week
+- **Edit** the activity, or one session only (it becomes an extra, kept at its time)
+
+After any edit, the sessions the re-solve moved flash on the screen, so its
+effect can be followed.
 
 Locking is the intended way to keep what is right: lock it, then shuffle or
-edit, and everything else rearranges around it. **No drag and drop and no
-resize**: dragging is manual scheduling, the thing the product exists to remove.
+edit, and everything else rearranges around it. **No clicking, no drag and drop and
+no resize**: dragging is manual scheduling, the thing the product exists to remove.
 
 There is no "I missed this": the week is printed or exported and lived from
 there, not followed inside the app.
@@ -278,17 +278,25 @@ there, not followed inside the app.
 
 # 10. The terminal
 
-Docked under the week: a status line (hours, activities, budget), a row of
-function keys — **ADD · EDIT · SHUFFLE · PRINT · SAVE · EXPORT .ICS · SYSTEM · HELP**,
-plus **FIX**, **CLEAR EDITS** and **TEAR OFF** when they apply — and a prompt that takes commands in shorthand
+The machine has **one screen and one keyboard**. The screen keeps the same
+frame from boot to setup to the draft; on the paper views the printers take
+its place. Under either sits the **keyboard unit**, part of the beige casing,
+not a second screen: the hours, activities and budget printed on it, a row of
+function keycaps — **ADD · EDIT · SHUFFLE · PRINT · EXPORT .ICS · SYSTEM · HELP**,
+plus **FIX** and **CLEAR EDITS** when they apply — and a prompt that takes commands in shorthand
 or plain words, completing as you type:
 
 ```text
 gym 1h15 4x · add yoga 45 min twice · remove gym · wake 7 · sleep 11pm
-remove gym wednesday · shuffle · print · save · export · screen · grid · list · today · tear · backup · help
+remove gym wednesday · shuffle · print · export · screen · grid · list · today · tear · backup · help
 ```
 
-**PRINT** lights red while the screen has changes the paper doesn't, and the
+A function's screen (EDIT, HELP, FIX, SYSTEM…) opens on the
+machine's screen, at full size, in place of the week or the paper; Esc or a
+view key puts the week back. The keyboard's own display is a single readout
+line to type on, with the answer under it.
+
+**PRINT**'s lamp lights red while the screen has changes the paper doesn't, and the
 line under the prompt says so. The terminal and the screen are where things
 are done; the paper only shows. The panel keeps the four view keys and the
 Menu (sound, clock, backup), and the printers keep only their lamps.
@@ -310,20 +318,24 @@ ways:
 
 All three print the same week, the one last PRINTed. **PRINT** puts the draft
 on paper and refills every empty printer. The first time, the machine turns to
-the paper to show it coming out; after that you stay on the screen. **SAVE**
-sends the sheet on paper to a real printer, or a PDF (from the screen, the last
-sheet looked at); **EXPORT .ICS** sends the week on paper to a calendar (§13).
-With nothing printed yet, the printers stand empty with a PRINT key, and SAVE,
-EXPORT and TEAR say so instead of acting.
+the paper to show it coming out; after that you stay on the screen.
+**EXPORT .ICS** sends the week on paper to a calendar (§13). To get a sheet onto
+a real printer, or into a PDF, tear it off and **Download** it from the binder. With
+nothing printed yet, the printers stand empty with a PRINT key, and EXPORT and
+TEAR say so instead of acting.
 
-**Tear off** (pull the paper down, or TEAR) files the sheet on show in the
+**Tear off** is done on the paper itself: every sheet that can be torn off
+has a lit **Pull down to tear off** tab on its perforation, scissors at either
+end, a grab hand over it, and now and then gives a small tug. Pulling it down
+(or typing TEAR, for the keyboard alone) files the sheet on show in the
 **binder** (the archive drawer at the right edge, up to two years of weeks).
 Only that printer empties: each has its own paper, so tearing the grid leaves
 the list where it is. It stays empty, through view switches and reloads, until
 the next PRINT (the empty slot's key, or typed). Mid-week
-a tear-off only files a copy; once the week is over the terminal lights
-TEAR OFF · NEW WEEK, and that tear-off also clears the week's locks and edits. Filed sheets can be drawn out, read, printed, or
-**shredded**.
+a tear-off only files a copy; once the week is over the line under the prompt
+says so, and that tear-off also clears the week's locks and edits. Filed sheets can be drawn out, read, printed, or
+**shredded**. A sheet drawn out of the binder has **Download** (a PDF, or your
+printer, through the browser's print dialog), **Shred** and **Put back**.
 
 **Today's ticket** tears off the same way and is filed behind its own divider,
 ◫ Tickets, one per day: a fresh ticket torn off later that day replaces the
@@ -398,7 +410,7 @@ Settings + locks + printed week + binder (localStorage, versioned)
        ↓ PRINT
   List / Grid / Today (the paper)
        ↓
-  Save · ICS · binder · JSON · setup link
+  binder (download: PDF / printer) · ICS · JSON · setup link
 ```
 
 - Next.js, TypeScript, Tailwind; one client page

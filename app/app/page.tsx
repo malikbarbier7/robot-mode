@@ -36,7 +36,6 @@ export default function Page() {
   // state once it hydrates: the idle machine before a week exists, the
   // printout after.
   const [chosenView, setView] = useState<View | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
   // The screen open on the terminal, if any.
   const [screen, setScreen] = useState<TerminalScreen>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -67,18 +66,20 @@ export default function Page() {
   // The week and everything that edits it only exist on the two output views.
   const showWeekChrome = generated && onOutput(view)
 
-  const selected = rm.schedule.blocks.find((b) => b.id === selectedId) ?? null
+  // A function's screen is open: it takes the machine's screen, in place of the week or the paper.
+  const screenOpen = !!screen
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
 
   // What the paper shows: the week as last PRINTed, never the draft.
   const printed = rm.state.printed ?? null
   const paperSettings = printed ? { ...rm.state.settings, wakeTime: printed.wakeTime, sleepTime: printed.sleepTime } : rm.state.settings
   const paperSchedule = { ...rm.schedule, blocks: printed?.blocks ?? [], unplaced: [] }
-  // The last sheet looked at, for SAVE from the screen.
-  const [lastPaper, setLastPaper] = useState<View | null>(null)
 
   // Each view is printed by its own unit, so switching prints it in front of you.
   const showView = (next: Output | "binder") => {
     setTodayTip(false)
+    // A view key puts the week (or its paper) back on show: an open function's screen gives way.
+    if (next !== "binder" && screen) setScreen(null)
     // The binder isn't a view: it is the unit at the right edge, opened and held open.
     if (next === "binder") return setBinderPinned(true)
     // A sheet drawn out of the binder goes back when a view of this week is asked for.
@@ -88,7 +89,6 @@ export default function Page() {
     // The week was printed once; switching between views shows it, it doesn't print it again.
     // A printer left empty by a tear-off stays empty until PRINT: coming back to it isn't asking for a copy.
     setFeed(false)
-    if (next !== "screen") setLastPaper(OUTPUT_VIEW[next])
     setView(OUTPUT_VIEW[next])
   }
 
@@ -134,24 +134,9 @@ export default function Page() {
     setFeed(true)
     if (first) {
       setTodayTip(true)
-      setSelectedId(null)
       setScreen(null)
-      setLastPaper(paperView)
       setView(paperView)
     }
-  }
-
-  /** SAVE: the sheet on paper to a real printer, or a PDF. From the screen, the last sheet looked at. */
-  const saveSheet = (): string | void => {
-    if (!printed) return "NOTHING ON PAPER YET · PRINT FIRST"
-    const paper = view === "print" || view === "week" || view === "today"
-    if (!paper) {
-      setFeed(false)
-      setFiledId(null)
-      setView(lastPaper ?? paperView)
-    }
-    // After the sheet is on show and the reply is drawn, so the dialog doesn't open over a half-updated page.
-    window.setTimeout(() => window.print(), paper ? 0 : 300)
   }
 
   const tear = (): string | void => {
@@ -168,7 +153,6 @@ export default function Page() {
     const format = view === "print" || (view !== "week" && phone) ? "list" : "grid"
     if (view !== "print" && view !== "week") setView(format === "list" ? "print" : "week")
     setTearing(true)
-    setSelectedId(null)
     setScreen(null)
     setFiledId(null)
     rip()
@@ -187,7 +171,6 @@ export default function Page() {
   const tearTicket = () => {
     if (tearing || !now) return
     setTearing(true)
-    setSelectedId(null)
     setScreen(null)
     rip()
     setReceiving(true)
@@ -220,27 +203,10 @@ export default function Page() {
   // A new week has begun since this sheet was printed: time to tear it off.
   const weekDue = generated && !!now && !!rm.state.currentWeek && rm.state.currentWeek !== weekKey(now)
 
-  // Picking a session on the screen opens its keys beside it; a phone has no room, so it opens on the terminal.
-  const select = (id: string | null) => {
-    setSelectedId(id)
-    if (phone) setScreen(id ? { name: "block" } : null)
-    else if (screen?.name === "block" || screen?.name === "move") setScreen(null)
-  }
-
-  // The paper is a record: picking a session on it goes back to the screen, where it can be changed.
-  const selectOnPaper = (id: string | null) => {
-    if (!id) return
-    setFiledId(null)
-    setView("screen")
-    setSelectedId(id)
-    setScreen(phone ? { name: "block" } : null)
-  }
-
   const saveJson = () => downloadText(toJson(rm.state), "robot-mode.json")
 
   const restart = () => {
     rm.wipe()
-    setSelectedId(null)
     setScreen(null)
     setView("boot")
   }
@@ -255,14 +221,12 @@ export default function Page() {
   const stopReveal = useCallback(() => setReveal(false), [])
 
   const generate = () => {
-    setSelectedId(null)
     setView("generating")
   }
 
   const pickTemplate = (template: Parameters<typeof rm.applyTemplate>[0]) => {
     // Replacing a list already entered is confirmed on the terminal, before this.
     rm.applyTemplate(template)
-    setSelectedId(null)
     // A template with activities goes straight to the reveal; a blank one has
     // nothing to schedule, so it drops you into the questions to start writing.
     setView(template.settings.activities.length > 0 ? "generating" : "setup")
@@ -297,7 +261,6 @@ export default function Page() {
   const openSetup = (settings: Settings) => {
     setLinked(null)
     rm.loadSetup(settings)
-    setSelectedId(null)
     setScreen(null)
     setView(settings.activities.length > 0 ? "generating" : "setup")
   }
@@ -504,7 +467,6 @@ export default function Page() {
               openId={filedId}
               onPin={setBinderPinned}
               onPull={(id) => {
-                setSelectedId(null)
                 setScreen(null)
                 setFiledId(id)
               }}
@@ -513,7 +475,10 @@ export default function Page() {
           )}
           {/* On a phone the binder's spine would sit over the paper's edge: the sheet stops short of it. */}
           <main className={`min-w-0 flex-1 overflow-auto print:overflow-visible ${showWeekChrome ? "max-sm:pr-[22px]" : ""}`}>
-            {!rm.hydrated ? null : filed && showWeekChrome ? (
+            {!rm.hydrated ? null : screenOpen && showWeekChrome ? (
+              // The terminal draws its screen here.
+              <div ref={setSlot} />
+            ) : filed && showWeekChrome ? (
               // A filed sheet drawn out of the binder, in place of the week until it is put back.
               <div key={filed.id} className="pull-out">
                 <div className={`mx-auto flex items-center justify-between gap-4 px-4 no-print ${filed.format === "list" ? "mt-6 max-w-[680px]" : filed.format === "ticket" ? "mt-6 max-w-[560px]" : "mt-3 max-w-[1000px]"}`}>
@@ -524,6 +489,9 @@ export default function Page() {
                       : `week ${filed.week} / ${filed.year}`}
                   </span>
                   <span className="flex gap-2">
+                    <Button onClick={() => window.print()} title="Download this sheet as a PDF, or send it to your printer">
+                      Download ↓
+                    </Button>
                     <button
                       type="button"
                       onClick={shredOut.press}
@@ -543,24 +511,18 @@ export default function Page() {
                     settings={{ ...rm.state.settings, wakeTime: filed.wakeTime, sleepTime: filed.sleepTime }}
                     schedule={{ ...rm.schedule, blocks: filed.blocks, unplaced: [] }}
                     now={new Date(filed.filedAt)}
-                    selectedId={null}
-                    onSelect={() => {}}
                     filed
                   />
                 ) : filed.format === "list" ? (
                   <Printout
                     settings={{ ...rm.state.settings, wakeTime: filed.wakeTime, sleepTime: filed.sleepTime }}
                     schedule={{ ...rm.schedule, blocks: filed.blocks, unplaced: [] }}
-                    selectedId={null}
-                    onSelect={() => {}}
                     filed={{ week: filed.week, year: filed.year, at: new Date(filed.filedAt) }}
                   />
                 ) : (
                   <WeekGrid
                     settings={{ ...rm.state.settings, wakeTime: filed.wakeTime, sleepTime: filed.sleepTime }}
                     schedule={{ ...rm.schedule, blocks: filed.blocks, unplaced: [] }}
-                    selectedId={null}
-                    onSelect={() => {}}
                     filed={{ week: filed.week, year: filed.year }}
                   />
                 )}
@@ -590,22 +552,14 @@ export default function Page() {
             ) : view === "screen" && generated ? (
               <DraftScreen
                 rm={rm}
-                selectedId={selectedId}
-                onSelect={select}
                 phone={phone}
-                docked={!!screen}
                 reveal={reveal}
                 onRevealed={stopReveal}
-                onEdit={(id) => setScreen({ name: "activities", id })}
-                onMore={() => setScreen({ name: "block" })}
-                onPrint={print}
               />
             ) : view === "print" && generated ? (
               <Printout
                 settings={paperSettings}
                 schedule={paperSchedule}
-                selectedId={null}
-                onSelect={selectOnPaper}
                 feed={feed}
                 onFed={() => setFeed(false)}
                 onTear={tear}
@@ -618,8 +572,6 @@ export default function Page() {
               <WeekGrid
                 settings={paperSettings}
                 schedule={paperSchedule}
-                selectedId={null}
-                onSelect={selectOnPaper}
                 feed={feed}
                 onFed={() => setFeed(false)}
                 onTear={tear}
@@ -634,8 +586,6 @@ export default function Page() {
                   settings={paperSettings}
                   schedule={paperSchedule}
                   now={now}
-                  selectedId={null}
-                  onSelect={selectOnPaper}
                   feed={feed}
                   onFed={() => setFeed(false)}
                   onTear={tearTicket}
@@ -661,10 +611,7 @@ export default function Page() {
             rm={rm}
             screen={screen}
             onScreen={setScreen}
-            selected={selected}
-            onDeselect={() => setSelectedId(null)}
             onExport={exportIcs}
-            onSave={saveSheet}
             onBackup={saveJson}
             onPrint={print}
             onLoad={() => fileInput.current?.click()}
@@ -679,8 +626,8 @@ export default function Page() {
               shredFiled(found.id)
               return true
             }}
-            weekDue={weekDue}
             unprinted={rm.unprinted}
+            slot={screenOpen ? slot : null}
             tip={
               printed && ((view === "print" && listTorn) || (view === "week" && gridTorn) || (view === "today" && ticketTorn))
                 ? "SHEET FILED · TYPE PRINT FOR A FRESH ONE"

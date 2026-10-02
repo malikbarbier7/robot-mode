@@ -23,8 +23,6 @@ export type CommandAction = { preview: string; reply: string; note?: string } & 
   | { kind: "tear" }
   /** PRINT: the draft on the screen goes onto paper. */
   | { kind: "print" }
-  /** SAVE: the sheet on paper goes to a real printer, or a PDF. */
-  | { kind: "save" }
   /** Shred a filed week from the binder, by its week number. */
   | { kind: "shred"; week: number }
   | { kind: "settings"; patch: { wakeTime?: string; sleepTime?: string } }
@@ -32,9 +30,11 @@ export type CommandAction = { preview: string; reply: string; note?: string } & 
   | { kind: "shuffle" | "export" }
   /** One regular session becomes an extra of its own: the activity loses a session, the extra takes it. */
   | { kind: "split"; id: string; patch: Partial<Activity>; extra: Omit<Activity, "id"> }
-  /** Take placed sessions out of this week only, as the BLOCK screen's REMOVE does. The activity stays. */
+  /** Take placed sessions out of this week only. The activity stays. */
   | { kind: "skip"; blockIds: string[] }
-  /** Put one placed session somewhere else and lock it there, as the BLOCK screen's MOVE does. */
+  /** Lock placed sessions where they are (or unlock them), so shuffles and edits leave them be. */
+  | { kind: "lock"; blockIds: string[]; locked: boolean }
+  /** Put one placed session somewhere else and lock it there. */
   | { kind: "move"; blockId: string; day: Day; start: number }
   /** The line could mean several sessions: each option is what picking it would do. */
   | { kind: "choose"; options: { label: string; action: CommandAction }[] }
@@ -57,7 +57,7 @@ export type CommandContext = {
 }
 
 /** A placed session, as EDIT needs to know it: whose, which day, when. */
-export type SessionRef = { id?: string; activityId: string; day: Day; start: number; end: number }
+export type SessionRef = { id?: string; activityId: string; day: Day; start: number; end: number; locked?: boolean }
 
 const MAX_SESSIONS = 28
 
@@ -69,9 +69,9 @@ const FREE_TIME = "FREE TIME IS WHAT YOUR ACTIVITIES LEAVE EMPTY · TO KEEP A BR
  * EDIT before EXPORT. They come before activity names, so one letter and
  * Enter is enough to open a function.
  */
-export const FUNCTIONS = ["add", "edit", "today", "tear", "shuffle", "print", "save", "screen", "export", "grid", "list", "binder", "backup", "system", "fix", "clear", "restart", "load", "help"]
+export const FUNCTIONS = ["add", "edit", "today", "tear", "shuffle", "print", "screen", "export", "grid", "list", "binder", "backup", "system", "fix", "clear", "restart", "load", "help"]
 /** Other command words, offered after activity names. */
-const VERBS = ["wake", "sleep", "remove", "move", "meals", "hours"]
+const VERBS = ["wake", "sleep", "remove", "move", "lock", "unlock", "meals", "hours"]
 /** What EDIT can open besides an activity. */
 const EDIT_TARGETS: Record<string, Screen> = {
   activities: "activities",
@@ -145,13 +145,9 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
     case "print":
     case "feed":
       return { kind: "print", preview: "PRINT THE WEEK ON THE SCREEN ONTO PAPER", reply: "PRINTED" }
-    case "save":
-    case "pdf":
-      // Only on their own: "screen time 1h" or "draft essay 2h" are activities.
-      if (rest.length) break
-      return { kind: "save", preview: "SAVE THE SHEET ON PAPER · YOUR PRINTER OR A PDF", reply: "SAVING THE SHEET" }
     case "screen":
     case "draft":
+      // Only on its own: "screen time 1h" or "draft essay 2h" are activities.
       if (rest.length) break
       return { kind: "view", view: "screen", preview: "SHOW THE DRAFT ON THE SCREEN", reply: "SCREEN" }
     case "shred": {
@@ -243,6 +239,29 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
       const found = findActivity(arg, activities)
       if (found) return open("activities", found.id, `EDIT › ${upper(found)}`)
       return editLine(rest, ctx)
+    }
+    case "lock":
+    case "unlock": {
+      const locked = verb === "lock"
+      if (!arg) return error(`${verb.toUpperCase()} WHICH SESSION? E.G. ${verb.toUpperCase()} GYM MONDAY`)
+      const { parent, parts } = readLine(rest.map((w) => (asTime(w) ? `@${asTime(w)}` : w)), activities)
+      if (!parent) return error(notFound(arg, activities))
+      const { allowedDays, fixedAt, ...other } = parts
+      if (Object.keys(other).length) return error(`${verb.toUpperCase()} TAKES A SESSION: ${verb.toUpperCase()} ${upper(parent)} MONDAY · ${verb.toUpperCase()} ${upper(parent)} MONDAY 10:00`)
+      return (
+        sessionLine(parent, { allowedDays, fixedAt }, ctx, (picked) => {
+          const days = [...new Set(picked.map((x) => DAY_WORDS[x.day].slice(0, 3)))].join(" ")
+          const what = `${upper(parent)} ${days}${picked.length === 1 ? ` ${hhmm(picked[0].start)}` : ` · ${picked.length} SESSIONS`}`
+          return {
+            kind: "lock",
+            locked,
+            blockIds: picked.map((x) => x.id!),
+            preview: locked ? `LOCK ${what} WHERE ${picked.length === 1 ? "IT IS" : "THEY ARE"}` : `UNLOCK ${what}`,
+            note: locked ? "SHUFFLES AND EDITS LEAVE IT BE · CLEAR EDITS UNLOCKS" : "SHUFFLES MAY MOVE IT AGAIN",
+            reply: locked ? `${what} LOCKED` : `${what} UNLOCKED`,
+          }
+        }) ?? error(`NO ${upper(parent)} SESSION LIKE THAT THIS WEEK`)
+      )
     }
     case "rm": {
       if (!arg) return error("REMOVE WHICH ACTIVITY?")
@@ -643,11 +662,7 @@ function asTime(word: string): string | null {
 function skipLine(parent: Activity, parts: Parts, ctx: CommandContext): CommandAction | CommandError | null {
   const { allowedDays, fixedAt, ...other } = parts
   if (!allowedDays || Object.keys(other).length) return null
-  let sessions = (ctx.sessions ?? []).filter((x) => x.activityId === parent.id && allowedDays.includes(x.day) && x.id)
-  if (fixedAt) sessions = sessions.filter((x) => hhmm(x.start) === fixedAt.start)
-  const when = allowedDays.length === 1 ? DAY_WORDS[allowedDays[0]] : allowedDays.map((d) => DAY_WORDS[d].slice(0, 3)).join(" ")
-  if (!sessions.length) return error(`NO ${upper(parent)} SESSION ON ${when}${fixedAt ? ` AT ${fixedAt.start}` : ""} THIS WEEK`)
-  const skip = (picked: SessionRef[]): CommandAction => {
+  return sessionLine(parent, { allowedDays, fixedAt }, ctx, (picked) => {
     const days = [...new Set(picked.map((x) => DAY_WORDS[x.day].slice(0, 3)))].join(" ")
     return {
       kind: "skip",
@@ -656,28 +671,45 @@ function skipLine(parent: Activity, parts: Parts, ctx: CommandContext): CommandA
       note: "THE ACTIVITY STAYS · CLEAR EDITS BRINGS IT BACK",
       reply: `REMOVED ${upper(parent)} ${days} FROM THIS WEEK`,
     }
-  }
+  })
+}
+
+/**
+ * The placed sessions of an activity a line names: on its days (every day
+ * when none are named) and at its start, if given. One day with several
+ * sessions and no start asks which. `act` says what is done to those picked.
+ */
+function sessionLine(
+  parent: Activity,
+  { allowedDays, fixedAt }: Pick<Parts, "allowedDays" | "fixedAt">,
+  ctx: CommandContext,
+  act: (picked: SessionRef[]) => CommandAction,
+): CommandAction | CommandError {
+  let sessions = (ctx.sessions ?? []).filter((x) => x.activityId === parent.id && x.id && (!allowedDays || allowedDays.includes(x.day)))
+  if (fixedAt) sessions = sessions.filter((x) => hhmm(x.start) === fixedAt.start)
+  const when = !allowedDays ? "" : allowedDays.length === 1 ? ` ON ${DAY_WORDS[allowedDays[0]]}` : ` ON ${allowedDays.map((d) => DAY_WORDS[d].slice(0, 3)).join(" ")}`
+  if (!sessions.length) return error(`NO ${upper(parent)} SESSION${when}${fixedAt ? ` AT ${fixedAt.start}` : ""} THIS WEEK`)
   // Two sessions on the one day named: which one is the question, as MOVE asks it.
-  if (allowedDays.length === 1 && !fixedAt && sessions.length > 1) {
+  if (allowedDays?.length === 1 && !fixedAt && sessions.length > 1) {
     const options = sessions
       .sort((a, b) => a.start - b.start)
-      .map((x) => ({ label: `${hhmm(x.start)} ${span(x.end - x.start)}`, action: skip([x]) }))
+      .map((x) => ({ label: `${hhmm(x.start)} ${span(x.end - x.start)}`, action: act([x]) }))
     const list = options.map((o, i) => `[${i + 1}] ${o.label}`).join(" · ")
     return {
       kind: "choose",
       options,
-      preview: `${upper(parent)} HAS ${options.length} SESSIONS ON ${when} · ${list} · WHICH?`,
-      reply: `${upper(parent)} ${when}: WHICH SESSION? ${list}`,
+      preview: `${upper(parent)} HAS ${options.length} SESSIONS${when} · ${list} · WHICH?`,
+      reply: `${upper(parent)}${when}: WHICH SESSION? ${list}`,
     }
   }
-  return skip(sessions)
+  return act(sessions)
 }
 
 /**
  * "move gym monday 10h to 11h", "move gym monday to tuesday", "move deep work
  * monday 10:00 to wednesday 9am": which session (a day, and its start when the
  * day has several), then where it goes. Every hour here is a time, never a
- * length. It does what the BLOCK screen's MOVE does: locks the session there.
+ * length. The session is locked there.
  */
 function moveLine(words: string[], ctx: CommandContext): CommandAction | CommandError {
   const { activities } = ctx
