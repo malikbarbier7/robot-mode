@@ -73,8 +73,8 @@ plain key or a plain word.
 ## Boot
 
 The idle machine: *Robot Mode · Personal scheduling computer · System ready*.
-Enter (or a tap) starts the input terminal. The landing page that explains the
-product to newcomers is separate work, still to come (§20).
+Enter (or a tap) starts the input terminal. Newcomers meet the landing page
+first (§20); its Build my week skips the idle screen and opens Request 01.
 
 ## Request 01 — What do you want to do?
 
@@ -407,7 +407,6 @@ Calendar integration (V2) changes this, and should be opt-in and clearly explain
 
 ## Next
 
-- Landing page (§20)
 - Analytics, privacy-friendly, once there are users to learn from
 
 ## The only question that matters
@@ -481,7 +480,13 @@ Tell Robot Mode when you wake, when you sleep, and everything you want to get do
 
 *No AI. No setup. No account.*
 
-**Demo** — the time-budget bar filling as activities appear, then the week snapping into place.
+**Demo** — a sample setup on the screen (five lines, wake and sleep), and what
+the machine prints from it: the plotted week and Wednesday's ticket. Solved by
+the real engine when the page is built, not drawn.
+
+The landing page is `/`; the machine is `/app`. Someone with a week already
+printed skips straight to it (`/?home` shows the landing anyway), and setup
+links made for `/` are passed on to `/app`.
 
 ---
 

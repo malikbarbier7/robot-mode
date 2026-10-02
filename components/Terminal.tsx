@@ -8,7 +8,7 @@ import { formatClock, formatSpan, localizeTimes, weekOrder } from "@/lib/locale"
 import { DAY_NAMES, parseTime } from "@/lib/scheduler/time"
 import { formatHours } from "@/lib/duration"
 import { suggestFixes } from "@/lib/suggest"
-import { FUNCTIONS, commandFor, complete, describeExtra, interpret, nextHint, type CommandAction, type Screen } from "@/lib/command"
+import { FUNCTIONS, commandFor, complete, interpret, nextHint, type CommandAction, type Screen } from "@/lib/command"
 import { beep, buzz } from "@/lib/sound"
 import { Command, Legend, reject, useTerminal, type LegendKey } from "./Machine"
 import { ClockReadout } from "./Readout"
@@ -360,7 +360,8 @@ export function Terminal({
           ? { text: tip, error: false }
           : null)
 
-  const placed = (id: string) => schedule.blocks.filter((b) => b.activityId === id).length
+  // Extra sessions count with the activity they belong to.
+  const mains = activities.filter((a) => !a.extraOf)
 
   // Editing the week lives here; the views and EXPORT are the panel's (and can still be typed).
   const functionRow: { word: string; label: string; show: boolean; alert?: boolean }[] = [
@@ -420,28 +421,10 @@ export function Terminal({
             {formatClock(parseTime(settings.sleepTime), clock)}
           </button>
           <span aria-hidden className="text-ink/30">│</span>
-          {activities.filter((a) => !a.extraOf).map((a) => {
-            const short = placed(a.id) < a.sessionsPerWeek
-            const extras = activities.filter((x) => x.extraOf === a.id)
-            return (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() => onScreen({ name: "activities", id: a.id })}
-                className={a.id === pickedId ? "bg-ink text-paper [text-shadow:none]" : "hover:bg-ink/15"}
-                title={short ? `Only ${placed(a.id)} of ${a.sessionsPerWeek} fit. Click to edit` : `Edit ${a.name}`}
-              >
-                {a.name} <span className="opacity-60">{formatSpan(a.durationMinutes)}×{a.sessionsPerWeek}</span>
-                {short && <span className="ml-1 border border-current px-1">{placed(a.id)}/{a.sessionsPerWeek}</span>}
-                {/* Its extra sessions, read like the line that added them. */}
-                {extras.map((x) => (
-                  <span key={x.id} className="ml-2 normal-case opacity-60">
-                    {localizeTimes(describeExtra(x), clock)}
-                  </span>
-                ))}
-              </button>
-            )
-          })}
+          {/* The list itself is on the paper already; here, just how long it is, and the way to it. */}
+          <button type="button" onClick={() => onScreen({ name: "activities" })} className="hover:bg-ink/15" title="Edit your activities">
+            {mains.length} <span className="opacity-60">{mains.length === 1 ? "activity" : "activities"}</span>
+          </button>
           <span className="ml-auto tabular-nums text-ink/60" title="Hours your activities ask for, out of the hours the week has for them">
             <span className="opacity-60">Planned </span>
             {formatHours(rm.budget.requestedMinutes)}
