@@ -22,8 +22,20 @@ export type ArchivedWeek = {
   sleepTime: string
   /** The sessions as they stood, moves and removals included. */
   blocks: PlacedBlock[]
-  /** The document that was torn off: the printed list or the plotted grid. Older sheets were grids. */
-  format?: "list" | "grid"
+  /**
+   * The document that was torn off: the printed list, the plotted grid, or one
+   * day's ticket (then `blocks` is that day's, and `filedAt` its date). Older sheets were grids.
+   */
+  format?: "list" | "grid" | "ticket"
+}
+
+/** The week's two printers: the line printer's list and the plotter's grid. */
+export type Sheet = "list" | "grid"
+
+/** Which printers stand empty. A save from when one tear-off emptied both says so with `printerEmpty`. */
+function readEmptied(parsed: Partial<SavedState> & { printerEmpty?: unknown }): Sheet[] {
+  if (Array.isArray(parsed.emptied)) return parsed.emptied.filter((x): x is Sheet => x === "list" || x === "grid")
+  return parsed.printerEmpty === true ? ["list", "grid"] : []
 }
 
 export type SavedState = {
@@ -42,6 +54,10 @@ export type SavedState = {
   currentWeek?: string
   /** Weeks torn off, newest first. */
   archive?: ArchivedWeek[]
+  /** Printers whose sheet was torn off with nothing printed since: each stands empty on its own, even after a reload. */
+  emptied?: Sheet[]
+  /** The day ("2026-10-02") whose ticket was torn off: the ticket printer stays empty until the next day, or a fresh one is asked for. */
+  ticketTornOn?: string
 }
 
 export const emptySettings: Settings = {
@@ -95,6 +111,8 @@ export function load(): SavedState {
       display: parsed.display,
       currentWeek: parsed.currentWeek,
       archive: Array.isArray(parsed.archive) ? parsed.archive : [],
+      emptied: readEmptied(parsed),
+      ticketTornOn: typeof parsed.ticketTornOn === "string" ? parsed.ticketTornOn : undefined,
     }
   } catch {
     return initialState
@@ -129,6 +147,8 @@ export function fromJson(text: string): SavedState | null {
       display: parsed.display,
       currentWeek: parsed.currentWeek,
       archive: Array.isArray(parsed.archive) ? parsed.archive : [],
+      emptied: readEmptied(parsed),
+      ticketTornOn: typeof parsed.ticketTornOn === "string" ? parsed.ticketTornOn : undefined,
     }
   } catch {
     return null

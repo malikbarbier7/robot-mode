@@ -19,12 +19,12 @@ export function Paper({
   className,
   feed = false,
   onFed,
-  onReplay,
   compact = false,
   bare = false,
   onTear,
   tearing = false,
   empty = false,
+  onFormFeed,
   children,
 }: {
   printer?: { name?: string; spec?: string; width?: string }
@@ -37,20 +37,27 @@ export function Paper({
   className: string
   feed?: boolean
   onFed?: () => void
-  /** Print it again (the printer's Form feed key). */
-  onReplay?: () => void
   /** Tear the sheet off: offered by pulling the paper down, and by the printer's Tear off key. */
   onTear?: () => void
   /** The sheet is being torn away: it drops out of view. */
   tearing?: boolean
   /** No paper out: the sheet has been torn off and nothing printed since. */
   empty?: boolean
+  /** The empty slot's key: print a fresh sheet. */
+  onFormFeed?: () => void
   children: ReactNode
 }) {
   const sheet = useRef<HTMLElement>(null)
   const { shift, finish } = usePaperFeed(sheet, feed, onFed)
   const printing = shift !== null
-  const { pull, handlers } = usePull(onTear && !printing && !tearing ? onTear : undefined)
+  const [learned, setLearned] = useState(pulledBefore)
+  const { pull, handlers } = usePull(onTear && !printing && !tearing ? onTear : undefined, () => {
+    setLearned(true)
+    rememberPulled()
+  })
+  // Until a sheet has been torn off by pulling once, the perforation says how. On a phone,
+  // where pulling scrolls instead, it is the tear-off key itself, so it always stays.
+  const showHint = !!onTear && !printing && !tearing && !empty && pull === 0
 
   return (
     // Grows to whatever is widest (a chart wider than the phone), keeping its margin on both sides.
@@ -60,18 +67,22 @@ export function Paper({
           {...printer}
           compact={compact}
           printing={printing}
-          onPrint={() => window.print()}
-          onFormFeed={() => onReplay?.()}
-          onTear={onTear && !printing && !tearing && !empty ? onTear : undefined}
         />
       )}
 
       {empty && (
         // Only the slot: the week is in the binder until a fresh sheet is asked for.
-        <div className="label mx-auto mt-8 max-w-[480px] border-2 border-dashed border-ink/30 px-6 py-8 text-center leading-relaxed text-ink/55 no-print">
-          Sheet torn off and filed.
-          <br />
-          Press Form feed, or type FEED, for a fresh one.
+        <div className="label mx-auto mt-8 flex max-w-[480px] flex-col items-center gap-4 border-2 border-dashed border-ink/30 px-6 py-8 text-center leading-relaxed text-ink/55 no-print">
+          <span>
+            Sheet torn off and filed in the binder.
+            <br />
+            The printer stays empty until you ask for a fresh one.
+          </span>
+          {onFormFeed && (
+            <button type="button" onClick={onFormFeed} title="Print a fresh sheet (or type FEED)" className="key px-3 py-1.5">
+              Form feed ▼
+            </button>
+          )}
         </div>
       )}
 
@@ -88,6 +99,27 @@ export function Paper({
         onPointerCancel={handlers.onPointerUp}
         onClickCapture={handlers.onClickCapture}
       >
+        {showHint && (
+          // On the perforation: a printed tab in solid ink, its arrows nudging the way to pull.
+          <div className={`pointer-events-none absolute inset-x-6 -top-2.5 z-10 items-center gap-2 no-print ${learned ? "hidden pointer-coarse:flex" : "flex"}`}>
+            <span className="h-px flex-1 border-t-2 border-dashed border-ink/60" />
+            <span className="label flex items-center gap-2 bg-ink px-2.5 py-1 text-[10px] text-sheet pointer-coarse:hidden">
+              <span aria-hidden className="nudge inline-block text-phosphor">↓</span>
+              Pull down to tear off
+              <span aria-hidden className="nudge inline-block text-phosphor">↓</span>
+            </span>
+            {/* A phone scrolls instead of pulling: there, the tab is a key. */}
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={onTear}
+              className="label pointer-events-auto hidden items-center gap-2 bg-ink px-2.5 py-1 text-[10px] text-sheet pointer-coarse:flex"
+            >
+              ✂ Tear off and file
+            </button>
+            <span className="h-px flex-1 border-t-2 border-dashed border-ink/60" />
+          </div>
+        )}
         {/* Pulled down: the perforation shows, and says what letting go will do. */}
         {pull > 0 && (
           <div className="label pointer-events-none absolute inset-x-0 -top-1 z-10 flex items-center gap-3 text-ink/70 no-print">
@@ -116,6 +148,25 @@ export function Paper({
   )
 }
 
+/** Set once a sheet has been torn off by pulling, so the hint stops. A per-browser nicety: lost, it only shows again. */
+const PULLED_KEY = "robot-mode:pulled"
+
+function pulledBefore(): boolean {
+  try {
+    return typeof window !== "undefined" && window.localStorage.getItem(PULLED_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+
+function rememberPulled() {
+  try {
+    window.localStorage.setItem(PULLED_KEY, "1")
+  } catch {
+    // Private browsing: the hint just comes back next time.
+  }
+}
+
 /** How far the paper must be pulled before letting go tears it off. */
 const TEAR_AT = 140
 
@@ -125,7 +176,7 @@ const TEAR_AT = 140
  * that it springs back. A pull that moved never counts as a click on the block
  * under it.
  */
-function usePull(onTear?: () => void) {
+function usePull(onTear?: () => void, onPulled?: () => void) {
   const [pull, setPull] = useState(0)
   // A pull that moved: the click it ends with must not reach the block under it.
   const moved = useRef(false)
@@ -155,7 +206,10 @@ function usePull(onTear?: () => void) {
         window.removeEventListener("pointerup", up)
         window.removeEventListener("pointercancel", up)
         document.body.style.userSelect = ""
-        if (moved.current && distance >= TEAR_AT) onTear()
+        if (moved.current && distance >= TEAR_AT) {
+          onTear()
+          onPulled?.()
+        }
         setPull(0)
       }
       window.addEventListener("pointermove", move)

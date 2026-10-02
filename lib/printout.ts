@@ -29,6 +29,11 @@ export function isoWeek(date: Date): { week: number; year: number } {
   return { week: Math.ceil(((d.getTime() - yearStart) / 86_400_000 + 1) / 7), year: d.getUTCFullYear() }
 }
 
+/** "2026-10-02": which day a ticket belongs to, in local time. */
+export function dayKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+}
+
 /** "2026-W40": which week a sheet belongs to. */
 export function weekKey(date: Date): string {
   const { week, year } = isoWeek(date)

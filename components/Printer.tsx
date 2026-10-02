@@ -14,13 +14,10 @@ const SPROCKETS = 3
  */
 export function Printer({
   printing,
-  onPrint,
-  onFormFeed,
   name,
   spec,
   width = "max-w-[760px]",
   compact = false,
-  onTear,
 }: {
   printing: boolean
   /** The nameplate on the lid, and the spec plate beside it: which output unit this is. */
@@ -28,14 +25,8 @@ export function Printer({
   spec?: string
   /** The casing's width, as a Tailwind max-width class, so it suits its paper. */
   width?: string
-  /** Send the sheet to a real printer. */
-  onPrint: () => void
-  /** Print the sheet again in front of you. */
-  onFormFeed: () => void
   /** A lower casing, for output that needs the room (the plotter's full-week chart). */
   compact?: boolean
-  /** Tear the sheet off and file it; the key only shows when it can. */
-  onTear?: () => void
 }) {
   const words = useWords()
   return (
@@ -54,8 +45,8 @@ export function Printer({
         <span className="label hidden text-paper/45 sm:inline">{spec ?? words.printers.line.spec}</span>
       </div>
 
-      {/* Body: the head's window, then the control panel. A phone keeps only the keys. */}
-      <div className={`flex flex-wrap items-center gap-x-5 gap-y-3 border-x border-black bg-[#c9c1ad] px-5 ${compact ? "py-1.5" : "py-3"}`}>
+      {/* Body: the head's window, then the lamps. Its keys are the terminal's PRINT and EXPORT; a phone shows neither. */}
+      <div className={`hidden flex-wrap items-center sm:flex gap-x-5 gap-y-3 border-x border-black bg-[#c9c1ad] px-5 ${compact ? "py-1.5" : "py-3"}`}>
         <div aria-hidden className={`relative ${compact ? "h-7" : "h-11"} hidden min-w-[200px] flex-1 overflow-hidden border-2 border-black bg-screen sm:block`}>
           {/* Rail and ribbon the head rides along. */}
           <span className="absolute inset-x-2 top-1/2 h-px bg-phosphor/30" />
@@ -72,36 +63,10 @@ export function Printer({
           </span>
         </div>
 
-        <div className="flex items-center gap-5">
-          <div className={`hidden sm:block ${compact ? "sm:flex sm:gap-3" : "space-y-1"}`}>
-            <Indicator label="Power" on />
-            <Indicator label="On line" on={printing} blink={printing} />
-            <Indicator label="Paper" on />
-          </div>
-          <div className={`flex gap-2 ${compact ? "" : "sm:flex-col"}`}>
-            <button
-              type="button"
-              onClick={onFormFeed}
-              disabled={printing}
-              title="Print the sheet again"
-              className="key px-3 py-1 text-[10px]"
-            >
-              Form feed
-            </button>
-            <button type="button" onClick={onPrint} title="Send to a real printer" className="key key-dark px-3 py-1 text-[10px]">
-              Print
-            </button>
-            {onTear && (
-              <button
-                type="button"
-                onClick={onTear}
-                title="Tear this week off, file it in the binder and print a fresh sheet (or pull the paper down)"
-                className="key px-3 py-1 text-[10px]"
-              >
-                {words.binder.tearOff}
-              </button>
-            )}
-          </div>
+        <div className={compact ? "flex gap-3" : "space-y-1"}>
+          <Indicator label="Power" on />
+          <Indicator label="On line" on={printing} blink={printing} />
+          <Indicator label="Paper" on />
         </div>
       </div>
 

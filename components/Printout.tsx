@@ -27,10 +27,10 @@ export function Printout({
   onSelect,
   feed = false,
   onFed,
-  onReplay,
   onTear,
   tearing = false,
   empty = false,
+  onFormFeed,
   filed,
 }: {
   settings: Settings
@@ -39,12 +39,12 @@ export function Printout({
   onSelect: (id: string | null) => void
   feed?: boolean
   onFed?: () => void
-  /** Print it again (the printer's Form feed key). */
-  onReplay?: () => void
   onTear?: () => void
   tearing?: boolean
   /** Torn off and not printed again yet: the printer stands empty. */
   empty?: boolean
+  /** The empty slot's FORM FEED key: a fresh sheet. */
+  onFormFeed?: () => void
   /** A sheet from the binder: its own week, the date it was filed, and no printer above it. */
   filed?: { week: number; year: number; at: Date }
 }) {
@@ -65,10 +65,10 @@ export function Printout({
       className="sheet px-6 py-8 font-mono text-[13px] uppercase leading-relaxed sm:px-16 sm:py-10"
       feed={feed}
       onFed={onFed}
-      onReplay={onReplay}
       onTear={onTear}
       tearing={tearing}
       empty={empty}
+      onFormFeed={onFormFeed}
       bare={!!filed}
     >
         <Rule char="=" />

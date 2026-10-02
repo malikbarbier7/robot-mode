@@ -282,7 +282,8 @@ describe("interpret", () => {
     expect(interpret("today", ctx)).toMatchObject({ kind: "view", view: "today" })
     expect(interpret("tear", ctx)?.kind).toBe("tear")
     expect(interpret("new week", ctx)?.kind).toBe("tear")
-    expect(interpret("print", ctx)?.kind).toBe("feed")
+    expect(interpret("print", ctx)?.kind).toBe("print")
+    expect(interpret("feed", ctx)?.kind).toBe("feed")
     expect(interpret("binder", ctx)).toMatchObject({ kind: "view", view: "binder" })
     for (const line of ["shred 39", "shred w39", "shred week 39"]) expect(interpret(line, ctx)).toMatchObject({ kind: "shred", week: 39 })
     expect(interpret("shred", ctx)).toMatchObject({ kind: "error" })
@@ -307,6 +308,47 @@ describe("interpret", () => {
     expect(interpret("yoga", ctx)).toMatchObject({ kind: "error" })
     expect(interpret("gym", ctx)).toMatchObject({ kind: "error" })
     expect(interpret("gym 40x", ctx)).toMatchObject({ kind: "error" })
+  })
+
+  describe("removing one session from this week", () => {
+    const walk: Activity = { id: "walk", name: "Walk daily", durationMinutes: 30, sessionsPerWeek: 9 }
+    const sessions = [
+      { id: "walk#0", activityId: "walk", day: 0 as const, start: 1200, end: 1230 },
+      { id: "walk#1", activityId: "walk", day: 2 as const, start: 480, end: 510 },
+      { id: "walk#2", activityId: "walk", day: 2 as const, start: 1200, end: 1230 },
+      { id: "walk#3", activityId: "walk", day: 4 as const, start: 1200, end: 1230 },
+    ]
+    const week = { ...ctx, activities: [walk], sessions }
+
+    it("takes that day's session out of the week, not the activity", () => {
+      expect(interpret("remove walk daily monday", week)).toMatchObject({
+        kind: "skip",
+        blockIds: ["walk#0"],
+        preview: "REMOVE WALK DAILY MON 20:00 FROM THIS WEEK",
+      })
+      expect(interpret("remove walk daily mon fri", week)).toMatchObject({ kind: "skip", blockIds: ["walk#0", "walk#3"] })
+    })
+
+    it("asks which, when the day has two, unless the start says", () => {
+      const asked = interpret("remove walk daily wednesday", week)
+      expect(asked).toMatchObject({ kind: "choose", preview: expect.stringContaining("2 SESSIONS ON WEDNESDAY") })
+      expect(asked && "options" in asked && asked.options.map((o) => o.action)).toMatchObject([{ blockIds: ["walk#1"] }, { blockIds: ["walk#2"] }])
+      expect(interpret("remove walk daily wednesday 20:00", week)).toMatchObject({ kind: "skip", blockIds: ["walk#2"] })
+    })
+
+    it("says so when there is nothing on that day", () => {
+      expect(interpret("remove walk daily sunday", week)).toMatchObject({ kind: "error", reply: "NO WALK DAILY SESSION ON SUNDAY THIS WEEK" })
+    })
+  })
+
+  it("keeps a setting word in the name when the setting is given again", () => {
+    expect(interpret("add daily walk 30m daily", ctx)).toMatchObject({ activity: { name: "daily walk", sessionsPerWeek: 7 } })
+    expect(interpret("add daily standup 15m 5x", ctx)).toMatchObject({ activity: { name: "daily standup", sessionsPerWeek: 5 } })
+    expect(interpret("add morning pages 20m daily morning", ctx)).toMatchObject({ activity: { name: "morning pages", window: { start: "06:00" } } })
+  })
+
+  it("adds up days written one by one", () => {
+    expect(interpret("add piano 30m mon wed fri", ctx)).toMatchObject({ activity: { name: "piano", allowedDays: [0, 2, 4] } })
   })
 
   it("reads back what commandFor writes", () => {

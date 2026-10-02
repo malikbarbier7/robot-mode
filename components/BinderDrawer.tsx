@@ -133,7 +133,7 @@ export function BinderDrawer({
             </p>
           ) : (
             <ol ref={list} className="mt-2 space-y-1.5 pr-6">
-              {/* Two sections on the one rod, each behind its divider: the grids, then the lists. */}
+              {/* Sections on the one rod, each behind its divider: the grids, the lists, then the day tickets. */}
               {SECTIONS.map((section) => {
                 const sheets = weeks.filter((w) => (w.format ?? "grid") === section.format)
                 if (!sheets.length) return null
@@ -211,10 +211,13 @@ export function BinderDrawer({
 }
 
 /** The binder's sections, in the order they sit on the rod. */
-const SECTIONS: { format: "grid" | "list"; label: string; color: string }[] = [
+const SECTIONS: { format: "grid" | "list" | "ticket"; label: string; color: string }[] = [
   { format: "grid", label: "▦ Grids", color: "#9fb0b4" },
   { format: "list", label: "≡ Lists", color: "#d8c48e" },
+  { format: "ticket", label: "◫ Tickets", color: "#d9a48f" },
 ]
+
+const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 
 /**
  * A cardboard divider on the rod: a stiff coloured board, punched like the
@@ -281,6 +284,10 @@ function FiledSheet({
   const moved = useRef(false)
   const filedAt = new Date(week.filedAt)
   const planned = week.blocks.reduce((sum, b) => sum + b.endMinute - b.startMinute, 0)
+  // A ticket is one day: its tab says which, and it reads as that date.
+  const ticket = week.format === "ticket"
+  const date = `${String(filedAt.getDate()).padStart(2, "0")} ${MONTHS[filedAt.getMonth()]}`
+  const what = ticket ? `the ${DAYS[(filedAt.getDay() + 6) % 7]} ${date} ticket` : `week ${week.week}`
 
   /**
    * Picked up, the sheet follows the pointer anywhere. Let go: in the
@@ -387,15 +394,15 @@ function FiledSheet({
       >
         {/* The divider tab, sticking out past the stack towards the desk. */}
         <span className="-ml-3 flex w-12 items-center justify-center border-2 border-r-0 border-ink bg-[#e8dfb8] text-[11px] tracking-[0.08em]">
-          W{String(week.week).padStart(2, "0")}
+          {ticket ? DAYS[(filedAt.getDay() + 6) % 7] : `W${String(week.week).padStart(2, "0")}`}
         </span>
         <span className="relative flex-1 py-2 pl-2 pr-8">
           {/* Shred: once arms it, twice shreds it. */}
           <span
             role="button"
             tabIndex={-1}
-            aria-label={armed ? `Confirm: shred week ${week.week}` : `Shred week ${week.week}`}
-            title={armed ? "Press again to shred it for good" : "Shred this week (press twice)"}
+            aria-label={armed ? `Confirm: shred ${what}` : `Shred ${what}`}
+            title={armed ? "Press again to shred it for good" : `Shred ${what} (press twice)`}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation()
@@ -408,11 +415,11 @@ function FiledSheet({
             {armed ? "SHRED?" : "✕"}
           </span>
           <span className="block text-[12px] tracking-[0.18em]">
-            Week {week.week} / {week.year}
+            {ticket ? `${date} ${filedAt.getFullYear()}` : `Week ${week.week} / ${week.year}`}
           </span>
           <span className="block text-[10px] tracking-[0.12em] text-ink/55">
             {/* Which kind it is, the divider above it says. */}
-            Filed {String(filedAt.getDate()).padStart(2, "0")} {MONTHS[filedAt.getMonth()]} · {formatHours(planned)}
+            {ticket ? `Week ${week.week}` : `Filed ${date}`} · {formatHours(planned)}
           </span>
         </span>
       </button>

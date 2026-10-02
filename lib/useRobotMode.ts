@@ -2,15 +2,26 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import type { Activity, Day, PlacedBlock, Settings } from "./types"
-import { generate } from "./scheduler/generate"
+import { generate, readSkip } from "./scheduler/generate"
 import { computeBudget } from "./scheduler/budget"
-import { initialState, load, save, type ArchivedWeek, type Display, type SavedState } from "./storage"
+import { initialState, load, save, type ArchivedWeek, type Display, type SavedState, type Sheet } from "./storage"
 import { detectClock, type Clock, type WeekStart } from "./locale"
 import { matchesTemplate, templateById, type Template } from "./templates"
-import { isoWeek, weekKey } from "./printout"
+import { dayKey, isoWeek, weekKey } from "./printout"
 
 /** How many filed weeks the binder keeps: two years. */
 const BINDER_SIZE = 104
+/** Tickets are daily: they get their own, shorter, shelf so they never push filed weeks out. */
+const TICKET_SHELF = 60
+
+/** A sheet put on top of the binder, the oldest of its kind dropping off when its shelf is full. */
+function fileSheet(archive: ArchivedWeek[] | undefined, sheet: ArchivedWeek): ArchivedWeek[] {
+  const all = [sheet, ...(archive ?? [])]
+  const tickets = all.filter((w) => w.format === "ticket").slice(0, TICKET_SHELF)
+  const weeks = all.filter((w) => w.format !== "ticket").slice(0, BINDER_SIZE)
+  const kept = new Set([...tickets, ...weeks])
+  return all.filter((w) => kept.has(w))
+}
 
 const subscribe = () => () => {}
 
@@ -125,13 +136,19 @@ export function useRobotMode() {
     [schedule.blocks],
   )
 
-  const removeBlock = useCallback((blockId: string) => {
-    setStored((s) => ({
-      ...s,
-      locked: s.locked.filter((b) => b.id !== blockId),
-      skipped: s.skipped.includes(blockId) ? s.skipped : [...s.skipped, blockId],
-    }))
-  }, [])
+  const removeBlock = useCallback(
+    (blockId: string) => {
+      // Kept with its day, so the week stays without it on that day rather than wherever the re-solve frees.
+      const block = schedule.blocks.find((b) => b.id === blockId)
+      const entry = block ? `${blockId}@${block.day}` : blockId
+      setStored((s) => ({
+        ...s,
+        locked: s.locked.filter((b) => b.id !== blockId),
+        skipped: s.skipped.some((k) => readSkip(k).key === blockId) ? s.skipped : [...s.skipped, entry],
+      }))
+    },
+    [schedule.blocks],
+  )
 
   /**
    * Put a block somewhere else and keep it there: it becomes a locked block at
@@ -151,7 +168,7 @@ export function useRobotMode() {
       setStored((s) => ({
         ...s,
         locked: [...s.locked.filter((b) => b.id !== blockId), moved],
-        skipped: s.skipped.filter((id) => id !== blockId),
+        skipped: s.skipped.filter((k) => readSkip(k).key !== blockId),
       }))
       return null
     },
@@ -203,17 +220,18 @@ export function useRobotMode() {
   }, [activeTemplate])
 
   /**
-   * Tear the sheet off: the week as it stood goes into the binder, this
-   * week's adjustments are cleared, and the activities and settings stay for
-   * the next one.
+   * Tear a sheet off: the week as it stood goes into the binder and that
+   * printer stands empty; the other keeps its sheet. Mid-week that is all: a
+   * copy filed. Once the week is over (`newWeek`), its adjustments are cleared
+   * too, and the activities and settings stay for the next one.
    */
-  const tearWeek = useCallback((format: "list" | "grid") => {
+  const tearWeek = useCallback((format: Sheet, newWeek: boolean) => {
     const now = new Date()
     setStored((s) => {
       const [year, w] = (s.currentWeek ?? weekKey(now)).split("-W").map(Number)
       const { week: thisWeek, year: thisYear } = isoWeek(now)
       const filed: ArchivedWeek = {
-        id: `${year}-W${w}-${now.getTime()}`,
+        id: `${year}-W${w}-${now.getTime()}-${Math.random().toString(36).slice(2, 7)}`,
         week: w || thisWeek,
         year: year || thisYear,
         filedAt: now.getTime(),
@@ -224,13 +242,50 @@ export function useRobotMode() {
       }
       return {
         ...s,
-        locked: [],
-        skipped: [],
-        currentWeek: weekKey(now),
-        archive: [filed, ...(s.archive ?? [])].slice(0, BINDER_SIZE),
+        ...(newWeek ? { locked: [], skipped: [], currentWeek: weekKey(now) } : { currentWeek: s.currentWeek ?? weekKey(now) }),
+        archive: fileSheet(s.archive, filed),
+        emptied: [...new Set([...(s.emptied ?? []), format])],
       }
     })
   }, [schedule.blocks])
+
+  /**
+   * File today's ticket: that day's lines, as they stand. Unlike tearing the
+   * week off, nothing about the week changes: no edits cleared, no new week begun.
+   */
+  const tearTicket = useCallback(
+    (now: Date) => {
+      const day = ((now.getDay() + 6) % 7) as Day
+      const { week, year } = isoWeek(now)
+      // Its own id, whatever the clock says: two tickets torn within the same minute are still two sheets.
+      const id = `${dayKey(now)}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+      setStored((s) => {
+        const filed: ArchivedWeek = {
+          id,
+          week,
+          year,
+          filedAt: now.getTime(),
+          wakeTime: s.settings.wakeTime,
+          sleepTime: s.settings.sleepTime,
+          blocks: schedule.blocks.filter((b) => b.day === day),
+          format: "ticket",
+        }
+        // One ticket a day: a fresh one torn off later the same day replaces the earlier.
+        const others = (s.archive ?? []).filter((w) => !(w.format === "ticket" && dayKey(new Date(w.filedAt)) === dayKey(now)))
+        return { ...s, archive: fileSheet(others, filed), ticketTornOn: dayKey(now) }
+      })
+    },
+    [schedule.blocks],
+  )
+
+  /** A fresh sheet asked for: one printer (the list's, the grid's or the ticket's), or every empty one, prints again. */
+  const refillPrinters = useCallback((which: Sheet | "ticket" | "all") => {
+    setStored((s) => ({
+      ...s,
+      emptied: which === "all" ? [] : (s.emptied ?? []).filter((x) => x !== which),
+      ...(which === "ticket" || which === "all" ? { ticketTornOn: undefined } : {}),
+    }))
+  }, [])
 
   /** Shred a filed week: gone from the binder for good. */
   const shredFiled = useCallback((id: string) => {
@@ -302,6 +357,8 @@ export function useRobotMode() {
     resetToTemplate,
     freshWeek,
     tearWeek,
+    tearTicket,
+    refillPrinters,
     shredFiled,
     wipe,
     display,

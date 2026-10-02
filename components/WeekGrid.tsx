@@ -25,10 +25,10 @@ export function WeekGrid({
   onSelect,
   feed = false,
   onFed,
-  onReplay,
   onTear,
   tearing = false,
   empty = false,
+  onFormFeed,
   filed,
 }: {
   settings: Settings
@@ -37,11 +37,12 @@ export function WeekGrid({
   onSelect: (id: string | null) => void
   feed?: boolean
   onFed?: () => void
-  onReplay?: () => void
   onTear?: () => void
   tearing?: boolean
   /** Torn off and not printed again yet: the printer stands empty. */
   empty?: boolean
+  /** The empty slot's FORM FEED key: a fresh sheet. */
+  onFormFeed?: () => void
   /** A sheet from the binder: its own week, and no plotter above it. */
   filed?: { week: number; year: number }
 }) {
@@ -89,10 +90,10 @@ export function WeekGrid({
       className="sheet px-5 py-4 font-mono uppercase sm:px-12"
       feed={feed}
       onFed={onFed}
-      onReplay={onReplay}
       onTear={onTear}
       tearing={tearing}
       empty={empty}
+      onFormFeed={onFormFeed}
       bare={!!filed}
     >
       <div className="mb-2 flex items-baseline justify-between border-b border-ink/60 pb-1 text-[11px] tracking-[0.2em]">

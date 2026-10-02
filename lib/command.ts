@@ -20,8 +20,10 @@ export type CommandAction = { preview: string; reply: string; note?: string } & 
   | { kind: "view"; view: "printout" | "grid" | "today" | "binder" }
   /** Tear the sheet off: file this week in the binder; the printer stays empty. */
   | { kind: "tear" }
-  /** Print a fresh sheet of the week (the printer's Form feed). */
+  /** Print a fresh sheet of the week in front of you, after it was torn off. */
   | { kind: "feed" }
+  /** Send what is showing to a real printer. */
+  | { kind: "print" }
   /** Shred a filed week from the binder, by its week number. */
   | { kind: "shred"; week: number }
   | { kind: "settings"; patch: { wakeTime?: string; sleepTime?: string } }
@@ -29,6 +31,8 @@ export type CommandAction = { preview: string; reply: string; note?: string } & 
   | { kind: "shuffle" | "export" }
   /** One regular session becomes an extra of its own: the activity loses a session, the extra takes it. */
   | { kind: "split"; id: string; patch: Partial<Activity>; extra: Omit<Activity, "id"> }
+  /** Take placed sessions out of this week only, as the BLOCK screen's REMOVE does. The activity stays. */
+  | { kind: "skip"; blockIds: string[] }
   /** Put one placed session somewhere else and lock it there, as the BLOCK screen's MOVE does. */
   | { kind: "move"; blockId: string; day: Day; start: number }
   /** The line could mean several sessions: each option is what picking it would do. */
@@ -64,7 +68,7 @@ const FREE_TIME = "FREE TIME IS WHAT YOUR ACTIVITIES LEAVE EMPTY · TO KEEP A BR
  * EDIT before EXPORT. They come before activity names, so one letter and
  * Enter is enough to open a function.
  */
-export const FUNCTIONS = ["add", "edit", "today", "tear", "feed", "shuffle", "export", "grid", "list", "binder", "system", "fix", "clear", "restart", "save", "load", "help"]
+export const FUNCTIONS = ["add", "edit", "today", "tear", "feed", "shuffle", "print", "export", "grid", "list", "binder", "system", "fix", "clear", "restart", "save", "load", "help"]
 /** Other command words, offered after activity names. */
 const VERBS = ["wake", "sleep", "remove", "move", "meals", "hours"]
 /** What EDIT can open besides an activity. */
@@ -136,10 +140,11 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
       return { kind: "view", view: "grid", preview: "SHOW THE WEEK AS A GRID", reply: "GRID VIEW" }
     case "tear":
     case "file":
-      return { kind: "tear", preview: "TEAR OFF THIS WEEK · FILE IT IN THE BINDER", reply: "WEEK FILED IN THE BINDER" }
+      return { kind: "tear", preview: "TEAR OFF THE SHEET ON SHOW · FILE IT IN THE BINDER", reply: "SHEET FILED IN THE BINDER" }
     case "feed":
-    case "print":
       return { kind: "feed", preview: "PRINT A FRESH SHEET OF THE WEEK", reply: "PRINTED" }
+    case "print":
+      return { kind: "print", preview: "SEND THE SHEET TO YOUR PRINTER", reply: "SENT TO THE PRINTER" }
     case "shred": {
       // "shred 39", "shred w39", "shred week 39".
       const m = /^(?:week\s*|w)?(\d{1,2})$/i.exec(arg.trim())
@@ -232,10 +237,12 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
     }
     case "rm": {
       if (!arg) return error("REMOVE WHICH ACTIVITY?")
-      const { parent, parts } = readLine(rest, activities)
+      // As in EDIT, "20:00" names a session by its start, never a length.
+      const { parent, parts } = readLine(rest.map((w) => (/^\d{1,2}:\d{2}$/.test(w) ? `@${w}` : w)), activities)
       if (!parent) return error(notFound(arg, activities))
       const extras = extrasOf(parent, activities)
-      // "remove deep work monday", "remove deep work extra": one of its extra sessions, not the activity.
+      // "remove deep work monday", "remove deep work extra": one of its extra sessions, not the activity;
+      // with no such extra, that day's regular session, out of this week only.
       const aboutExtra = Object.keys(parts).length > 0 || /\bextras?\b/i.test(arg)
       if (aboutExtra) {
         const match = extras.find(
@@ -244,7 +251,7 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
             (!parts.fixedAt || x.fixedAt?.start === parts.fixedAt.start) &&
             (!parts.durationMinutes || x.durationMinutes === parts.durationMinutes),
         )
-        if (!match) return error(`NO EXTRA ${upper(parent)} SESSION LIKE THAT`)
+        if (!match) return skipLine(parent, parts, ctx) ?? error(`NO EXTRA ${upper(parent)} SESSION LIKE THAT`)
         return {
           kind: "remove",
           id: match.id,
@@ -310,8 +317,10 @@ function readLine(words: string[], activities: Activity[]) {
   const parts: Parts = {}
   const rest: string[] = []
   const unknown: string[] = []
+  const named = parent ? new Set<number>() : nameWords(lower)
   words.forEach((word, i) => {
     if (parent && i >= at && i < at + length) return
+    if (named.has(i)) return void rest.push(word)
     const w = word.toLowerCase()
     const time = w.startsWith("@") ? parseClock(w.slice(1)) : null
     const count = parseSessions(w)
@@ -319,7 +328,8 @@ function readLine(words: string[], activities: Activity[]) {
     const window = WINDOW_PRESETS.find((p) => p.label.toLowerCase() === w.replace(/s$/, ""))
     if (time && !parts.fixedAt) parts.fixedAt = { start: time }
     else if (count !== null && parts.sessionsPerWeek === undefined) parts.sessionsPerWeek = count
-    else if (days && !parts.allowedDays) parts.allowedDays = days
+    // Days add up: "mon wed fri" is three days, however they are written.
+    else if (days) parts.allowedDays = [...new Set([...(parts.allowedDays ?? []), ...days])].sort((a, b) => a - b)
     else if (window && !parts.window) parts.window = { start: window.start, end: window.end }
     else {
       const minutes = w.startsWith("@") ? null : parseDuration(w)
@@ -330,6 +340,29 @@ function readLine(words: string[], activities: Activity[]) {
     }
   })
   return { parent, parts, name: parent ? parent.name : rest.join(" "), unknown }
+}
+
+/**
+ * Words of a new activity's name that would otherwise read as a setting: when
+ * the same kind of setting is given twice, the earlier one names the activity.
+ * "daily walk 30m daily" is a walk called Daily walk, every day, not a "walk
+ * daily" seven times.
+ */
+function nameWords(lower: string[]): Set<number> {
+  // Days aren't here: they add up rather than repeat.
+  const kindOf = (w: string): string | null => {
+    if (w.startsWith("@") && parseClock(w.slice(1))) return "time"
+    if (parseSessions(w) !== null) return "count"
+    if (WINDOW_PRESETS.some((p) => p.label.toLowerCase() === w.replace(/s$/, ""))) return "window"
+    if (parseDuration(w) !== null) return "length"
+    return null
+  }
+  const kinds = lower.map(kindOf)
+  const named = new Set<number>()
+  kinds.forEach((kind, i) => {
+    if (kind && kinds.indexOf(kind, i + 1) > i) named.add(i)
+  })
+  return named
 }
 
 /**
@@ -591,6 +624,44 @@ function editSession(parent: Activity, owner: Activity, session: SessionRef, cha
 function asTime(word: string): string | null {
   const w = word.toLowerCase().replace(/^@/, "")
   return /^\d{1,2}(?:[:h.]\d{2}|h)?\s*(?:am|pm)?$/.test(w) ? parseClock(w) : null
+}
+
+/**
+ * "remove walk wednesday": that day's session of a regular activity, out of
+ * this week only (CLEAR EDITS brings it back). Null when the line names more
+ * than days and a start, so the caller can say what it couldn't match.
+ */
+function skipLine(parent: Activity, parts: Parts, ctx: CommandContext): CommandAction | CommandError | null {
+  const { allowedDays, fixedAt, ...other } = parts
+  if (!allowedDays || Object.keys(other).length) return null
+  let sessions = (ctx.sessions ?? []).filter((x) => x.activityId === parent.id && allowedDays.includes(x.day) && x.id)
+  if (fixedAt) sessions = sessions.filter((x) => hhmm(x.start) === fixedAt.start)
+  const when = allowedDays.length === 1 ? DAY_WORDS[allowedDays[0]] : allowedDays.map((d) => DAY_WORDS[d].slice(0, 3)).join(" ")
+  if (!sessions.length) return error(`NO ${upper(parent)} SESSION ON ${when}${fixedAt ? ` AT ${fixedAt.start}` : ""} THIS WEEK`)
+  const skip = (picked: SessionRef[]): CommandAction => {
+    const days = [...new Set(picked.map((x) => DAY_WORDS[x.day].slice(0, 3)))].join(" ")
+    return {
+      kind: "skip",
+      blockIds: picked.map((x) => x.id!),
+      preview: `REMOVE ${upper(parent)} ${days}${picked.length === 1 ? ` ${hhmm(picked[0].start)}` : ` · ${picked.length} SESSIONS`} FROM THIS WEEK`,
+      note: "THE ACTIVITY STAYS · CLEAR EDITS BRINGS IT BACK",
+      reply: `REMOVED ${upper(parent)} ${days} FROM THIS WEEK`,
+    }
+  }
+  // Two sessions on the one day named: which one is the question, as MOVE asks it.
+  if (allowedDays.length === 1 && !fixedAt && sessions.length > 1) {
+    const options = sessions
+      .sort((a, b) => a.start - b.start)
+      .map((x) => ({ label: `${hhmm(x.start)} ${span(x.end - x.start)}`, action: skip([x]) }))
+    const list = options.map((o, i) => `[${i + 1}] ${o.label}`).join(" · ")
+    return {
+      kind: "choose",
+      options,
+      preview: `${upper(parent)} HAS ${options.length} SESSIONS ON ${when} · ${list} · WHICH?`,
+      reply: `${upper(parent)} ${when}: WHICH SESSION? ${list}`,
+    }
+  }
+  return skip(sessions)
 }
 
 /**

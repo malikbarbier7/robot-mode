@@ -25,7 +25,11 @@ export function Ticket({
   onSelect,
   feed = false,
   onFed,
-  onReplay,
+  onTear,
+  tearing = false,
+  empty = false,
+  onFormFeed,
+  filed = false,
 }: {
   settings: Settings
   schedule: Schedule
@@ -35,7 +39,15 @@ export function Ticket({
   onSelect: (id: string | null) => void
   feed?: boolean
   onFed?: () => void
-  onReplay?: () => void
+  /** Tear the ticket off and file it in the binder (pulled down, as the other sheets are). */
+  onTear?: () => void
+  tearing?: boolean
+  /** Torn off and not printed again yet: the ticket printer stands empty. */
+  empty?: boolean
+  /** The empty slot's FORM FEED key: a fresh sheet. */
+  onFormFeed?: () => void
+  /** A ticket from the binder: no printer above it. */
+  filed?: boolean
 }) {
   const { clock } = useDisplay()
   const words = useWords()
@@ -56,7 +68,11 @@ export function Ticket({
       className="ticket px-7 pb-8 pt-6 font-mono text-[12px] uppercase leading-relaxed"
       feed={feed}
       onFed={onFed}
-      onReplay={onReplay}
+      onTear={onTear}
+      tearing={tearing}
+      empty={empty}
+      onFormFeed={onFormFeed}
+      bare={filed}
     >
       <header className="text-center">
         <div className="font-display text-[16px] font-semibold tracking-[0.3em]">{words.name}</div>

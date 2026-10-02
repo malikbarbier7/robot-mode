@@ -20,7 +20,7 @@ import { useRobotMode } from "@/lib/useRobotMode"
 import { useNow } from "@/lib/useNow"
 import { useMachineSound } from "@/lib/useMachineSound"
 import { beep, buzz, chime, rip, rustle, shred } from "@/lib/sound"
-import { weekKey } from "@/lib/printout"
+import { dayKey, weekKey } from "@/lib/printout"
 import { BinderDrawer, useArmed } from "@/components/BinderDrawer"
 
 type View = "boot" | "setup" | "print" | "week" | "today" | "generating"
@@ -44,6 +44,8 @@ export default function Page() {
   // Set when a week has just been generated: today's ticket is pointed out until another view is opened.
   const [todayTip, setTodayTip] = useState(false)
 
+  // Today's date, for the day's ticket.
+  const now = useNow()
   const empty = rm.state.settings.activities.length === 0
   const generated = rm.state.generated === true
   const phone = usePhone()
@@ -72,13 +74,10 @@ export default function Page() {
     // A sheet drawn out of the binder goes back when a view of this week is asked for.
     const wasOut = filedId !== null
     setFiledId(null)
-    // Asking for a view after tearing off is asking for a sheet: it prints.
-    const wasTorn = torn
-    setTorn(false)
-    if (OUTPUT_VIEW[next] === view && !wasOut && !wasTorn) return
+    if (OUTPUT_VIEW[next] === view && !wasOut) return
     // The week was printed once; switching between views shows it, it doesn't print it again.
-    // Only an empty printer (after tearing off) prints on the way.
-    setFeed(wasTorn)
+    // A printer left empty by a tear-off stays empty until FORM FEED: coming back to it isn't asking for a copy.
+    setFeed(false)
     setView(OUTPUT_VIEW[next])
   }
 
@@ -103,16 +102,25 @@ export default function Page() {
     shredFiled(filedId)
   })
 
-  // Tearing the sheet off: it flies into the binder with a rip, the week is filed, and the
-  // printer is left empty until a fresh sheet is asked for (Form feed, PRINT, or a view).
+  // Tearing a sheet off: it flies into the binder with a rip, and that printer alone is left
+  // empty until a fresh sheet is asked for (FORM FEED in the empty slot, or FEED). Switching
+  // views or reloading leaves it empty; the other printers keep their sheets.
   const [tearing, setTearing] = useState(false)
-  const [torn, setTorn] = useState(false)
-  const printFresh = () => {
-    setTorn(false)
+  // Kept with the week, so a reload doesn't print again what was torn off.
+  const listTorn = (rm.state.emptied ?? []).includes("list")
+  const gridTorn = (rm.state.emptied ?? []).includes("grid")
+  // The ticket printer's own empty slot: today's ticket torn off, the week untouched. Tomorrow prints anew.
+  const ticketTorn = !!now && rm.state.ticketTornOn === dayKey(now)
+  /** FORM FEED: a fresh sheet in the printers left empty, printed in front of you. Only the empty ones, or all when given. */
+  const printFresh = (which: "list" | "grid" | "ticket" | "all" = "all") => {
+    rm.refillPrinters(which)
     setFeed(true)
   }
   const tear = () => {
     if (tearing) return
+    // On the ticket printer, the ticket is what comes off, unless the week is over: then it's the week's turn.
+    if (view === "today" && !weekDue) return tearTicket()
+    const format = view === "print" ? "list" : "grid"
     setTearing(true)
     setSelectedId(null)
     setScreen(null)
@@ -121,12 +129,27 @@ export default function Page() {
     // The binder runs out to take the sheet, keeps it in view a moment, then slides back.
     setReceiving(true)
     window.setTimeout(() => {
-      // The binder keeps the document that was torn off, as it was: the list or the grid.
-      rm.tearWeek(view === "print" ? "list" : "grid")
+      // The binder keeps the document that was torn off, as it was: the list or the grid. A week
+      // that is over starts the next one; mid-week it is only a copy filed.
+      rm.tearWeek(format, weekDue)
       setTearing(false)
-      // The printer stays empty: printing the same week again at once would only make a copy.
-      setTorn(true)
+      // That printer stays empty (tearWeek says so): printing the same week again at once would only make a copy.
       if (view !== "print" && view !== "week") setView(weekView)
+    }, 600)
+    window.setTimeout(() => setReceiving(false), 1700)
+  }
+
+  // Today's ticket, torn off and filed under Tickets. Only the ticket printer empties.
+  const tearTicket = () => {
+    if (tearing || !now) return
+    setTearing(true)
+    setSelectedId(null)
+    setScreen(null)
+    rip()
+    setReceiving(true)
+    window.setTimeout(() => {
+      rm.tearTicket(now)
+      setTearing(false)
     }, 600)
     window.setTimeout(() => setReceiving(false), 1700)
   }
@@ -147,8 +170,6 @@ export default function Page() {
     return () => window.removeEventListener("keydown", esc)
   }, [filedId, binderPinned])
 
-  // Today's date, for the day's ticket.
-  const now = useNow()
 
   // Shown once the sheet is out of the printer.
   const tipVisible = todayTip && showWeekChrome && view === "week" && !feed
@@ -247,7 +268,8 @@ export default function Page() {
 
   return (
     <DisplayProvider value={rm.display}>
-      <div className="flex h-dvh flex-col overflow-hidden">
+      {/* On paper the whole sheet prints: the window-high frame and its inner scrolling are dropped. */}
+      <div className="flex h-dvh flex-col overflow-hidden print:block print:h-auto print:overflow-visible">
         {/* The machine's own panel: its nameplate, its lamps and its keys. */}
         <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b-2 border-ink bg-[#cdc5b1] px-3 py-2 sm:px-6 sm:py-2.5 shadow-[inset_0_1px_0_rgb(255_255_255/0.4)] no-print">
           {/* On a phone the views drop to a row of their own, under the nameplate and Menu. */}
@@ -304,35 +326,11 @@ export default function Page() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* The panel keeps the output; editing the week is the terminal's. On a phone both keys move into the Menu. */}
-            {showWeekChrome && (
-              <span className="hidden sm:contents">
-                <Button variant="solid" disabled={empty} onClick={exportIcs}>
-                  Export .ics
-                </Button>
-              </span>
-            )}
-
-            <button
-              type="button"
-              aria-pressed={rm.display.sound}
-              onClick={() => rm.setDisplay({ sound: !rm.display.sound })}
-              title={rm.display.sound ? "Switch the sound off" : "Switch the sound on"}
-              className="key hidden px-2.5 py-1 sm:block"
-            >
-              {rm.display.sound ? "♪ Sound" : "♪ Off"}
-            </button>
+            {/* The panel only shows: printing, exporting and editing the week are the terminal's keys. */}
             <Menu>
-              <div className="flex flex-col gap-2 sm:hidden">
-                {showWeekChrome && (
-                  <MenuItem onClick={exportIcs} disabled={empty} title="Download the week for your calendar">
-                    Export .ics
-                  </MenuItem>
-                )}
-                <MenuItem onClick={() => rm.setDisplay({ sound: !rm.display.sound })} title="Switch the sound on or off">
-                  {rm.display.sound ? "♪ Sound on" : "♪ Sound off"}
-                </MenuItem>
-              </div>
+              <MenuItem onClick={() => rm.setDisplay({ sound: !rm.display.sound })} title="Switch the sound on or off">
+                {rm.display.sound ? "♪ Sound on" : "♪ Sound off"}
+              </MenuItem>
               {/* How times and weeks read. Stored in 24h from Monday regardless. */}
               <div className="flex gap-2">
                 <PanelSwitch
@@ -426,7 +424,7 @@ export default function Page() {
           )
         )}
 
-        <div className="relative flex min-h-0 flex-1">
+        <div className="relative flex min-h-0 flex-1 print:block">
           {showWeekChrome && (
             <BinderDrawer
               weeks={rm.state.archive ?? []}
@@ -443,13 +441,16 @@ export default function Page() {
             />
           )}
           {/* On a phone the binder's spine would sit over the paper's edge: the sheet stops short of it. */}
-          <main className={`min-w-0 flex-1 overflow-auto ${showWeekChrome ? "max-sm:pr-[22px]" : ""}`}>
+          <main className={`min-w-0 flex-1 overflow-auto print:overflow-visible ${showWeekChrome ? "max-sm:pr-[22px]" : ""}`}>
             {!rm.hydrated ? null : filed && showWeekChrome ? (
               // A filed sheet drawn out of the binder, in place of the week until it is put back.
               <div key={filed.id} className="pull-out">
-                <div className={`mx-auto flex items-center justify-between gap-4 px-4 no-print ${filed.format === "list" ? "mt-6 max-w-[680px]" : "mt-3 max-w-[1000px]"}`}>
+                <div className={`mx-auto flex items-center justify-between gap-4 px-4 no-print ${filed.format === "list" ? "mt-6 max-w-[680px]" : filed.format === "ticket" ? "mt-6 max-w-[560px]" : "mt-3 max-w-[1000px]"}`}>
                   <span className="label text-ink/60">
-                    From the binder · week {filed.week} / {filed.year}
+                    From the binder ·{" "}
+                    {filed.format === "ticket"
+                      ? `ticket · ${new Date(filed.filedAt).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}`
+                      : `week ${filed.week} / ${filed.year}`}
                   </span>
                   <span className="flex gap-2">
                     <button
@@ -465,8 +466,17 @@ export default function Page() {
                     </Button>
                   </span>
                 </div>
-                {/* As it was torn off: the printed list, or the plotted grid. */}
-                {filed.format === "list" ? (
+                {/* As it was torn off: the printed list, the plotted grid, or the day's ticket. */}
+                {filed.format === "ticket" ? (
+                  <Ticket
+                    settings={{ ...rm.state.settings, wakeTime: filed.wakeTime, sleepTime: filed.sleepTime }}
+                    schedule={{ ...rm.schedule, blocks: filed.blocks, unplaced: [] }}
+                    now={new Date(filed.filedAt)}
+                    selectedId={null}
+                    onSelect={() => {}}
+                    filed
+                  />
+                ) : filed.format === "list" ? (
                   <Printout
                     settings={{ ...rm.state.settings, wakeTime: filed.wakeTime, sleepTime: filed.sleepTime }}
                     schedule={{ ...rm.schedule, blocks: filed.blocks, unplaced: [] }}
@@ -515,10 +525,10 @@ export default function Page() {
                 onSelect={select}
                 feed={feed}
                 onFed={() => setFeed(false)}
-                onReplay={printFresh}
                 onTear={tear}
                 tearing={tearing}
-                empty={torn}
+                empty={listTorn}
+                onFormFeed={() => printFresh("list")}
               />
             ) : view === "week" && generated ? (
               <WeekGrid
@@ -528,10 +538,10 @@ export default function Page() {
                 onSelect={select}
                 feed={feed}
                 onFed={() => setFeed(false)}
-                onReplay={printFresh}
                 onTear={tear}
                 tearing={tearing}
-                empty={torn}
+                empty={gridTorn}
+                onFormFeed={() => printFresh("grid")}
               />
             ) : view === "today" && generated ? (
               now && (
@@ -543,7 +553,10 @@ export default function Page() {
                   onSelect={select}
                   feed={feed}
                   onFed={() => setFeed(false)}
-                  onReplay={printFresh}
+                  onTear={tearTicket}
+                  tearing={tearing}
+                  empty={ticketTorn}
+                  onFormFeed={() => printFresh("ticket")}
                 />
               )
             ) : (
@@ -570,10 +583,10 @@ export default function Page() {
             onRestart={restart}
             onView={showView}
             onTear={tear}
-            onFeed={printFresh}
+            onFeed={() => printFresh()}
             onShred={(week) => {
-              // The latest filed sheet with that week number.
-              const found = (rm.state.archive ?? []).find((w) => w.week === week)
+              // The latest filed sheet of that week (a week's, not a day's ticket).
+              const found = (rm.state.archive ?? []).find((w) => w.week === week && w.format !== "ticket")
               if (!found) return false
               shred()
               shredFiled(found.id)
@@ -581,10 +594,10 @@ export default function Page() {
             }}
             weekDue={weekDue}
             tip={
-              torn
+              (view === "print" && listTorn) || (view === "week" && gridTorn) || (view === "today" && ticketTorn)
                 ? "SHEET FILED · PRESS FORM FEED, OR TYPE FEED, FOR A FRESH ONE"
                 : weekDue
-                ? `NEW WEEK · TYPE TEAR TO FILE WEEK ${rm.state.currentWeek?.split("-W")[1]} IN THE BINDER AND PRINT THIS ONE`
+                ? `NEW WEEK · TYPE TEAR TO FILE WEEK ${rm.state.currentWeek?.split("-W")[1]} IN THE BINDER AND START THIS ONE`
                 : tipVisible
                   ? "TIP: TODAY PRINTS JUST TODAY, AS A TICKET TO KEEP · TYPE T + ENTER, OR PRESS ◫ TODAY"
                   : null

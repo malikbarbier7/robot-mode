@@ -268,6 +268,10 @@ export function Terminal({
       case "export":
         onExport()
         break
+      case "print":
+        // After the reply is drawn, so the dialog doesn't open over a half-updated line.
+        window.setTimeout(() => window.print(), 0)
+        break
       case "clear":
         rm.freshWeek()
         break
@@ -295,6 +299,10 @@ export function Terminal({
       case "split":
         rm.updateActivity(a.id, a.patch)
         rm.addActivity(a.extra)
+        break
+      case "skip":
+        // The same as the BLOCK screen's REMOVE: out of this week, the activity untouched.
+        a.blockIds.forEach(rm.removeBlock)
         break
       case "move": {
         // The same as the BLOCK screen's MOVE: locked there, refused if another locked block is in the way.
@@ -368,6 +376,9 @@ export function Terminal({
     { word: "add", label: "Add", show: true },
     { word: "edit", label: "Edit", show: true },
     { word: "shuffle", label: "Shuffle", show: true },
+    // Taking the week out of the machine: the keys for it live here, not on the printer.
+    { word: "print", label: "Print", show: true },
+    { word: "export", label: "Export .ics", show: true },
     { word: "tear", label: "Tear off · new week", show: weekDue, alert: true },
     { word: "system", label: "System", show: true },
     { word: "help", label: "Help", show: true },
@@ -1020,7 +1031,7 @@ const MANUAL_FUNCTIONS: [word: string, what: string][] = [
   ["system", "Save, load, 12H / 24H clock, week start, reset, restart."],
   ["fix", "Shown when a session doesn't fit: suggested fixes, one key each."],
   ["clear", "Shown after moving or locking blocks: undo those edits."],
-  ["tear", "End the week: file its sheet in the binder and clear its edits. Also: pull the sheet down. FEED prints a fresh sheet."],
+  ["tear", "File the sheet on show in the binder; only its printer empties. Once the week is over, it also clears the week's edits. Also: pull the sheet down. FEED prints a fresh sheet."],
   ["shred", "Shred a filed week for good: SHRED 39. Or ✕ on its sheet in the binder, twice."],
   ["binder", "The filing unit at the right edge (or bring the pointer there): torn-off weeks. Pull a sheet out to read it, Esc to put it back."],
 ]
@@ -1085,7 +1096,7 @@ function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
         <ManualLine cmd="ADD GYM · ADD GYM 2×">One or two more of the same sessions.</ManualLine>
         <ManualLine cmd="ADD DEEP WORK MONDAY 1H AT 10:00">An extra session of an activity you have; the regular ones stay.</ManualLine>
         <ManualLine cmd="REMOVE GYM">Take it off the list, with its extra sessions.</ManualLine>
-        <ManualLine cmd="REMOVE DEEP WORK MONDAY">Remove only that extra session.</ManualLine>
+        <ManualLine cmd="REMOVE GYM WEDNESDAY">Only Wednesday&rsquo;s session, this week only (or that day&rsquo;s extra session, if it has one). CLEAR EDITS brings it back.</ManualLine>
         <ManualLine cmd="EDIT DEEP WORK MONDAY 2H">Change only Monday’s session. A regular one becomes an extra, kept at its time.</ManualLine>
         <ManualLine cmd="MOVE GYM MONDAY 10H TO 11H">Move one session; every hour here is a time. Locked there, like [M] MOVE.</ManualLine>
         <ManualLine cmd="MOVE GYM MONDAY TO TUESDAY">Same time, another day. Or both: TO TUESDAY 11H.</ManualLine>
