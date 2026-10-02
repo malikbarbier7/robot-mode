@@ -1,5 +1,6 @@
 "use client"
 
+import { useWords } from "@/lib/words"
 import { useState } from "react"
 import type { Schedule, Settings } from "@/lib/types"
 import { parseTime } from "@/lib/scheduler/time"
@@ -27,6 +28,10 @@ export function Printout({
   feed = false,
   onFed,
   onReplay,
+  onTear,
+  tearing = false,
+  empty = false,
+  filed,
 }: {
   settings: Settings
   schedule: Schedule
@@ -36,11 +41,19 @@ export function Printout({
   onFed?: () => void
   /** Print it again (the printer's Form feed key). */
   onReplay?: () => void
+  onTear?: () => void
+  tearing?: boolean
+  /** Torn off and not printed again yet: the printer stands empty. */
+  empty?: boolean
+  /** A sheet from the binder: its own week, the date it was filed, and no printer above it. */
+  filed?: { week: number; year: number; at: Date }
 }) {
-  // Stamped once, when the sheet comes out of the machine.
+  // Stamped once, when the sheet comes out of the machine (or with the week it was filed as).
   const { clock, weekStart } = useDisplay()
-  const [printedAt] = useState(() => new Date())
-  const { week, year } = isoWeek(printedAt)
+  const words = useWords()
+  const [now] = useState(() => new Date())
+  const printedAt = filed?.at ?? now
+  const { week, year } = filed ?? isoWeek(printedAt)
 
   const wake = parseTime(settings.wakeTime)
   let sleep = parseTime(settings.sleepTime)
@@ -53,10 +66,14 @@ export function Printout({
       feed={feed}
       onFed={onFed}
       onReplay={onReplay}
+      onTear={onTear}
+      tearing={tearing}
+      empty={empty}
+      bare={!!filed}
     >
         <Rule char="=" />
         <header className="py-3 text-center">
-          <div className="font-display text-[20px] font-semibold tracking-[0.3em]">Robot Mode</div>
+          <div className="font-display text-[20px] font-semibold tracking-[0.3em]">{words.name}</div>
           <div className="tracking-[0.2em] text-ink/60">
             Week {week} / {year}
           </div>
@@ -132,12 +149,12 @@ export function Printout({
 
         <Rule char="=" className="mt-10" />
         <footer className="pt-3 text-[11px] tracking-[0.14em] text-ink/55">
-          <div>Automatically generated</div>
+          <div>{filed ? words.sheet.filed : words.sheet.generated}</div>
           <div className="tabular-nums">
             {String(printedAt.getDate()).padStart(2, "0")} {MONTHS[printedAt.getMonth()]} {printedAt.getFullYear()} ·{" "}
             {formatClock(printedAt.getHours() * 60 + printedAt.getMinutes(), clock)}
           </div>
-          <div>Unit RM-01</div>
+          <div>{words.sheet.unit}</div>
         </footer>
     </Paper>
   )

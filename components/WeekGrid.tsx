@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useWords } from "@/lib/words"
+import { useLayoutEffect, useRef, useState } from "react"
 import type { Day, PlacedBlock, Schedule, Settings } from "@/lib/types"
 import { DAY_NAMES, parseTime } from "@/lib/scheduler/time"
 import { formatClock, localizeTimes, weekOrder } from "@/lib/locale"
@@ -25,6 +26,10 @@ export function WeekGrid({
   feed = false,
   onFed,
   onReplay,
+  onTear,
+  tearing = false,
+  empty = false,
+  filed,
 }: {
   settings: Settings
   schedule: Schedule
@@ -33,6 +38,12 @@ export function WeekGrid({
   feed?: boolean
   onFed?: () => void
   onReplay?: () => void
+  onTear?: () => void
+  tearing?: boolean
+  /** Torn off and not printed again yet: the printer stands empty. */
+  empty?: boolean
+  /** A sheet from the binder: its own week, and no plotter above it. */
+  filed?: { week: number; year: number }
 }) {
   const { clock, weekStart } = useDisplay()
   const wake = parseTime(settings.wakeTime)
@@ -48,9 +59,10 @@ export function WeekGrid({
     const room = el?.closest("main")
     if (!el || !room) return
     const fit = () => {
-      // Everything that isn't the hours (printer, margins, headings) stays as it is.
+      // Everything that isn't the hours (printer, margins, headings, anything above the grid) stays as it is.
       const body = el.querySelector<HTMLElement>("[data-hours]")?.offsetHeight ?? 0
-      const chrome = el.offsetHeight - body
+      const above = el.getBoundingClientRect().top - room.getBoundingClientRect().top + room.scrollTop
+      const chrome = el.offsetHeight - body + above
       const next = Math.floor((room.clientHeight - chrome - 4) / hoursAwake)
       setHourPx(Math.min(MAX_HOUR_PX, Math.max(MIN_HOUR_PX, next)))
     }
@@ -63,21 +75,27 @@ export function WeekGrid({
   const hours: number[] = []
   for (let m = Math.ceil(wake / 60) * 60; m <= sleep; m += 60) hours.push(m)
 
-  const [{ week, year }] = useState(() => isoWeek(new Date()))
+  const [now] = useState(() => isoWeek(new Date()))
+  const { week, year } = filed ?? now
+  const words = useWords()
 
   return (
     <div ref={frame}>
     <Paper
       compact
-      printer={{ name: "RM-01 · Plotter", spec: "4-pen · 7 col", width: "max-w-[1080px]" }}
+      printer={{ ...words.printers.plotter, width: "max-w-[1080px]" }}
       width="max-w-[1000px] min-w-[700px]"
       className="sheet px-12 py-4 font-mono uppercase"
       feed={feed}
       onFed={onFed}
       onReplay={onReplay}
+      onTear={onTear}
+      tearing={tearing}
+      empty={empty}
+      bare={!!filed}
     >
       <div className="mb-2 flex items-baseline justify-between border-b border-ink/60 pb-1 text-[11px] tracking-[0.2em]">
-        <span className="font-display text-[15px] font-semibold tracking-[0.3em]">Robot Mode</span>
+        <span className="font-display text-[15px] font-semibold tracking-[0.3em]">{words.name}</span>
         <span className="text-ink/60">
           Week {week} / {year} · Plot
         </span>
@@ -151,7 +169,6 @@ function DayColumn({
             style={{ top: ((m - wake) / 60) * hourPx }}
           />
         ))}
-        <NowLine day={day} wake={wake} height={height} hourPx={hourPx} />
         {blocks.map((block) => (
           <Block
             key={block.id}
@@ -217,30 +234,5 @@ function Block({
         <span className={`absolute right-1 top-1 h-1.5 w-1.5 ${selected ? "bg-paper" : "bg-ink"}`} />
       )}
     </button>
-  )
-}
-
-/** Where you actually are right now. Rendered after mount to keep SSR stable. */
-function NowLine({ day, wake, height, hourPx }: { day: Day; wake: number; height: number; hourPx: number }) {
-  const [now, setNow] = useState<{ day: number; minute: number } | null>(null)
-
-  useEffect(() => {
-    const tick = () => {
-      const d = new Date()
-      setNow({ day: (d.getDay() + 6) % 7, minute: d.getHours() * 60 + d.getMinutes() })
-    }
-    tick()
-    const id = setInterval(tick, 60_000)
-    return () => clearInterval(id)
-  }, [])
-
-  if (!now || now.day !== day) return null
-  const top = ((now.minute - wake) / 60) * hourPx
-  if (top < 0 || top > height) return null
-
-  return (
-    <div className="pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-ink" style={{ top }}>
-      <div className="absolute -left-1 -top-[3px] h-2 w-2 bg-ink" />
-    </div>
   )
 }

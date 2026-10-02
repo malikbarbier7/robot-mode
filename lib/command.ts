@@ -17,7 +17,13 @@ export type CommandAction = { preview: string; reply: string; note?: string } & 
   | { kind: "open"; screen: Screen; id?: string }
   | { kind: "clear" | "save" | "load" }
   /** Show the week as the printed list or as the calendar grid. */
-  | { kind: "view"; view: "printout" | "grid" | "today" }
+  | { kind: "view"; view: "printout" | "grid" | "today" | "binder" }
+  /** Tear the sheet off: file this week in the binder; the printer stays empty. */
+  | { kind: "tear" }
+  /** Print a fresh sheet of the week (the printer's Form feed). */
+  | { kind: "feed" }
+  /** Shred a filed week from the binder, by its week number. */
+  | { kind: "shred"; week: number }
   | { kind: "settings"; patch: { wakeTime?: string; sleepTime?: string; minFreeMinutesPerDay?: number } }
   | { kind: "display"; patch: { clock?: Clock; weekStart?: WeekStart; sound?: boolean } }
   | { kind: "shuffle" | "export" }
@@ -56,7 +62,7 @@ const MAX_SESSIONS = 28
  * EDIT before EXPORT. They come before activity names, so one letter and
  * Enter is enough to open a function.
  */
-export const FUNCTIONS = ["add", "edit", "today", "shuffle", "export", "grid", "printout", "system", "fix", "clear", "restart", "save", "load", "help"]
+export const FUNCTIONS = ["add", "edit", "today", "tear", "feed", "shuffle", "export", "grid", "list", "binder", "system", "fix", "clear", "restart", "save", "load", "help"]
 /** Other command words, offered after activity names. */
 const VERBS = ["wake", "sleep", "free", "remove", "move", "meals", "hours"]
 /** What EDIT can open besides an activity. */
@@ -104,6 +110,7 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
   const [head, ...rest] = words
   const verb = head.toLowerCase()
   const arg = rest.join(" ")
+  if (/^\s*(?:new|next)\s+week\s*$/i.test(input)) return interpret("tear", ctx)
   // "add …" with more after it is always about an activity, whatever word comes next ("add monday deep work").
   const explicitAdd = /^\s*(?:add|new|create)\s/i.test(input)
   if (explicitAdd) return activityLine(words, activities, true)
@@ -127,9 +134,31 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
     case "grid":
     case "calendar":
       return { kind: "view", view: "grid", preview: "SHOW THE WEEK AS A GRID", reply: "GRID VIEW" }
+    case "tear":
+    case "file":
+      return { kind: "tear", preview: "TEAR OFF THIS WEEK · FILE IT IN THE BINDER", reply: "WEEK FILED IN THE BINDER" }
+    case "feed":
+    case "print":
+      return { kind: "feed", preview: "PRINT A FRESH SHEET OF THE WEEK", reply: "PRINTED" }
+    case "shred": {
+      // "shred 39", "shred w39", "shred week 39".
+      const m = /^(?:week\s*|w)?(\d{1,2})$/i.exec(arg.trim())
+      if (!m) return error("SHRED WHICH WEEK? E.G. SHRED 39")
+      const week = Number(m[1])
+      return {
+        kind: "shred",
+        week,
+        preview: `SHRED WEEK ${week} FROM THE BINDER · THIS CAN'T BE UNDONE`,
+        reply: `WEEK ${week} SHREDDED`,
+      }
+    }
+    case "binder":
+    case "archive":
+    case "history":
+      return { kind: "view", view: "binder", preview: "OPEN THE BINDER OF PAST WEEKS", reply: "BINDER" }
     case "today":
     case "ticket":
-      return { kind: "view", view: "today", preview: "PRINT TODAY'S TICKET", reply: "TODAY" }
+      return { kind: "view", view: "today", preview: "SHOW TODAY'S TICKET", reply: "TODAY VIEW" }
     case "sound":
     case "mute":
     case "unmute": {
@@ -138,7 +167,7 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
     }
     case "printout":
     case "list":
-      return { kind: "view", view: "printout", preview: "SHOW THE WEEK AS THE PRINTOUT", reply: "PRINTOUT VIEW" }
+      return { kind: "view", view: "printout", preview: "SHOW THE WEEK AS A LIST", reply: "LIST VIEW" }
     case "clear":
       return { kind: "clear", preview: "UNLOCK EVERYTHING AND RESTORE REMOVED BLOCKS", reply: "EDITS CLEARED" }
     case "save":

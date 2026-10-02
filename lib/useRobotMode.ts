@@ -4,9 +4,13 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import type { Activity, Day, PlacedBlock, Settings } from "./types"
 import { generate } from "./scheduler/generate"
 import { computeBudget } from "./scheduler/budget"
-import { initialState, load, save, type Display, type SavedState } from "./storage"
+import { initialState, load, save, type ArchivedWeek, type Display, type SavedState } from "./storage"
 import { detectClock, type Clock, type WeekStart } from "./locale"
 import { matchesTemplate, templateById, type Template } from "./templates"
+import { isoWeek, weekKey } from "./printout"
+
+/** How many filed weeks the binder keeps: two years. */
+const BINDER_SIZE = 104
 
 export type NotBefore = { day: Day; minuteOfDay: number }
 
@@ -191,7 +195,7 @@ export function useRobotMode() {
 
   /** Flipped by the Generate button. The week view only exists after this. */
   const markGenerated = useCallback(() => {
-    setStored((s) => ({ ...s, generated: true }))
+    setStored((s) => ({ ...s, generated: true, currentWeek: weekKey(new Date()) }))
   }, [])
 
   /** Back to the list, without throwing the schedule away. */
@@ -221,6 +225,42 @@ export function useRobotMode() {
     setNotBefore(null)
   }, [activeTemplate])
 
+  /**
+   * Tear the sheet off: the week as it stood goes into the binder, this
+   * week's adjustments are cleared, and the activities and settings stay for
+   * the next one.
+   */
+  const tearWeek = useCallback((format: "list" | "grid") => {
+    const now = new Date()
+    setStored((s) => {
+      const [year, w] = (s.currentWeek ?? weekKey(now)).split("-W").map(Number)
+      const { week: thisWeek, year: thisYear } = isoWeek(now)
+      const filed: ArchivedWeek = {
+        id: `${year}-W${w}-${now.getTime()}`,
+        week: w || thisWeek,
+        year: year || thisYear,
+        filedAt: now.getTime(),
+        wakeTime: s.settings.wakeTime,
+        sleepTime: s.settings.sleepTime,
+        blocks: schedule.blocks,
+        format,
+      }
+      return {
+        ...s,
+        locked: [],
+        skipped: [],
+        currentWeek: weekKey(now),
+        archive: [filed, ...(s.archive ?? [])].slice(0, BINDER_SIZE),
+      }
+    })
+    setNotBefore(null)
+  }, [schedule.blocks])
+
+  /** Shred a filed week: gone from the binder for good. */
+  const shredFiled = useCallback((id: string) => {
+    setStored((s) => ({ ...s, archive: (s.archive ?? []).filter((w) => w.id !== id) }))
+  }, [])
+
   const freshWeek = useCallback(() => {
     setStored((s) => ({ ...s, locked: [], skipped: [] }))
     setNotBefore(null)
@@ -233,7 +273,8 @@ export function useRobotMode() {
    */
   const wipe = useCallback(() => {
     // How times are shown is a preference, not part of the week: it survives.
-    setStored((s) => ({ ...initialState, exportSequence: s.exportSequence, display: s.display }))
+    // The binder is history, not the week: it survives too.
+    setStored((s) => ({ ...initialState, exportSequence: s.exportSequence, display: s.display, archive: s.archive }))
     setNotBefore(null)
   }, [])
 
@@ -288,6 +329,8 @@ export function useRobotMode() {
     templateEdited,
     resetToTemplate,
     freshWeek,
+    tearWeek,
+    shredFiled,
     wipe,
     display,
     setDisplay,

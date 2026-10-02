@@ -268,6 +268,68 @@
   }
 }
 
+/* A sheet torn off: it flies to the binder at the right edge, shrinking and turning as it goes. */
+@keyframes tear-away {
+  to {
+    transform: translate(62vw, 8vh) scale(0.22) rotate(14deg);
+    opacity: 0.15;
+  }
+}
+
+.tear-away {
+  transform-origin: right center;
+  animation: tear-away 0.6s cubic-bezier(0.5, 0, 0.75, 0.4) forwards;
+}
+
+/* The sheet it becomes in the binder: slid in on top of the stack. */
+@keyframes file-in {
+  from {
+    transform: translateX(-120%) rotate(-4deg);
+  }
+}
+
+.file-in {
+  animation: file-in 0.45s 0.35s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+/* A filed sheet drawn out of the binder: it arrives from the right edge, straightening as it comes. */
+@keyframes pull-out {
+  from {
+    transform: translateX(55vw) rotate(5deg) scale(0.6);
+    opacity: 0.3;
+  }
+}
+
+.pull-out {
+  transform-origin: right center;
+  animation: pull-out 0.45s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+/* What comes out under the shredder: strips falling and fading. */
+@keyframes shred-strip {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(120%);
+    opacity: 0;
+  }
+}
+
+.shred-strip {
+  animation: shred-strip 0.6s steps(6) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tear-away,
+  .file-in,
+  .pull-out,
+  .shred-strip {
+    animation-duration: 0.01s;
+    animation-delay: 0s;
+  }
+}
+
 /* The print head shuttling across the line it is printing, in steps. */
 @keyframes carriage {
   from {

@@ -1,5 +1,6 @@
 "use client"
 
+import { useWords } from "@/lib/words"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import type { Day, PlacedBlock } from "@/lib/types"
 import type { RobotMode } from "@/lib/useRobotMode"
@@ -14,7 +15,7 @@ import { ClockReadout } from "./Readout"
 import { ActivitiesTerminal, FreeTimeTerminal, HoursTerminal, MealsTerminal } from "./Terminals"
 import { useDisplay } from "./Display"
 
-type View = "printout" | "grid" | "today"
+type View = "printout" | "grid" | "today" | "binder"
 
 /** What the terminal shows above its prompt: nothing, a function's screen, or the picked block. */
 export type TerminalScreen = { name: Screen | "block" | "move"; id?: string } | null
@@ -124,8 +125,11 @@ export function Terminal({
   onSave,
   onLoad,
   onRestart,
-  view,
   onView,
+  onTear,
+  onFeed,
+  onShred,
+  weekDue = false,
   tip,
 }: {
   rm: RobotMode
@@ -138,9 +142,16 @@ export function Terminal({
   onSave: () => void
   onLoad: () => void
   onRestart: () => void
-  /** Which way the week is shown above: the printed list, the calendar grid or today's ticket. */
-  view: View
+  /** Switch how the week is shown above (typed: list, grid, today, binder). */
   onView: (view: View) => void
+  /** Tear this week's sheet off into the binder; the printer stays empty. */
+  onTear: () => void
+  /** Print a fresh sheet of the week. */
+  onFeed: () => void
+  /** Shred a filed week by its number; false when the binder has no such week. */
+  onShred: (week: number) => boolean
+  /** A new week has begun since the sheet was printed: TEAR is offered in the row. */
+  weekDue?: boolean
   /** A hint, shown under the prompt when there is nothing else to say. */
   tip?: string | null
 }) {
@@ -267,6 +278,18 @@ export function Terminal({
       case "view":
         onView(a.view)
         break
+      case "tear":
+        onTear()
+        break
+      case "feed":
+        onFeed()
+        break
+      case "shred":
+        if (!onShred(a.week)) {
+          buzz()
+          return say(`NO WEEK ${a.week} IN THE BINDER`, true)
+        }
+        break
       case "split":
         rm.updateActivity(a.id, a.patch)
         rm.addActivity(a.extra)
@@ -337,18 +360,12 @@ export function Terminal({
 
   const placed = (id: string) => schedule.blocks.filter((b) => b.activityId === id).length
 
-  // The other ways to see the week, offered like any other function.
-  const views: { word: View; label: string }[] = [
-    { word: "today", label: "◫ Today" },
-    { word: "grid", label: "▦ Grid view" },
-    { word: "printout", label: "≡ Printout view" },
-  ]
-  const functionRow: { word: string; label: string; show: boolean; alert?: boolean; flag?: boolean }[] = [
+  // Editing the week lives here; the views and EXPORT are the panel's (and can still be typed).
+  const functionRow: { word: string; label: string; show: boolean; alert?: boolean }[] = [
     { word: "add", label: "Add", show: true },
     { word: "edit", label: "Edit", show: true },
     { word: "shuffle", label: "Shuffle", show: true },
-    { word: "export", label: "Export", show: activities.length > 0 },
-    ...views.filter((v) => v.word !== view).map((v) => ({ ...v, show: true, flag: !!tip && v.word === "today" })),
+    { word: "tear", label: "Tear off · new week", show: weekDue, alert: true },
     { word: "system", label: "System", show: true },
     { word: "help", label: "Help", show: true },
     { word: "clear", label: `Clear edits (${weekEdits})`, show: weekEdits > 0 },
@@ -426,8 +443,12 @@ export function Terminal({
               </button>
             )
           })}
-          <span className="ml-auto tabular-nums text-ink/60" title="Hours asked for / hours available this week">
-            {formatHours(rm.budget.requestedMinutes)} / {formatHours(rm.budget.allocatableMinutesPerWeek)}
+          <span className="ml-auto tabular-nums text-ink/60" title="Hours your activities ask for, out of the hours the week has for them">
+            <span className="opacity-60">Planned </span>
+            {formatHours(rm.budget.requestedMinutes)}
+            <span className="opacity-60"> of </span>
+            {formatHours(rm.budget.allocatableMinutesPerWeek)}
+            <span className="opacity-60"> available</span>
             {!rm.budget.feasible && <span className="text-alert [text-shadow:none]"> · over by {formatHours(rm.budget.overByMinutes)}</span>}
           </span>
         </div>
@@ -442,16 +463,12 @@ export function Terminal({
               key={f.word}
               type="button"
               onClick={() => runWord(f.word)}
-              // A few pulses to catch the eye, then it holds still.
-              style={f.flag ? { animationIterationCount: 6 } : undefined}
               className={`uppercase ${
                 lit === f.word || (current && functionOf({ kind: "open", screen: current.name }) === f.word)
                   ? "bg-ink text-paper [text-shadow:none]"
                   : f.alert
                     ? "text-alert [text-shadow:none] hover:bg-alert/20"
-                    : f.flag
-                      ? "blink text-ink hover:bg-ink/15"
-                      : "text-ink/75 hover:bg-ink/15"
+                    : "text-ink/75 hover:bg-ink/15"
               }`}
             >
               [{f.label}]
@@ -1007,12 +1024,16 @@ const MANUAL_FUNCTIONS: [word: string, what: string][] = [
   ["add", "Add an activity. ADD SURF starts from 1H 1×; or type the whole line."],
   ["edit", "Change activities, hours, meals or free time. EDIT GYM · EDIT MEALS."],
   ["shuffle", "Same rules, a different arrangement of the week."],
-  ["export", "Download the week as .ics, for any calendar app."],
-  ["today", "Print today's ticket: the day's lines, to keep in your pocket."],
-  ["grid", "Show the week as a calendar grid. PRINTOUT shows the list again."],
+  ["export", "Download the week as .ics, for any calendar app. Also on the panel."],
+  ["today", "Show just today, as a ticket to print and keep."],
+  ["list", "Show the week as the printed list, day after day."],
+  ["grid", "Show the week as a calendar grid."],
   ["system", "Save, load, 12H / 24H clock, week start, reset, restart."],
   ["fix", "Shown when a session doesn't fit: suggested fixes, one key each."],
   ["clear", "Shown after moving or locking blocks: undo those edits."],
+  ["tear", "End the week: file its sheet in the binder and clear its edits. Also: pull the sheet down. FEED prints a fresh sheet."],
+  ["shred", "Shred a filed week for good: SHRED 39. Or ✕ on its sheet in the binder, twice."],
+  ["binder", "The filing unit at the right edge (or bring the pointer there): torn-off weeks. Pull a sheet out to read it, Esc to put it back."],
 ]
 
 /** One section of the manual: a heading, then aligned lines. */
@@ -1046,12 +1067,13 @@ function ManualLine({ cmd, children }: { cmd: ReactNode; children: ReactNode }) 
  * shape of an activity line, and the keys. Functions are selectable and run.
  */
 function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
+  const words = useWords()
   const days = <span className="normal-case">MTSaSu</span>
   return (
     <div className="font-crt uppercase">
       <div className="flex flex-wrap items-baseline gap-x-6">
         <h2 className="text-[48px] leading-none tracking-[0.04em]">Help</h2>
-        <span className="text-[22px] tracking-[0.2em] text-ink/60">RM-01 · Command reference</span>
+        <span className="text-[22px] tracking-[0.2em] text-ink/60">{words.help.title}</span>
       </div>
       <p className="mt-2 text-[22px] tracking-[0.08em] text-ink/60">
         Type a function and press Enter. The first letters are enough: the rest is completed for you.
