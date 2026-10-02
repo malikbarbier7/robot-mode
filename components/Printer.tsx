@@ -1,5 +1,6 @@
 "use client"
 
+import { useWords } from "@/lib/words"
 import { Lamp } from "./Machine"
 
 const VENTS = 22
@@ -15,10 +16,11 @@ export function Printer({
   printing,
   onPrint,
   onFormFeed,
-  name = "RM-01 · Line printer",
-  spec = "9-pin · 80 col",
+  name,
+  spec,
   width = "max-w-[760px]",
   compact = false,
+  onTear,
 }: {
   printing: boolean
   /** The nameplate on the lid, and the spec plate beside it: which output unit this is. */
@@ -32,7 +34,10 @@ export function Printer({
   onFormFeed: () => void
   /** A lower casing, for output that needs the room (the plotter's full-week chart). */
   compact?: boolean
+  /** Tear the sheet off and file it; the key only shows when it can. */
+  onTear?: () => void
 }) {
+  const words = useWords()
   return (
     <div className={`relative z-10 mx-auto ${width} no-print`}>
       <Knob side="left" compact={compact} />
@@ -40,13 +45,13 @@ export function Printer({
 
       {/* Lid: nameplate, vents, spec plate. */}
       <div className={`flex items-center justify-between gap-4 border border-black bg-[#2a2620] px-5 ${compact ? "py-1" : "py-2"}`}>
-        <span className="label border border-paper/40 px-2 py-0.5 text-paper/85">{name}</span>
+        <span className="label border border-paper/40 px-2 py-0.5 text-paper/85">{name ?? words.printers.line.name}</span>
         <span aria-hidden className="hidden flex-1 justify-center gap-[3px] sm:flex">
           {Array.from({ length: VENTS }, (_, i) => (
             <span key={i} className="h-3 w-[3px] bg-black/80" />
           ))}
         </span>
-        <span className="label text-paper/45">{spec}</span>
+        <span className="label text-paper/45">{spec ?? words.printers.line.spec}</span>
       </div>
 
       {/* Body: the head's window, then the control panel. */}
@@ -86,6 +91,16 @@ export function Printer({
             <button type="button" onClick={onPrint} title="Send to a real printer" className="key key-dark px-3 py-1 text-[10px]">
               Print
             </button>
+            {onTear && (
+              <button
+                type="button"
+                onClick={onTear}
+                title="Tear this week off, file it in the binder and print a fresh sheet (or pull the paper down)"
+                className="key px-3 py-1 text-[10px]"
+              >
+                {words.binder.tearOff}
+              </button>
+            )}
           </div>
         </div>
       </div>

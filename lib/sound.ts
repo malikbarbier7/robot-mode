@@ -153,3 +153,42 @@ function stopHum() {
   hum?.stop()
   hum = null
 }
+
+/** Paper torn along its perforation: a quick run of rough, rising noise. */
+export function rip() {
+  const c = audio()
+  if (!c) return
+  const t = c.currentTime
+  const steps = 14
+  for (let i = 0; i < steps; i++) {
+    // Each perforation gives with its own small snap, faster and brighter towards the end.
+    const at = t + i * (0.028 - i * 0.0008)
+    burst(c, at, 0.03, 1400 + i * 180 + Math.random() * 400, 0.18 + Math.random() * 0.08, 0.8)
+  }
+}
+
+/** A heavy steel drawer running on its rails: a low rumble that slows to a stop, then a soft clunk. */
+export function drawer(closing = false) {
+  const c = audio()
+  if (!c) return
+  const t = c.currentTime
+  for (let i = 0; i < 9; i++) burst(c, t + i * 0.024, 0.05, (closing ? 260 : 320) - i * 14, 0.16, 2.5)
+  burst(c, t + 0.24, 0.06, closing ? 140 : 180, 0.4, 1.5)
+}
+
+/** A sheet drawn out of the binder: a dry slide of paper on paper. */
+export function rustle() {
+  const c = audio()
+  if (!c) return
+  const t = c.currentTime
+  for (let i = 0; i < 6; i++) burst(c, t + i * 0.035, 0.07, 3200 + Math.random() * 1600, 0.07, 0.6)
+}
+
+/** A sheet through the shredder: the motor's growl under a fast chatter of cutting. */
+export function shred() {
+  const c = audio()
+  if (!c) return
+  const t = c.currentTime
+  tone(c, t, 70, 0.7, 0.05, "sawtooth")
+  for (let i = 0; i < 26; i++) burst(c, t + 0.05 + i * 0.024, 0.02, 900 + Math.random() * 1800, 0.12, 1.2)
+}

@@ -21,11 +21,17 @@ export function Paper({
   onFed,
   onReplay,
   compact = false,
+  bare = false,
+  onTear,
+  tearing = false,
+  empty = false,
   children,
 }: {
   printer?: { name?: string; spec?: string; width?: string }
   /** Less room around it, and the printer's lower casing. */
   compact?: boolean
+  /** Paper alone, no printer: a sheet already out of the machine (the binder's). */
+  bare?: boolean
   /** The paper's width, as a Tailwind max-width class. */
   width: string
   className: string
@@ -33,27 +39,138 @@ export function Paper({
   onFed?: () => void
   /** Print it again (the printer's Form feed key). */
   onReplay?: () => void
+  /** Tear the sheet off: offered by pulling the paper down, and by the printer's Tear off key. */
+  onTear?: () => void
+  /** The sheet is being torn away: it drops out of view. */
+  tearing?: boolean
+  /** No paper out: the sheet has been torn off and nothing printed since. */
+  empty?: boolean
   children: ReactNode
 }) {
   const sheet = useRef<HTMLElement>(null)
   const { shift, finish } = usePaperFeed(sheet, feed, onFed)
   const printing = shift !== null
+  const { pull, handlers } = usePull(onTear && !printing && !tearing ? onTear : undefined)
 
   return (
     <div className={`px-4 sm:px-6 ${compact ? "py-3" : "py-10"}`}>
-      <Printer {...printer} compact={compact} printing={printing} onPrint={() => window.print()} onFormFeed={() => onReplay?.()} />
+      {!bare && (
+        <Printer
+          {...printer}
+          compact={compact}
+          printing={printing}
+          onPrint={() => window.print()}
+          onFormFeed={() => onReplay?.()}
+          onTear={onTear && !printing && !tearing && !empty ? onTear : undefined}
+        />
+      )}
+
+      {empty && (
+        // Only the slot: the week is in the binder until a fresh sheet is asked for.
+        <div className="label mx-auto mt-8 max-w-[480px] border-2 border-dashed border-ink/30 px-6 py-8 text-center leading-relaxed text-ink/55 no-print">
+          Sheet torn off and filed.
+          <br />
+          Press Form feed, or type FEED, for a fresh one.
+        </div>
+      )}
 
       {/* While printing, the paper still inside the printer (above the slot) is hidden. */}
       <div
-        className={`relative mx-auto ${width} ${printing ? "overflow-hidden" : ""}`}
-        onPointerDown={() => printing && finish()}
+        hidden={empty}
+        className={`relative mx-auto ${width} ${printing || tearing ? "overflow-hidden" : ""}`}
+        onPointerDown={(e) => {
+          if (printing) return finish()
+          handlers.onPointerDown(e)
+        }}
+        onPointerMove={handlers.onPointerMove}
+        onPointerUp={handlers.onPointerUp}
+        onPointerCancel={handlers.onPointerUp}
+        onClickCapture={handlers.onClickCapture}
       >
-        <article ref={sheet} style={printing ? { transform: `translateY(${shift}px)` } : undefined} className={className}>
+        {/* Pulled down: the perforation shows, and says what letting go will do. */}
+        {pull > 0 && (
+          <div className="label pointer-events-none absolute inset-x-0 -top-1 z-10 flex items-center gap-3 text-ink/70 no-print">
+            <span className="h-px flex-1 border-t-2 border-dashed border-ink/50" />
+            {pull >= TEAR_AT ? "Release to tear off and file" : "Pull to tear off ↓"}
+            <span className="h-px flex-1 border-t-2 border-dashed border-ink/50" />
+          </div>
+        )}
+        <article
+          ref={sheet}
+          style={
+            printing
+              ? { transform: `translateY(${shift}px)` }
+              : pull > 0
+                ? { transform: `translateY(${pull}px) rotate(${pull / 120}deg)` }
+                : undefined
+          }
+          // The spring back after a short pull eases; printing never does. Eased, the paper would
+          // glide down from where it waits far above the slot, and lag behind the print head.
+          className={`${className} ${tearing ? "tear-away" : ""} ${pull === 0 && !tearing && !printing ? "transition-transform duration-200" : ""}`}
+        >
           {children}
         </article>
       </div>
     </div>
   )
+}
+
+/** How far the paper must be pulled before letting go tears it off. */
+const TEAR_AT = 140
+
+/**
+ * The tear-off gesture: press on the paper and pull it down. It follows the
+ * pointer (with some resistance) and, let go past TEAR_AT, tears; short of
+ * that it springs back. A pull that moved never counts as a click on the block
+ * under it.
+ */
+function usePull(onTear?: () => void) {
+  const [pull, setPull] = useState(0)
+  // A pull that moved: the click it ends with must not reach the block under it.
+  const moved = useRef(false)
+
+  const handlers = {
+    onPointerDown: (e: React.PointerEvent) => {
+      if (!onTear || e.button !== 0) return
+      const start = e.clientY
+      let distance = 0
+      moved.current = false
+      // Followed on the window, so a quick pull that leaves the paper still counts.
+      const move = (ev: PointerEvent) => {
+        const dy = ev.clientY - start
+        if (!moved.current && dy < 8) return
+        if (!moved.current) {
+          // A pull, not a text selection: nothing on the page gets highlighted along the way.
+          document.body.style.userSelect = "none"
+          window.getSelection()?.removeAllRanges()
+        }
+        moved.current = true
+        // Paper resists: the further it goes, the harder it pulls.
+        distance = Math.max(0, Math.min(240, dy * 0.8))
+        setPull(distance)
+      }
+      const up = () => {
+        window.removeEventListener("pointermove", move)
+        window.removeEventListener("pointerup", up)
+        window.removeEventListener("pointercancel", up)
+        document.body.style.userSelect = ""
+        if (moved.current && distance >= TEAR_AT) onTear()
+        setPull(0)
+      }
+      window.addEventListener("pointermove", move)
+      window.addEventListener("pointerup", up)
+      window.addEventListener("pointercancel", up)
+    },
+    onPointerMove: () => {},
+    onPointerUp: () => {},
+    onClickCapture: (e: React.MouseEvent) => {
+      if (!moved.current) return
+      moved.current = false
+      e.preventDefault()
+      e.stopPropagation()
+    },
+  }
+  return { pull, handlers }
 }
 
 /** One printed line, roughly: the paper advances in steps of this, like a dot-matrix. */
@@ -89,8 +206,7 @@ export function usePaperFeed(
       return
     }
 
-    const height = el.offsetHeight
-    const duration = Math.min(Math.max((height / FEED_PX_PER_SEC) * 1000, 2000), 5000)
+    const duration = Math.min(Math.max((el.offsetHeight / FEED_PX_PER_SEC) * 1000, 2000), 5000)
     const start = performance.now()
     let frame = 0
     let settle = 0
@@ -110,6 +226,10 @@ export function usePaperFeed(
     window.addEventListener("keydown", finish)
 
     const tick = (now: number) => {
+      // Measured every frame, not once: a sheet can settle its size after printing starts
+      // (the grid fits its hours to the room), and a stale height would hold the paper
+      // inside the printer while the head is already moving.
+      const height = el.offsetHeight
       const progress = Math.min((now - start) / duration, 1)
       const fed = Math.min(Math.ceil((progress * height) / LINE_PX) * LINE_PX, height)
       // Each line the paper advances is a line the head has just struck.

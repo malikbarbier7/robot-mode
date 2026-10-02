@@ -1,5 +1,6 @@
 "use client"
 
+import { useWords } from "@/lib/words"
 import type { Schedule, Settings } from "@/lib/types"
 import { parseTime } from "@/lib/scheduler/time"
 import { formatClock, formatSpan } from "@/lib/locale"
@@ -37,6 +38,7 @@ export function Ticket({
   onReplay?: () => void
 }) {
   const { clock } = useDisplay()
+  const words = useWords()
   const moment = momentOf(now)
   const wake = parseTime(settings.wakeTime)
   let sleep = parseTime(settings.sleepTime)
@@ -49,7 +51,7 @@ export function Ticket({
 
   return (
     <Paper
-      printer={{ name: "RM-01 · Ticket", spec: "Thermal · 58 mm", width: "max-w-[460px]" }}
+      printer={{ ...words.printers.ticket, width: "max-w-[460px]" }}
       width="max-w-[360px]"
       className="ticket px-7 pb-8 pt-6 font-mono text-[12px] uppercase leading-relaxed"
       feed={feed}
@@ -57,8 +59,8 @@ export function Ticket({
       onReplay={onReplay}
     >
       <header className="text-center">
-        <div className="font-display text-[16px] font-semibold tracking-[0.3em]">Robot Mode</div>
-        <div className="tracking-[0.18em] text-ink/60">Daily ticket</div>
+        <div className="font-display text-[16px] font-semibold tracking-[0.3em]">{words.name}</div>
+        <div className="tracking-[0.18em] text-ink/60">{words.sheet.ticket}</div>
         <div className="mt-1 tracking-[0.12em]">
           {DAYS[moment.day]} {String(now.getDate()).padStart(2, "0")} {MONTHS[now.getMonth()]} {now.getFullYear()}
         </div>
@@ -111,7 +113,7 @@ export function Ticket({
         <span className="tabular-nums">{formatSpan(planned)}</span>
       </div>
       <Cut />
-      <div className="text-center text-[11px] tracking-[0.16em] text-ink/55">Wake · Execute · Sleep · Repeat</div>
+      <div className="text-center text-[11px] tracking-[0.16em] text-ink/55">{words.sheet.motto}</div>
     </Paper>
   )
 }

@@ -28,3 +28,9 @@ export function isoWeek(date: Date): { week: number; year: number } {
   const yearStart = Date.UTC(d.getUTCFullYear(), 0, 1)
   return { week: Math.ceil(((d.getTime() - yearStart) / 86_400_000 + 1) / 7), year: d.getUTCFullYear() }
 }
+
+/** "2026-W40": which week a sheet belongs to. */
+export function weekKey(date: Date): string {
+  const { week, year } = isoWeek(date)
+  return `${year}-W${String(week).padStart(2, "0")}`
+}

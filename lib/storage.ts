@@ -3,9 +3,28 @@ import type { Clock, WeekStart } from "./locale"
 import type { PlacedBlock, Settings } from "./types"
 
 /** How times and weeks are shown. A missing clock follows the browser's locale. */
-export type Display = { clock?: Clock; weekStart?: WeekStart; sound?: boolean }
+export type Display = {
+  clock?: Clock
+  weekStart?: WeekStart
+  sound?: boolean
+}
 
 const KEY = "robot-mode:v1"
+
+/** A week torn off and filed: the sheet as it was, to read or print again. */
+export type ArchivedWeek = {
+  id: string
+  week: number
+  year: number
+  /** When it was torn off (ms since epoch). */
+  filedAt: number
+  wakeTime: string
+  sleepTime: string
+  /** The sessions as they stood, moves and removals included. */
+  blocks: PlacedBlock[]
+  /** The document that was torn off: the printed list or the plotted grid. Older sheets were grids. */
+  format?: "list" | "grid"
+}
 
 export type SavedState = {
   version: 1
@@ -19,6 +38,10 @@ export type SavedState = {
   /** True once the user has pressed Generate. Before that, the list is the app. */
   generated?: boolean
   display?: Display
+  /** The week the current sheet belongs to ("2026-W40"); a later date means a new week is due. */
+  currentWeek?: string
+  /** Weeks torn off, newest first. */
+  archive?: ArchivedWeek[]
 }
 
 export const emptySettings: Settings = {
@@ -59,6 +82,8 @@ export function load(): SavedState {
       templateId: parsed.templateId,
       generated: parsed.generated ?? false,
       display: parsed.display,
+      currentWeek: parsed.currentWeek,
+      archive: Array.isArray(parsed.archive) ? parsed.archive : [],
     }
   } catch {
     return initialState
@@ -95,6 +120,8 @@ export function fromJson(text: string): SavedState | null {
       templateId: parsed.templateId,
       generated: parsed.generated ?? false,
       display: parsed.display,
+      currentWeek: parsed.currentWeek,
+      archive: Array.isArray(parsed.archive) ? parsed.archive : [],
     }
   } catch {
     return null
