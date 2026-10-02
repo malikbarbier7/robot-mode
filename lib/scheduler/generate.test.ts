@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { PlacedBlock, Settings } from "@/lib/types"
 import { generate } from "./generate"
 import { computeBudget } from "./budget"
+import { defaultMeals } from "@/lib/meals"
 import { SLOT_MINUTES, dayWindows, parseTime, wakingSlotsPerDay } from "./time"
 import {
   comfortableWeek,
@@ -104,7 +105,7 @@ describe("comfortable week", () => {
     const packed = generate({
       ...comfortableWeek,
       meals: [],
-      activities: [{ id: "work", name: "Work", durationMinutes: 960, sessionsPerWeek: 7, priority: "medium" }],
+      activities: [{ id: "work", name: "Work", durationMinutes: 960, sessionsPerWeek: 7 }],
     })
     expect(packed.unplaced).toEqual([])
   })
@@ -165,18 +166,16 @@ describe("impossible week", () => {
     expect(schedule.budget.overByMinutes).toBeGreaterThan(0)
   })
 
-  it("names the lowest-priority activity as the thing to cut", () => {
-    expect(schedule.budget.suggestion?.activityId).toBe("extra")
+  it("names the biggest consumer as the thing to cut", () => {
+    // Every activity people add has the same weight, so it comes down to size.
+    expect(schedule.budget.suggestion?.activityId).toBe("work")
   })
 
-  it("still schedules every critical session", () => {
-    expect(placedCount(schedule.blocks, "work")).toBe(14)
-  })
-
-  it("sacrifices low priority before high priority", () => {
-    const missed = new Map(schedule.unplaced.map((u) => [u.activityId, u.sessionsRequested - u.sessionsPlaced]))
-    expect(missed.get("extra") ?? 0).toBeGreaterThan(0)
-    expect(missed.get("language") ?? 0).toBeLessThan(missed.get("extra")!)
+  it("never gives up a meal, however full the week", () => {
+    const withMeals = generate({ ...impossibleWeek, meals: defaultMeals.map((m) => ({ ...m, enabled: true })) })
+    for (const meal of ["breakfast", "lunch", "dinner"]) {
+      expect(withMeals.unplaced.find((u) => u.activityId === `meal-${meal}`), meal).toBeUndefined()
+    }
   })
 
   it("explains what could not be placed", () => {
@@ -269,7 +268,7 @@ describe("budget", () => {
   it("counts buffers as consumed time", () => {
     const withBuffer = computeBudget({
       ...comfortableWeek,
-      activities: [{ id: "x", name: "X", durationMinutes: 60, sessionsPerWeek: 1, priority: "medium", bufferMinutes: 15 }],
+      activities: [{ id: "x", name: "X", durationMinutes: 60, sessionsPerWeek: 1, bufferMinutes: 15 }],
     })
     expect(withBuffer.requestedMinutes).toBe(90)
   })

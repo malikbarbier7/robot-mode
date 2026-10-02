@@ -4,9 +4,9 @@ import type { PlacedBlock } from "./types"
 
 const block = (id: string, start: number, end: number): PlacedBlock => ({
   id,
+  priority: "medium",
   activityId: id,
   name: id,
-  priority: "medium",
   day: 0,
   startMinute: start,
   endMinute: end,

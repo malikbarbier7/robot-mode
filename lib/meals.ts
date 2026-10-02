@@ -1,4 +1,4 @@
-import type { Activity, Meal, Settings } from "./types"
+import type { Priority, Activity, Meal, Settings } from "./types"
 
 /**
  * The meal slots, in the order they happen. All off to begin with: reserving
@@ -48,7 +48,7 @@ export function addMeal(meals: Meal[]): Meal[] {
  * Enabled meals become critical, fixed-time activities on every day, so the
  * scheduler treats them as locked and works around them.
  */
-export function mealActivities(meals: Meal[] | undefined): Activity[] {
+export function mealActivities(meals: Meal[] | undefined): ScheduledActivity[] {
   return (meals ?? [])
     .filter((meal) => meal.enabled && meal.durationMinutes > 0)
     .map((meal) => ({
@@ -61,10 +61,19 @@ export function mealActivities(meals: Meal[] | undefined): Activity[] {
     }))
 }
 
+/** An activity as the scheduler sees it: always with a priority. */
+export type ScheduledActivity = Activity & { priority: Priority }
+
 /**
- * Everything the scheduler has to fit. Meals come first so they are placed
- * before anything flexible competes for the same hours.
+ * Everything the scheduler places: the meals, which are critical (placed
+ * first, never given up), and the activities people added, which all share
+ * one level. Priority is the engine's own business, never asked for. Meals
+ * come first so they are placed before anything flexible competes for the
+ * same hours.
  */
-export function allActivities(settings: Settings): Activity[] {
-  return [...mealActivities(mealsOf(settings)), ...settings.activities]
+export function allActivities(settings: Settings): ScheduledActivity[] {
+  return [
+    ...mealActivities(mealsOf(settings)),
+    ...settings.activities.map((a) => ({ ...a, priority: "medium" as const })),
+  ]
 }

@@ -17,7 +17,7 @@ describe("preferred windows", () => {
     const s = generate({
       ...base,
       activities: [
-        { id: "gym", name: "Gym", durationMinutes: 75, sessionsPerWeek: 3, priority: "high", window: { start: "06:00", end: "12:00" } },
+        { id: "gym", name: "Gym", durationMinutes: 75, sessionsPerWeek: 3, window: { start: "06:00", end: "12:00" } },
       ],
     })
     expect(s.unplaced).toEqual([])
@@ -33,7 +33,7 @@ describe("preferred windows", () => {
       ...base,
       sleepTime: "02:00",
       activities: [
-        { id: "read", name: "Reading", durationMinutes: 60, sessionsPerWeek: 3, priority: "medium", window: { start: "22:00", end: "01:00" } },
+        { id: "read", name: "Reading", durationMinutes: 60, sessionsPerWeek: 3, window: { start: "22:00", end: "01:00" } },
       ],
     })
     expect(s.unplaced).toEqual([])
@@ -50,7 +50,7 @@ describe("preferred windows", () => {
       wakeTime: "10:00",
       sleepTime: "02:00",
       activities: [
-        { id: "late", name: "Late shift", durationMinutes: 60, sessionsPerWeek: 3, priority: "medium", window: { start: "00:30", end: "02:00" } },
+        { id: "late", name: "Late shift", durationMinutes: 60, sessionsPerWeek: 3, window: { start: "00:30", end: "02:00" } },
       ],
     })
     expect(s.unplaced).toEqual([])
@@ -64,7 +64,7 @@ describe("preferred windows", () => {
     const s = generate({
       ...base,
       activities: [
-        { id: "x", name: "Long thing", durationMinutes: 240, sessionsPerWeek: 1, priority: "medium", window: { start: "08:00", end: "09:00" } },
+        { id: "x", name: "Long thing", durationMinutes: 240, sessionsPerWeek: 1, window: { start: "08:00", end: "09:00" } },
       ],
     })
     expect(s.blocks[0].reason).toContain("No room")

@@ -1,4 +1,4 @@
-import type { Activity, Day, Priority } from "./types"
+import type { Activity, Day } from "./types"
 
 /**
  * What the add-activity stepper collects. Every field is optional: each step can
@@ -9,7 +9,6 @@ export type Draft = {
   durationMinutes: number
   sessionsPerWeek: number
   allowedDays?: Day[]
-  priority?: Priority
   bufferMinutes?: number
   window?: { start: string; end: string }
   fixedAt?: { start: string }
@@ -19,7 +18,7 @@ export type Draft = {
  * A preferred window and a fixed time are the same question answered two ways,
  * so they share one step rather than making you walk past the one you don't want.
  */
-export const STEPS = ["Days", "Priority", "Travel buffer", "When"] as const
+export const STEPS = ["Days", "Travel buffer", "When"] as const
 export type Step = (typeof STEPS)[number]
 
 /** Ready-made windows, since "mornings" is how people actually think about this. */
@@ -47,7 +46,6 @@ export function draftToActivity(draft: Draft): Omit<Activity, "id"> {
     name: draft.name.trim(),
     durationMinutes: draft.durationMinutes,
     sessionsPerWeek: draft.sessionsPerWeek,
-    priority: draft.priority ?? "medium",
   }
 
   // All seven days is the same as no restriction, so don't store it as one.

@@ -22,7 +22,6 @@ const gymVsBreakfast: Settings = {
       name: "Gym",
       durationMinutes: 75,
       sessionsPerWeek: 4,
-      priority: "high",
       bufferMinutes: 15,
       fixedAt: { start: "08:00" },
     },
@@ -102,7 +101,7 @@ describe("a fixed time outside waking hours", () => {
   const settings: Settings = {
     ...base,
     activities: [
-      { id: "run", name: "Dawn run", durationMinutes: 45, sessionsPerWeek: 3, priority: "high", fixedAt: { start: "05:00" } },
+      { id: "run", name: "Dawn run", durationMinutes: 45, sessionsPerWeek: 3, fixedAt: { start: "05:00" } },
     ],
   }
 
@@ -119,7 +118,7 @@ describe("a daily pin an hour before waking", () => {
     ...base,
     wakeTime: "07:00",
     meals: defaultMeals.map((m) => ({ ...m, enabled: true })),
-    activities: [{ id: "surf", name: "Surf", durationMinutes, sessionsPerWeek: 7, priority: "medium", fixedAt: { start: "06:00" } }],
+    activities: [{ id: "surf", name: "Surf", durationMinutes, sessionsPerWeek: 7, fixedAt: { start: "06:00" } }],
   })
 
   it("offers to wake up exactly early enough, not just 15 or 30 minutes", () => {
@@ -144,8 +143,8 @@ describe("when nothing small can help", () => {
     const impossible: Settings = {
       ...base,
       activities: [
-        { id: "a", name: "A", durationMinutes: 480, sessionsPerWeek: 14, priority: "critical" },
-        { id: "b", name: "B", durationMinutes: 480, sessionsPerWeek: 14, priority: "high" },
+        { id: "a", name: "A", durationMinutes: 480, sessionsPerWeek: 14 },
+        { id: "b", name: "B", durationMinutes: 480, sessionsPerWeek: 14 },
       ],
     }
     expect(suggestFixes(impossible, conflictIn(impossible, "b"))).toEqual([])

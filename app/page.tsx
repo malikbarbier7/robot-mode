@@ -10,7 +10,6 @@ import { Menu, MenuItem } from "@/components/Menu"
 import { DisplayProvider } from "@/components/Display"
 import { Printout } from "@/components/Printout"
 import { Setup } from "@/components/Setup"
-import { Templates } from "@/components/Templates"
 import { WeekGrid } from "@/components/WeekGrid"
 import { Ticket } from "@/components/Ticket"
 import { Button } from "@/components/ui"
@@ -23,7 +22,7 @@ import { beep, chime, rip, rustle, shred } from "@/lib/sound"
 import { weekKey } from "@/lib/printout"
 import { BinderDrawer, useArmed } from "@/components/BinderDrawer"
 
-type View = "boot" | "setup" | "print" | "week" | "today" | "templates" | "generating"
+type View = "boot" | "setup" | "print" | "week" | "today" | "generating"
 /** The three ways the week comes out of the machine, as the terminal names them. */
 type Output = "printout" | "grid" | "today"
 const OUTPUT_VIEW: Record<Output, View> = { printout: "print", grid: "week", today: "today" }
@@ -172,7 +171,7 @@ export default function Page() {
   }
 
   const pickTemplate = (template: Parameters<typeof rm.applyTemplate>[0]) => {
-    if (!empty && !window.confirm(`Replace your list with "${template.name}"?`)) return
+    // Replacing a list already entered is confirmed on the terminal, before this.
     rm.applyTemplate(template)
     setSelectedId(null)
     // A template with activities goes straight to the reveal; a blank one has
@@ -411,10 +410,8 @@ export default function Page() {
                 onUpdateActivity={rm.updateActivity}
                 onRemoveActivity={rm.removeActivity}
                 onDone={generate}
-                onOpenTemplates={() => setView("templates")}
+                onPickTemplate={pickTemplate}
               />
-            ) : view === "templates" ? (
-              <Templates onPick={pickTemplate} onCancel={() => setView(home)} />
             ) : view === "print" && generated ? (
               <Printout
                 settings={rm.state.settings}

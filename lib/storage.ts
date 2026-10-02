@@ -61,13 +61,19 @@ export const initialState: SavedState = {
 }
 
 /**
- * Saved settings, filled in with defaults. Saves from before free time was
- * dropped carry a `minFreeMinutesPerDay`; it means nothing now, so it is left behind.
+ * Saved settings, filled in with defaults. Older saves carry a
+ * `minFreeMinutesPerDay` and per-activity priorities; neither means anything
+ * now, so both are left behind.
  */
 function readSettings(saved: Partial<Settings> & { minFreeMinutesPerDay?: unknown }): Settings {
   const { minFreeMinutesPerDay: _dropped, ...rest } = saved
   void _dropped
-  return { ...emptySettings, ...rest, meals: rest.meals ?? defaultMeals }
+  // Priorities were once chosen per activity; now every activity weighs the same, so old ones go.
+  const activities = (rest.activities ?? []).map(({ priority: _priority, ...activity }) => {
+    void _priority
+    return activity
+  })
+  return { ...emptySettings, ...rest, activities, meals: rest.meals ?? defaultMeals }
 }
 
 /** Never throws: a stale or corrupt entry falls back to a clean slate. */

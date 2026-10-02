@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import type { Activity, Priority } from "@/lib/types"
+import type { Activity } from "@/lib/types"
 import {
   STEPS,
   WINDOW_PRESETS,
@@ -22,7 +22,6 @@ const PRIMARY =
 const SECONDARY =
   "label min-w-[64px] border border-ink/40 px-3 py-1 text-ink/60 hover:bg-ink hover:text-paper disabled:opacity-30"
 const DAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"] as const
-const PRIORITIES: Priority[] = ["critical", "high", "medium", "low"]
 const BUFFERS = [15, 30, 45, 60]
 
 /**
@@ -241,27 +240,6 @@ export function AddActivityFlow({
 
           {step === 1 && (
             <>
-              <Skip active={!draft.priority} onClick={() => patch({ priority: undefined })} />
-              <div className="flex gap-1">
-                {PRIORITIES.map((p) => (
-                  <button
-                    data-nav
-                    key={p}
-                    type="button"
-                    onClick={() => patch({ priority: p })}
-                    className={`${CHIP} border-ink/40 ${
-                      draft.priority === p ? "bg-ink text-paper" : "text-ink/55"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
               <Skip
                 active={!draft.bufferMinutes}
                 onClick={() => patch({ bufferMinutes: undefined })}
@@ -285,7 +263,7 @@ export function AddActivityFlow({
             </>
           )}
 
-          {step === 3 && (
+          {step === 2 && (
             <>
               <Skip
                 active={!draft.window && !draft.fixedAt}
@@ -383,7 +361,7 @@ export function AddActivityFlow({
             type="button"
             onClick={next}
             disabled={!valid}
-            title="Set days, priority, travel buffer and preferred time"
+            title="Set days, travel buffer and preferred time"
             className={PRIMARY}
           >
             Next

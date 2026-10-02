@@ -8,7 +8,7 @@ import type {
   Settings,
   Unplaced,
 } from "@/lib/types"
-import { allActivities } from "@/lib/meals"
+import { allActivities, type ScheduledActivity } from "@/lib/meals"
 import { computeBudget } from "./budget"
 import { makeRng, shuffled } from "./rng"
 import {
@@ -77,7 +77,7 @@ export type GenerateOptions = {
 
 type SessionSpec = {
   key: string
-  activity: Activity
+  activity: ScheduledActivity
   index: number
   slots: number
   bufferSlots: number
@@ -194,7 +194,7 @@ function buildDemand(activities: Activity[], windows: DayWindow[]): Float64Array
   return demand
 }
 
-function expandSessions(activities: Activity[]): SessionSpec[] {
+function expandSessions(activities: ScheduledActivity[]): SessionSpec[] {
   const out: SessionSpec[] = []
   for (const activity of activities) {
     if (activity.durationMinutes <= 0 || activity.sessionsPerWeek <= 0) continue
