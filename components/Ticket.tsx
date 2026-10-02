@@ -15,19 +15,18 @@ const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "
 /**
  * Today, as a receipt from the machine's ticket printer: the day's lines,
  * made to be printed and pocketed, so nothing on it depends on the time it is
- * read at. Blocks can be picked, as on the other views.
+ * read at.
  */
 export function Ticket({
   settings,
   schedule,
   now,
-  selectedId,
-  onSelect,
   feed = false,
   onFed,
   onTear,
   tearing = false,
   empty = false,
+  never = false,
   onFormFeed,
   filed = false,
 }: {
@@ -35,8 +34,6 @@ export function Ticket({
   schedule: Schedule
   /** Which day the ticket is for, and its date. */
   now: Date
-  selectedId: string | null
-  onSelect: (id: string | null) => void
   feed?: boolean
   onFed?: () => void
   /** Tear the ticket off and file it in the binder (pulled down, as the other sheets are). */
@@ -44,7 +41,9 @@ export function Ticket({
   tearing?: boolean
   /** Torn off and not printed again yet: the ticket printer stands empty. */
   empty?: boolean
-  /** The empty slot's FORM FEED key: a fresh sheet. */
+  /** Nothing printed yet: the week is still a draft on the screen. */
+  never?: boolean
+  /** The empty slot's PRINT key. */
   onFormFeed?: () => void
   /** A ticket from the binder: no printer above it. */
   filed?: boolean
@@ -71,6 +70,7 @@ export function Ticket({
       onTear={onTear}
       tearing={tearing}
       empty={empty}
+      never={never}
       onFormFeed={onFormFeed}
       bare={filed}
     >
@@ -95,25 +95,14 @@ export function Ticket({
             )
           }
           const { block } = row
-          const picked = block.id === selectedId
           return (
-            <li key={block.id}>
-              <button
-                type="button"
-                onClick={() => onSelect(picked ? null : block.id)}
-                className={`-mx-2 flex w-[calc(100%+1rem)] items-baseline gap-2 px-2 py-0.5 text-left uppercase ${
-                  picked ? "bg-ink text-paper" : "hover:bg-ink/[0.07]"
-                }`}
-              >
-                {time}
-                <span className="min-w-0 flex-1 truncate">
-                  {block.name}
-                  {block.locked && " ■"}
-                </span>
-                <span className="tabular-nums">
-                  {formatSpan(block.endMinute - block.startMinute)}
-                </span>
-              </button>
+            <li key={block.id} className="flex items-baseline gap-2 py-0.5">
+              {time}
+              <span className="min-w-0 flex-1 truncate">
+                {block.name}
+                {block.locked && " ■"}
+              </span>
+              <span className="tabular-nums">{formatSpan(block.endMinute - block.startMinute)}</span>
             </li>
           )
         })}

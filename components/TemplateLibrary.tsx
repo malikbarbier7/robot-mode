@@ -93,13 +93,12 @@ export function TemplateLibrary({
 
   return (
     <div ref={root} className="flex flex-1 flex-col font-crt uppercase">
-      <div className="text-[28px] tracking-[0.2em] text-ink/60">Template library</div>
-      <h2 className="mt-1 text-[44px] leading-none tracking-[0.04em] sm:text-[72px]">Start from a week</h2>
-      <p className="mt-3 text-[24px] tracking-[0.1em] text-ink/60">
-        A ready-made week to start from. Everything in it can be changed after.
-      </p>
+      <div className="flex flex-wrap items-baseline gap-x-6">
+        <h2 className="text-[40px] leading-none tracking-[0.04em]">Start from a week</h2>
+        <span className="text-[22px] tracking-[0.1em] text-ink/60">Everything in it can be changed after.</span>
+      </div>
 
-      <div className="mb-8 mt-8 grid gap-8 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <div className="mb-1 mt-2 grid gap-6 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         {/* The drawer of weeks. */}
         <ol className="border-t border-ink/30">
           {templates.map((t) => {
@@ -114,13 +113,13 @@ export function TemplateLibrary({
                   // Pointing is selecting, so the preview and the Load key always agree with the cursor.
                   onMouseEnter={(e) => e.currentTarget.focus()}
                   onClick={() => choose(t)}
-                  className={`flex w-full items-baseline gap-4 border-b border-ink/20 py-2 text-left text-[30px] leading-tight uppercase hover:bg-ink/[0.07] ${
+                  className={`flex w-full items-baseline gap-4 border-b border-ink/20 py-0.5 text-left text-[24px] leading-tight uppercase hover:bg-ink/[0.07] ${
                     t.id === shown.id ? "text-ink" : "text-ink/70"
                   }`}
                 >
                   <span className="w-6 text-ink/60">{t.id === shown.id ? ">" : ""}</span>
                   <span className="min-w-0 flex-1 truncate">{t.name}</span>
-                  <span className="shrink-0 text-[22px] tabular-nums text-ink/55">
+                  <span className="shrink-0 text-[20px] tabular-nums text-ink/55">
                     {t.settings.activities.length ? `${t.settings.activities.length} · ${formatHours(hours)}` : "Blank"}
                   </span>
                 </button>
@@ -130,19 +129,19 @@ export function TemplateLibrary({
         </ol>
 
         {/* What is inside the highlighted one, written as the prompt would read it. */}
-        <div className="border-2 border-ink/40 px-5 py-4">
+        <div className="border-2 border-ink/40 px-4 py-2">
           <div className="flex items-baseline justify-between gap-4">
-            <span className="text-[34px] leading-none">{shown.name}</span>
+            <span className="text-[30px] leading-none">{shown.name}</span>
             <span className="text-[22px] tabular-nums text-ink/55">
               {formatClock(parseTime(shown.settings.wakeTime), clock)} → {formatClock(parseTime(shown.settings.sleepTime), clock)}
             </span>
           </div>
-          <p className="mt-2 text-[22px] normal-case tracking-[0.04em] text-ink/65">{shown.blurb}</p>
-          <div className="mt-4 border-t border-dashed border-ink/30 pt-3">
+          <p className="mt-1 truncate text-[20px] normal-case leading-tight tracking-[0.04em] text-ink/65" title={shown.blurb}>{shown.blurb}</p>
+          <div className="mt-1.5 border-t border-dashed border-ink/30 pt-1.5">
             {activities.length === 0 ? (
               <p className="text-[24px] text-ink/55">No activities: you write the week yourself.</p>
             ) : (
-              <ul className="space-y-1 text-[22px] leading-snug">
+              <ul className="text-[20px] leading-tight">
                 {activities.map((a) => (
                   <li key={a.id} className="truncate">
                     <span className="text-ink/45">&gt; </span>
@@ -153,19 +152,20 @@ export function TemplateLibrary({
             )}
           </div>
           {meals.length > 0 && (
-            <div className="mt-3 border-t border-dashed border-ink/30 pt-3 text-[22px] text-ink/60">
+            <div className="mt-2 truncate border-t border-dashed border-ink/30 pt-2 text-[20px] leading-tight text-ink/60">
               Meals · {meals.map((m) => `${m.name} ${formatClock(parseTime(m.start), clock)}`).join(" · ")}
             </div>
           )}
         </div>
       </div>
 
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-4 border-t border-ink/30 pt-5">
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-4 border-t border-ink/30 pt-2">
         <Command keyName="Esc" onClick={onCancel} secondary>
           ◀ Back to my list
         </Command>
-        <Command keyName="Enter" onClick={() => choose(shown)} primary>
-          Load {shown.name} ▶
+        {/* Lit like the way forward, at the size of a line, so the library fits the screen. */}
+        <Command keyName="Enter" onClick={() => choose(shown)}>
+          <span className="bg-ink px-2 text-paper [text-shadow:none]">Load {shown.name} ▶</span>
         </Command>
       </div>
     </div>

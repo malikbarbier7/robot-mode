@@ -1,4 +1,5 @@
-import type { PlacedBlock } from "./types"
+import type { PlacedBlock, Settings } from "./types"
+import type { PrintedWeek } from "./storage"
 
 export type PrintRow =
   | { kind: "wake" | "sleep"; minute: number }
@@ -39,3 +40,14 @@ export function weekKey(date: Date): string {
   const { week, year } = isoWeek(date)
   return `${year}-W${String(week).padStart(2, "0")}`
 }
+
+/** Whether the paper already shows this week: the same hours, and every session in the same place. */
+export function samePrint(printed: PrintedWeek | null | undefined, settings: Pick<Settings, "wakeTime" | "sleepTime">, blocks: PlacedBlock[]): boolean {
+  if (!printed) return false
+  if (printed.wakeTime !== settings.wakeTime || printed.sleepTime !== settings.sleepTime) return false
+  if (printed.blocks.length !== blocks.length) return false
+  const key = (b: PlacedBlock) => `${b.id}|${b.name}|${b.day}|${b.startMinute}|${b.endMinute}|${b.locked}`
+  const onPaper = new Set(printed.blocks.map(key))
+  return blocks.every((b) => onPaper.has(key(b)))
+}
+export type { PlacedBlock }

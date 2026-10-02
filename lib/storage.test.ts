@@ -33,4 +33,21 @@ describe("backup", () => {
     // A save from when one tear-off emptied both printers still has both empty.
     expect(fromJson(JSON.stringify({ ...initialState, printerEmpty: true }))).toMatchObject({ emptied: ["list", "grid"] })
   })
+
+  it("keeps the week on paper apart from the draft", () => {
+    const printed = { at: 1, wakeTime: "07:00", sleepTime: "23:00", blocks: [] }
+    expect(fromJson(toJson({ ...initialState, printed }))?.printed).toEqual(printed)
+    // Drafted, never printed: stays null, so the old week isn't printed for you.
+    expect(fromJson(toJson({ ...initialState, printed: null }))?.printed).toBeNull()
+    // Nothing generated: nothing to print.
+    expect(fromJson(toJson(initialState))?.printed).toBeUndefined()
+    expect(fromJson(JSON.stringify({ ...initialState, printed: { blocks: "no" } }))?.printed).toBeUndefined()
+  })
+
+  it("prints the week of a save from before the paper was a copy", () => {
+    const settings = templates.find((t) => t.id === "student")!.settings
+    const old = fromJson(JSON.stringify({ ...initialState, settings, generated: true }))
+    expect(old?.printed?.blocks.length).toBeGreaterThan(0)
+    expect(old?.printed).toMatchObject({ wakeTime: settings.wakeTime, sleepTime: settings.sleepTime })
+  })
 })

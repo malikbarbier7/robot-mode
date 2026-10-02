@@ -347,6 +347,29 @@
   }
 }
 
+/* A sheet that can be torn off, at rest: now and then it gives a short tug down the way to pull. */
+@keyframes tug {
+  0%,
+  86%,
+  100% {
+    transform: translateY(0);
+  }
+  90% {
+    transform: translateY(10px) rotate(0.25deg);
+  }
+  94% {
+    transform: translateY(2px);
+  }
+}
+
+@utility tug {
+  animation: tug 4.5s ease-in-out 1.5s infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
 /* The print head shuttling across the line it is printing, in steps. */
 @keyframes carriage {
   from {
@@ -363,6 +386,41 @@
 
 @media (prefers-reduced-motion: reduce) {
   .carriage {
+    animation: none;
+  }
+}
+
+/* On the screen: a session the last edit moved flashes twice, so the re-solve can be followed. */
+@keyframes changed {
+  0%,
+  50% {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+}
+
+.changed {
+  animation: changed 0.45s steps(1) 2;
+}
+
+/* The reveal: each session is traced onto the screen top to bottom, a day's column after another. */
+@keyframes draw-in {
+  from {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+  }
+  1% {
+    opacity: 1;
+  }
+}
+
+.draw-in {
+  animation: draw-in 0.22s steps(4) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .changed,
+  .draw-in {
     animation: none;
   }
 }

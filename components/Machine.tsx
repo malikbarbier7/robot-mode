@@ -15,11 +15,14 @@ export function Lamp({ on = true, blink = false }: { on?: boolean; blink?: boole
 }
 
 /**
- * The height every screen's content fills, so the machine doesn't change size
- * between screens: the window minus the header, the captions and legend under
- * the screen and the footer, and never less than a usable screen.
+ * The height of every screen's content, held exactly so the machine never
+ * changes size between screens, from boot to the draft: the window minus the
+ * header, the captions and legend under the screen, and the keyboard unit
+ * (room is kept for it before it arrives), never less than the tallest screen
+ * needs. What is longer (HELP, a long list) scrolls inside the screen. On a
+ * phone the screen grows with what it shows, and the page scrolls.
  */
-export const SCREEN_HEIGHT = "min-h-[max(420px,calc(100vh-310px))]"
+export const SCREEN_HEIGHT = "sm:h-[max(420px,calc(100dvh-480px))] max-sm:min-h-[420px]"
 
 /**
  * One of the machine's screens, centred on the panel, with a caption printed
@@ -173,7 +176,29 @@ function move(root: HTMLElement, from: HTMLElement | null, by: 1 | -1, forEnter 
     const after = items.filter((el) => from.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)
     next = by === 1 ? after[0] : items.filter((el) => !after.includes(el)).at(-1)
   } else next = by === 1 ? items[0] : items.at(-1)
-  next?.focus()
+  if (next) show(next, items)
+}
+
+/**
+ * Focus an item and bring it into view. A screen taller than its window
+ * scrolls inside it; the first item takes it back to the very top (so the
+ * heading shows again) and the last to the very bottom.
+ */
+function show(item: HTMLElement, items: HTMLElement[]) {
+  item.focus({ preventScroll: true })
+  const scroller = scrollerOf(item)
+  if (scroller && item === items[0]) scroller.scrollTo({ top: 0 })
+  else if (scroller && item === items.at(-1)) scroller.scrollTo({ top: scroller.scrollHeight })
+  else item.scrollIntoView({ block: "nearest" })
+}
+
+/** The nearest ancestor that scrolls its content. */
+function scrollerOf(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const { overflowY } = getComputedStyle(p)
+    if ((overflowY === "auto" || overflowY === "scroll") && p.scrollHeight > p.clientHeight) return p
+  }
+  return null
 }
 
 /**
@@ -194,7 +219,8 @@ function moveVertical(root: HTMLElement, from: HTMLElement | null, by: 1 | -1) {
   const lineY = by === 1 ? Math.min(...beyond.map(({ r }) => r.top)) : Math.max(...beyond.map(({ r }) => r.bottom))
   const line = beyond.filter(({ r }) => (by === 1 ? r.top - lineY < 12 : lineY - r.bottom < 12))
   const distance = (r: DOMRect) => Math.abs(r.left + r.width / 2 - midX)
-  line.sort((a, b) => distance(a.r) - distance(b.r))[0]?.el.focus()
+  const next = line.sort((a, b) => distance(a.r) - distance(b.r))[0]?.el
+  if (next) show(next, items)
 }
 
 /**

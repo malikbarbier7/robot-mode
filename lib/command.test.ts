@@ -283,7 +283,13 @@ describe("interpret", () => {
     expect(interpret("tear", ctx)?.kind).toBe("tear")
     expect(interpret("new week", ctx)?.kind).toBe("tear")
     expect(interpret("print", ctx)?.kind).toBe("print")
-    expect(interpret("feed", ctx)?.kind).toBe("feed")
+    // FEED was the empty printer's key; printing the screen is what fills it now.
+    expect(interpret("feed", ctx)?.kind).toBe("print")
+    expect(interpret("backup", ctx)?.kind).toBe("backup")
+    expect(interpret("screen", ctx)).toMatchObject({ kind: "view", view: "screen" })
+    expect(complete("p", [gym])).toBe("print")
+    expect(interpret("screen time 1h", ctx)).toMatchObject({ kind: "add", activity: { name: "screen time" } })
+    expect(interpret("draft essay 2h", ctx)).toMatchObject({ kind: "add", activity: { name: "draft essay" } })
     expect(interpret("binder", ctx)).toMatchObject({ kind: "view", view: "binder" })
     for (const line of ["shred 39", "shred w39", "shred week 39"]) expect(interpret(line, ctx)).toMatchObject({ kind: "shred", week: 39 })
     expect(interpret("shred", ctx)).toMatchObject({ kind: "error" })
@@ -295,6 +301,23 @@ describe("interpret", () => {
     expect(complete("h", [gym])).toBe("help")
     expect(interpret("grid", ctx)).toMatchObject({ kind: "view", view: "grid" })
     expect(interpret("printout", ctx)).toMatchObject({ kind: "view", view: "printout" })
+  })
+
+  it("locks and unlocks sessions by day and start", () => {
+    const sessions = [
+      { id: "gym#0", activityId: "gym", day: 0 as const, start: 600, end: 660 },
+      { id: "gym#1", activityId: "gym", day: 2 as const, start: 1080, end: 1140, locked: true },
+      { id: "gym#2", activityId: "gym", day: 2 as const, start: 1200, end: 1260 },
+    ]
+    const withSessions = { ...ctx, sessions }
+    expect(interpret("lock gym monday", withSessions)).toMatchObject({ kind: "lock", locked: true, blockIds: ["gym#0"] })
+    expect(interpret("unlock gym wednesday 18:00", withSessions)).toMatchObject({ kind: "lock", locked: false, blockIds: ["gym#1"] })
+    // Every session of it, when no day is named.
+    expect(interpret("lock gym", withSessions)).toMatchObject({ kind: "lock", blockIds: ["gym#0", "gym#1", "gym#2"] })
+    // Two on the day named: which one is asked.
+    expect(interpret("lock gym wednesday", withSessions)).toMatchObject({ kind: "choose" })
+    expect(interpret("lock gym friday", withSessions)).toMatchObject({ kind: "error" })
+    expect(interpret("lock", withSessions)).toMatchObject({ kind: "error" })
   })
 
   it("knows the machine's own commands", () => {

@@ -24,6 +24,7 @@ export function Paper({
   onTear,
   tearing = false,
   empty = false,
+  never = false,
   onFormFeed,
   children,
 }: {
@@ -43,20 +44,18 @@ export function Paper({
   tearing?: boolean
   /** No paper out: the sheet has been torn off and nothing printed since. */
   empty?: boolean
-  /** The empty slot's key: print a fresh sheet. */
+  /** Nothing printed yet: the week is still a draft on the screen. */
+  never?: boolean
+  /** The empty slot's key: PRINT, the draft on the screen onto paper. */
   onFormFeed?: () => void
   children: ReactNode
 }) {
   const sheet = useRef<HTMLElement>(null)
   const { shift, finish } = usePaperFeed(sheet, feed, onFed)
   const printing = shift !== null
-  const [learned, setLearned] = useState(pulledBefore)
-  const { pull, handlers } = usePull(onTear && !printing && !tearing ? onTear : undefined, () => {
-    setLearned(true)
-    rememberPulled()
-  })
-  // Until a sheet has been torn off by pulling once, the perforation says how. On a phone,
-  // where pulling scrolls instead, it is the tear-off key itself, so it always stays.
+  const { pull, handlers } = usePull(onTear && !printing && !tearing ? onTear : undefined)
+  // Every sheet that can be torn off says how, on its perforation. On a phone,
+  // where pulling scrolls instead, it is the tear-off key itself.
   const showHint = !!onTear && !printing && !tearing && !empty && pull === 0
 
   return (
@@ -71,16 +70,24 @@ export function Paper({
       )}
 
       {empty && (
-        // Only the slot: the week is in the binder until a fresh sheet is asked for.
+        // Only the slot: nothing printed yet, or the sheet is in the binder until the next PRINT.
         <div className="label mx-auto mt-8 flex max-w-[480px] flex-col items-center gap-4 border-2 border-dashed border-ink/30 px-6 py-8 text-center leading-relaxed text-ink/55 no-print">
-          <span>
-            Sheet torn off and filed in the binder.
-            <br />
-            The printer stays empty until you ask for a fresh one.
-          </span>
+          {never ? (
+            <span>
+              Nothing printed yet.
+              <br />
+              The week is a draft on the screen until you print it.
+            </span>
+          ) : (
+            <span>
+              Sheet torn off and filed in the binder.
+              <br />
+              The printer stays empty until the next print.
+            </span>
+          )}
           {onFormFeed && (
-            <button type="button" onClick={onFormFeed} title="Print a fresh sheet (or type FEED)" className="key px-3 py-1.5">
-              Form feed ▼
+            <button type="button" onClick={onFormFeed} title="Print the draft on the screen (or type PRINT)" className="key px-3 py-1.5">
+              Print ▼
             </button>
           )}
         </div>
@@ -89,7 +96,9 @@ export function Paper({
       {/* While printing, the paper still inside the printer (above the slot) is hidden. */}
       <div
         hidden={empty}
-        className={`relative mx-auto ${width} ${printing || tearing ? "overflow-hidden" : ""}`}
+        className={`relative mx-auto ${width} ${printing || tearing ? "overflow-hidden" : ""} ${
+          onTear && !printing && !tearing && !empty ? (pull > 0 ? "cursor-grabbing" : "cursor-grab") : ""
+        }`}
         onPointerDown={(e) => {
           if (printing) return finish()
           handlers.onPointerDown(e)
@@ -100,24 +109,27 @@ export function Paper({
         onClickCapture={handlers.onClickCapture}
       >
         {showHint && (
-          // On the perforation: a printed tab in solid ink, its arrows nudging the way to pull.
-          <div className={`pointer-events-none absolute inset-x-6 -top-2.5 z-10 items-center gap-2 no-print ${learned ? "hidden pointer-coarse:flex" : "flex"}`}>
-            <span className="h-px flex-1 border-t-2 border-dashed border-ink/60" />
-            <span className="label flex items-center gap-2 bg-ink px-2.5 py-1 text-[10px] text-sheet pointer-coarse:hidden">
-              <span aria-hidden className="nudge inline-block text-phosphor">↓</span>
+          // On the perforation, the only way to tear a sheet off: a lit tab, scissors at either end of the
+          // dashed line, its arrows nudging the way to pull.
+          <div className="pointer-events-none absolute inset-x-10 top-1.5 z-10 flex items-center gap-2 no-print">
+            <span aria-hidden className="text-[16px] leading-none text-ink">✂</span>
+            <span className="h-px flex-1 border-t-2 border-dashed border-ink/70" />
+            <span className="label flex items-center gap-3 border-2 border-ink bg-phosphor px-4 py-1.5 text-[12px] font-semibold text-ink shadow-[0_3px_0_var(--color-ink)] pointer-coarse:hidden">
+              <span aria-hidden className="nudge inline-block">↓</span>
               Pull down to tear off
-              <span aria-hidden className="nudge inline-block text-phosphor">↓</span>
+              <span aria-hidden className="nudge inline-block">↓</span>
             </span>
             {/* A phone scrolls instead of pulling: there, the tab is a key. */}
             <button
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={onTear}
-              className="label pointer-events-auto hidden items-center gap-2 bg-ink px-2.5 py-1 text-[10px] text-sheet pointer-coarse:flex"
+              className="label pointer-events-auto hidden items-center gap-2 border-2 border-ink bg-phosphor px-4 py-1.5 text-[12px] font-semibold text-ink shadow-[0_3px_0_var(--color-ink)] pointer-coarse:flex"
             >
               ✂ Tear off and file
             </button>
-            <span className="h-px flex-1 border-t-2 border-dashed border-ink/60" />
+            <span className="h-px flex-1 border-t-2 border-dashed border-ink/70" />
+            <span aria-hidden className="text-[16px] leading-none text-ink">✂</span>
           </div>
         )}
         {/* Pulled down: the perforation shows, and says what letting go will do. */}
@@ -139,32 +151,18 @@ export function Paper({
           }
           // The spring back after a short pull eases; printing never does. Eased, the paper would
           // glide down from where it waits far above the slot, and lag behind the print head.
-          className={`${className} ${tearing ? "tear-away" : ""} ${pull === 0 && !tearing && !printing ? "transition-transform duration-200" : ""}`}
+          // At rest, a sheet that can be torn off gives a small tug now and then: it can be pulled.
+          className={`${className} ${tearing ? "tear-away" : ""} ${pull === 0 && !tearing && !printing ? "transition-transform duration-200" : ""} ${
+            showHint ? "pointer-fine:tug" : ""
+          }`}
         >
+          {/* Blank paper above the print, where the perforation and its tab sit. Not on a real printout. */}
+          {onTear && <div aria-hidden className="h-11 no-print" />}
           {children}
         </article>
       </div>
     </div>
   )
-}
-
-/** Set once a sheet has been torn off by pulling, so the hint stops. A per-browser nicety: lost, it only shows again. */
-const PULLED_KEY = "robot-mode:pulled"
-
-function pulledBefore(): boolean {
-  try {
-    return typeof window !== "undefined" && window.localStorage.getItem(PULLED_KEY) === "1"
-  } catch {
-    return false
-  }
-}
-
-function rememberPulled() {
-  try {
-    window.localStorage.setItem(PULLED_KEY, "1")
-  } catch {
-    // Private browsing: the hint just comes back next time.
-  }
 }
 
 /** How far the paper must be pulled before letting go tears it off. */
@@ -176,7 +174,7 @@ const TEAR_AT = 140
  * that it springs back. A pull that moved never counts as a click on the block
  * under it.
  */
-function usePull(onTear?: () => void, onPulled?: () => void) {
+function usePull(onTear?: () => void) {
   const [pull, setPull] = useState(0)
   // A pull that moved: the click it ends with must not reach the block under it.
   const moved = useRef(false)
@@ -208,7 +206,6 @@ function usePull(onTear?: () => void, onPulled?: () => void) {
         document.body.style.userSelect = ""
         if (moved.current && distance >= TEAR_AT) {
           onTear()
-          onPulled?.()
         }
         setPull(0)
       }

@@ -118,7 +118,7 @@ export function Setup({
     return (
       <div ref={root}>
         <Console captions={["Input terminal", "Template library"]} legend={asking ? CONFIRM_LEGEND : LIBRARY_LEGEND}>
-          <div className={`flex ${SCREEN_HEIGHT} flex-col`}>
+          <div className={`flex ${SCREEN_HEIGHT} flex-col sm:overflow-y-auto`}>
             <TemplateLibrary
               replacing={settings.activities.length}
               asking={asking}
@@ -138,7 +138,7 @@ export function Setup({
         captions={["Input terminal", `Request ${pad(step + 1)} / ${pad(STEP_COUNT)}`]}
         legend={step === 0 ? ACTIVITY_LEGENDS[flowStep ?? "line"] : LEGENDS[step]}
       >
-        <div className={`flex ${SCREEN_HEIGHT} flex-col`}>
+        <div className={`flex ${SCREEN_HEIGHT} flex-col sm:overflow-y-auto`}>
           {step === 0 && (
             <ActivitiesTerminal
               settings={settings}
