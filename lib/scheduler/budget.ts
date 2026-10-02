@@ -26,8 +26,8 @@ export function activityCost(durationMinutes: number, sessionsPerWeek: number, b
 export function computeBudget(settings: Settings): BudgetReport {
   const wakingPerDay = wakingSlotsPerDay(settings.wakeTime, settings.sleepTime) * SLOT_MINUTES
   const wakingMinutesPerWeek = wakingPerDay * DAYS
-  const protectedFree = Math.max(0, settings.minFreeMinutesPerDay) * DAYS
-  const allocatableMinutesPerWeek = Math.max(0, wakingMinutesPerWeek - protectedFree)
+  // Every waking minute can be planned: free time is what the activities leave.
+  const allocatableMinutesPerWeek = wakingMinutesPerWeek
 
   const activities = allActivities(settings)
 

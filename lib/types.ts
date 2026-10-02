@@ -49,8 +49,6 @@ export type Settings = {
   sleepTime: string
   activities: Activity[]
   meals?: Meal[]
-  /** Unscheduled time protected on every day. */
-  minFreeMinutesPerDay: number
   seed: number
 }
 
@@ -89,7 +87,7 @@ export type Unplaced = {
 
 export type BudgetReport = {
   wakingMinutesPerWeek: number
-  /** Waking time minus protected free time. */
+  /** Every waking minute of the week: free time is what the activities leave. */
   allocatableMinutesPerWeek: number
   /** What the activity list asks for, including buffers. */
   requestedMinutes: number

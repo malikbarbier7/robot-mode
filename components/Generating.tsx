@@ -35,7 +35,6 @@ export function Generating({
     ["Constraints", activities.reduce((n, a) => n + constraintCount(a), 0)],
     ["Fixed events", activities.filter((a) => a.fixedAt).length],
     ["Meals", mealsOf(settings).filter((m) => m.enabled).length],
-    ["Free time", settings.minFreeMinutesPerDay, "MIN"],
     ["Available time", schedule.budget.allocatableMinutesPerWeek, "MIN"],
   ]
 

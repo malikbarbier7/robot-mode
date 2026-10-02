@@ -89,14 +89,24 @@ describe("comfortable week", () => {
     }
   })
 
-  it("leaves the protected free time on every day", () => {
+  it("keeps every day inside its waking hours", () => {
     const wakingPerDay = wakingSlotsPerDay(comfortableWeek.wakeTime, comfortableWeek.sleepTime) * SLOT_MINUTES
     for (let day = 0; day < 7; day++) {
       const used = schedule.blocks
         .filter((b) => b.day === day)
         .reduce((sum, b) => sum + (b.endMinute - b.startMinute), 0)
-      expect(wakingPerDay - used, `day ${day}`).toBeGreaterThanOrEqual(comfortableWeek.minFreeMinutesPerDay)
+      expect(used, `day ${day}`).toBeLessThanOrEqual(wakingPerDay)
     }
+  })
+
+  it("can fill a day from waking to sleep: no free time is held back", () => {
+    // A 16-hour day asked for 16 hours of work, every day.
+    const packed = generate({
+      ...comfortableWeek,
+      meals: [],
+      activities: [{ id: "work", name: "Work", durationMinutes: 960, sessionsPerWeek: 7, priority: "medium" }],
+    })
+    expect(packed.unplaced).toEqual([])
   })
 
   it("schedules language at a consistent time", () => {

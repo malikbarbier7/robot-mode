@@ -7,7 +7,6 @@ import { defaultMeals } from "./meals"
 const base: Settings = {
   wakeTime: "07:30",
   sleepTime: "23:30",
-  minFreeMinutesPerDay: 120,
   seed: 1,
   activities: [],
   meals: defaultMeals,
@@ -144,7 +143,6 @@ describe("when nothing small can help", () => {
     // Far more hours requested than the week holds: no single tweak saves this.
     const impossible: Settings = {
       ...base,
-      minFreeMinutesPerDay: 0,
       activities: [
         { id: "a", name: "A", durationMinutes: 480, sessionsPerWeek: 14, priority: "critical" },
         { id: "b", name: "B", durationMinutes: 480, sessionsPerWeek: 14, priority: "high" },

@@ -302,7 +302,7 @@ export default function Page() {
                       rm.resetToTemplate()
                     }
                   }}
-                  title={`Restore the ${rm.activeTemplate.name} activities, times and free time`}
+                  title={`Restore the ${rm.activeTemplate.name} activities, times and meals`}
                 >
                   Reset to {rm.activeTemplate.name}
                 </MenuItem>

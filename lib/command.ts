@@ -24,7 +24,7 @@ export type CommandAction = { preview: string; reply: string; note?: string } & 
   | { kind: "feed" }
   /** Shred a filed week from the binder, by its week number. */
   | { kind: "shred"; week: number }
-  | { kind: "settings"; patch: { wakeTime?: string; sleepTime?: string; minFreeMinutesPerDay?: number } }
+  | { kind: "settings"; patch: { wakeTime?: string; sleepTime?: string } }
   | { kind: "display"; patch: { clock?: Clock; weekStart?: WeekStart; sound?: boolean } }
   | { kind: "shuffle" | "export" }
   /** One regular session becomes an extra of its own: the activity loses a session, the extra takes it. */
@@ -38,14 +38,13 @@ export type CommandAction = { preview: string; reply: string; note?: string } & 
 export type CommandError = { kind: "error"; reply: string }
 
 /** The terminal's screens, each opened by a function. */
-export type Screen = "add" | "edit" | "activities" | "hours" | "meals" | "free" | "system" | "fix" | "restart" | "help"
+export type Screen = "add" | "edit" | "activities" | "hours" | "meals" | "system" | "fix" | "restart" | "help"
 
 /** What the command line needs to know to read a line against. */
 export type CommandContext = {
   activities: Activity[]
   wakeTime?: string
   sleepTime?: string
-  minFreeMinutesPerDay?: number
   /** Whether the machine's sounds are on, so "sound" alone can flip them. */
   sound?: boolean
   /** The sessions placed in the week, so EDIT can find "Monday's" one. */
@@ -57,6 +56,9 @@ export type SessionRef = { id?: string; activityId: string; day: Day; start: num
 
 const MAX_SESSIONS = 28
 
+/** There is no free-time setting: free time is what the activities leave. Asked for anyway, say so. */
+const FREE_TIME = "FREE TIME IS WHAT YOUR ACTIVITIES LEAVE EMPTY · TO KEEP A BREAK, ADD IT: ADD BREAK 1H DAILY"
+
 /**
  * The function row, in the order completion offers them: typing "e" means
  * EDIT before EXPORT. They come before activity names, so one letter and
@@ -64,7 +66,7 @@ const MAX_SESSIONS = 28
  */
 export const FUNCTIONS = ["add", "edit", "today", "tear", "feed", "shuffle", "export", "grid", "list", "binder", "system", "fix", "clear", "restart", "save", "load", "help"]
 /** Other command words, offered after activity names. */
-const VERBS = ["wake", "sleep", "free", "remove", "move", "meals", "hours"]
+const VERBS = ["wake", "sleep", "remove", "move", "meals", "hours"]
 /** What EDIT can open besides an activity. */
 const EDIT_TARGETS: Record<string, Screen> = {
   activities: "activities",
@@ -75,8 +77,6 @@ const EDIT_TARGETS: Record<string, Screen> = {
   day: "hours",
   wake: "hours",
   sleep: "hours",
-  free: "free",
-  "free time": "free",
 }
 
 const SCREEN_NAMES: Record<Screen, string> = {
@@ -85,7 +85,6 @@ const SCREEN_NAMES: Record<Screen, string> = {
   activities: "EDIT › ACTIVITIES",
   hours: "EDIT › HOURS",
   meals: "EDIT › MEALS",
-  free: "EDIT › FREE TIME",
   system: "SYSTEM",
   fix: "FIX CONFLICTS",
   restart: "RESTART",
@@ -100,7 +99,7 @@ function open(screen: Screen, id?: string, label = SCREEN_NAMES[screen]): Comman
  * Reads one command line, in shorthand or in plain words:
  *   gym 1h15 4x · gym 3 times a week · add yoga 45 min twice
  *                   add Gym, or change it if it exists (either part may be left out on a change)
- *   remove gym      edit gym        wake up at 7    sleep at 11pm   free time 2h
+ *   remove gym      edit gym        wake up at 7    sleep at 11pm
  *   shuffle · export · help · 12h · 24h · mon · sun
  */
 export function interpret(input: string, ctx: CommandContext): CommandAction | CommandError | null {
@@ -216,22 +215,14 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
         reply: `${verb.toUpperCase()} ${time}`,
       }
     }
-    case "free": {
-      const minutes = parseDuration(arg.replace(/\s*(?:a|per|each)\s+day$/i, ""))
-      if (minutes === null) return error("FREE NEEDS A LENGTH, E.G. FREE 2H")
-      const was = ctx.minFreeMinutesPerDay
-      return {
-        kind: "settings",
-        patch: { minFreeMinutesPerDay: minutes },
-        preview: `FREE TIME ${was !== undefined ? `${span(was)} → ` : ""}${span(minutes)} A DAY`,
-        reply: `FREE ${span(minutes)} / DAY`,
-      }
-    }
+    case "free":
+      return error(FREE_TIME)
     case "move":
       if (!arg) return error("MOVE WHICH SESSION? E.G. MOVE GYM MONDAY 10H TO 11H")
       return moveLine(rest, ctx)
     case "edit": {
       if (!arg) return open("edit")
+      if (/^free( time)?$/i.test(arg)) return error(FREE_TIME)
       const target = EDIT_TARGETS[arg.toLowerCase()]
       if (target) return open(target)
       const found = findActivity(arg, activities)
@@ -834,7 +825,7 @@ export function complete(input: string, activities: Activity[]): string | null {
   const lower = typed.toLowerCase()
   const names = activities.filter((a) => !a.extraOf).map((a) => a.name)
   const editing = verb?.[1].toLowerCase().startsWith("edit")
-  const pool = verb ? (editing ? [...names, "meals", "hours", "free time", "activities"] : names) : [...FUNCTIONS, ...names, ...VERBS]
+  const pool = verb ? (editing ? [...names, "meals", "hours", "activities"] : names) : [...FUNCTIONS, ...names, ...VERBS]
   const match = pool.find((n) => n.toLowerCase().startsWith(lower) && n.length > typed.length)
   return match ? prefix + typed + match.slice(typed.length) : null
 }
@@ -843,7 +834,6 @@ export function complete(input: string, activities: Activity[]): string | null {
 export function nextHint(input: string, activities: Activity[]): string | null {
   const s = normalize(input).toLowerCase()
   if (s === "wake" || s === "sleep") return "A TIME, E.G. 7:00"
-  if (s === "free") return "A LENGTH, E.G. 2H"
   if (s === "rm") return "AN ACTIVITY"
   const found = findActivity(s, activities)
   if (found) {

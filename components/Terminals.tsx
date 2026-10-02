@@ -7,12 +7,11 @@ import { AddActivityFlow } from "./AddActivityFlow"
 import { ClockReadout, Readout } from "./Readout"
 
 /*
- * What goes on each of the machine's four input screens. Everything that can
+ * What goes on each of the machine's three input screens. Everything that can
  * be selected carries `data-nav`, so ← → and Enter walk it; values are
  * readouts that take ↑ ↓ and typed digits, so nothing needs the mouse.
  */
 
-const FREE_TICKS = [0, 30, 60, 90, 120, 150, 180, 210, 240]
 
 export function Request({ n, title, note }: { n: number; title: string; note?: string }) {
   return (
@@ -179,59 +178,6 @@ export function MealsTerminal({
       >
         + ADD MEAL
       </button>
-    </>
-  )
-}
-
-export function FreeTimeTerminal({
-  settings,
-  onPatchSettings,
-}: {
-  settings: Settings
-  onPatchSettings: (patch: Partial<Settings>) => void
-}) {
-  const free = settings.minFreeMinutesPerDay
-  const setFree = (minutes: number) => onPatchSettings({ minFreeMinutesPerDay: Math.max(0, minutes) })
-
-  return (
-    <>
-      <Request n={4} title="Free time allocation" note="Doomscrolling is a valid human activity." />
-      <div className="mt-8 flex items-baseline justify-center font-crt text-[96px] leading-none tabular-nums sm:text-[120px]">
-        <Readout
-          label="Free time a day, in minutes"
-          value={free}
-          max={720}
-          step={15}
-          width={3}
-          horizontal
-          onChange={setFree}
-        />
-        <span className="ml-4 text-[40px] text-ink/60">MIN / DAY</span>
-      </div>
-
-      <div className="mt-8 flex items-start gap-3 font-crt text-[26px]">
-        <button type="button" tabIndex={-1} onClick={() => setFree(free - 15)} aria-label="Less free time" className="px-1 hover:text-ink/60">
-          ◀
-        </button>
-        <div className="flex flex-1 justify-between border-t border-ink/50 pt-1">
-          {FREE_TICKS.map((tick) => (
-            <button
-              key={tick}
-              type="button"
-              tabIndex={-1}
-              onClick={() => setFree(tick)}
-              className={`flex flex-col items-center tabular-nums ${free === tick ? "" : "text-ink/40 hover:text-ink/70"}`}
-            >
-              <span className="h-2 w-px bg-current" />
-              {String(tick).padStart(3, "0")}
-              <span className={free === tick ? "" : "invisible"}>▲</span>
-            </button>
-          ))}
-        </div>
-        <button type="button" tabIndex={-1} onClick={() => setFree(free + 15)} aria-label="More free time" className="px-1 hover:text-ink/60">
-          ▶
-        </button>
-      </div>
     </>
   )
 }

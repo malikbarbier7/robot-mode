@@ -11,7 +11,6 @@ const on = (id: string) => allOn.find((m) => m.id === id)!
 const base: Settings = {
   wakeTime: "07:30",
   sleepTime: "23:30",
-  minFreeMinutesPerDay: 60,
   seed: 1,
   activities: [],
   meals: allOn,

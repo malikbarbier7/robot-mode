@@ -3,7 +3,7 @@ import { commandFor, complete, describe as describeActivity, formatDays, interpr
 import type { Activity } from "./types"
 
 const gym: Activity = { id: "gym", name: "Gym", durationMinutes: 240, sessionsPerWeek: 4, priority: "medium" }
-const ctx = { activities: [gym], wakeTime: "07:30", sleepTime: "23:30", minFreeMinutesPerDay: 120 }
+const ctx = { activities: [gym], wakeTime: "07:30", sleepTime: "23:30" }
 
 describe("interpret", () => {
   it("adds a new activity from a name, a length and a count", () => {
@@ -39,7 +39,8 @@ describe("interpret", () => {
   it("sets the day's hours and free time", () => {
     expect(interpret("wake 7", ctx)).toMatchObject({ kind: "settings", patch: { wakeTime: "07:00" } })
     expect(interpret("sleep 11:30pm", ctx)).toMatchObject({ kind: "settings", patch: { sleepTime: "23:30" } })
-    expect(interpret("free 90", ctx)).toMatchObject({ kind: "settings", patch: { minFreeMinutesPerDay: 90 } })
+    // Free time isn't a setting: the terminal says how to keep some instead.
+    expect(interpret("free 90", ctx)).toMatchObject({ kind: "error", reply: expect.stringContaining("ADD BREAK 1H DAILY") })
     expect(interpret("wake soon", ctx)).toMatchObject({ kind: "error" })
   })
 
@@ -57,7 +58,7 @@ describe("interpret", () => {
     expect(interpret("delete gym", ctx)).toMatchObject({ kind: "remove" })
     expect(interpret("wake up at 7am", ctx)).toMatchObject({ patch: { wakeTime: "07:00" } })
     expect(interpret("go to bed at 11pm", ctx)).toMatchObject({ patch: { sleepTime: "23:00" } })
-    expect(interpret("free time 2 hours a day", ctx)).toMatchObject({ patch: { minFreeMinutesPerDay: 120 } })
+    expect(interpret("free time 2 hours a day", ctx)).toMatchObject({ kind: "error" })
   })
 
   it("adds with defaults as soon as it is asked to add", () => {
@@ -274,7 +275,7 @@ describe("interpret", () => {
     expect(interpret("add", ctx)).toMatchObject({ kind: "open", screen: "add" })
     expect(interpret("edit", ctx)).toMatchObject({ kind: "open", screen: "edit" })
     expect(interpret("edit meals", ctx)).toMatchObject({ kind: "open", screen: "meals" })
-    expect(interpret("edit free time", ctx)).toMatchObject({ kind: "open", screen: "free" })
+    expect(interpret("edit free time", ctx)).toMatchObject({ kind: "error", reply: expect.stringContaining("ADD BREAK") })
     expect(interpret("system", ctx)).toMatchObject({ kind: "open", screen: "system" })
     expect(interpret("restart", ctx)).toMatchObject({ kind: "open", screen: "restart" })
     expect(interpret("clear", ctx)?.kind).toBe("clear")

@@ -17,7 +17,6 @@ export type SuggestionKind =
   | "disable-meal"
   | "wake"
   | "sleep"
-  | "free-time"
   | "shorten"
   | "fewer"
 
@@ -250,19 +249,6 @@ function buildCandidates(settings: Settings, conflict: Unplaced): Suggestion[] {
       label: `Go to sleep at ${shift(settings.sleepTime, minutes)} instead of ${settings.sleepTime}`,
       settings: { ...settings, sleepTime: shift(settings.sleepTime, minutes) },
     })
-  }
-
-  if (settings.minFreeMinutesPerDay >= 30) {
-    for (const minutes of [30, 60]) {
-      const next = Math.max(0, settings.minFreeMinutesPerDay - minutes)
-      out.push({
-        id: `free:${minutes}`,
-        kind: "free-time",
-        cost: 5 + minutes / 30,
-        label: `Keep ${next} min of free time a day instead of ${settings.minFreeMinutesPerDay}`,
-        settings: { ...settings, minFreeMinutesPerDay: next },
-      })
-    }
   }
 
   // Last resort: change what was actually asked for.
