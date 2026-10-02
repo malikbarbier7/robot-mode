@@ -83,7 +83,7 @@ describe("matchesTemplate", () => {
       ...student.settings,
       activities: [
         ...student.settings.activities,
-        { id: "piano", name: "Piano", durationMinutes: 45, sessionsPerWeek: 3, priority: "medium" as const },
+        { id: "piano", name: "Piano", durationMinutes: 45, sessionsPerWeek: 3 },
       ],
     }
     expect(matchesTemplate(edited, student)).toBe(false)

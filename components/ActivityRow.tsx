@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import type { Activity, Day, Priority } from "@/lib/types"
+import type { Activity, Day } from "@/lib/types"
 import { WINDOW_PRESETS } from "@/lib/draft"
 import { formatSpan, weekOrder } from "@/lib/locale"
 import { useDisplay } from "./Display"
@@ -9,7 +9,6 @@ import { ClockReadout, Readout } from "./Readout"
 
 const DAY_INITIALS = ["M", "T", "W", "T", "F", "S", "S"] as const
 const ALL: Day[] = [0, 1, 2, 3, 4, 5, 6]
-const PRIORITIES: Priority[] = ["critical", "high", "medium", "low"]
 const BUFFERS = [15, 30, 45, 60]
 
 /**
@@ -63,7 +62,7 @@ export function ActivityRow({
             onRemove()
           }
         }}
-        title={open ? "Fold" : "Length, days, priority, preferred time"}
+        title={open ? "Fold" : "Length, days, preferred time"}
         className="flex w-full items-baseline gap-5 py-2 text-left font-crt text-[34px] leading-tight hover:bg-ink/[0.07]"
       >
         <span className="text-ink/60">{open ? "▼" : ">"}</span>
@@ -205,14 +204,6 @@ function Settings({
         {weekOrder(weekStart).map((day) => (
           <Chip key={day} on={!anyDay && days.includes(day)} onClick={() => toggleDay(day)}>
             {DAY_INITIALS[day]}
-          </Chip>
-        ))}
-      </Line>
-
-      <Line label="Priority">
-        {PRIORITIES.map((p) => (
-          <Chip key={p} on={activity.priority === p} onClick={() => onChange({ priority: p })} wide>
-            {p}
           </Chip>
         ))}
       </Line>

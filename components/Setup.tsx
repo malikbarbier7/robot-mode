@@ -2,8 +2,10 @@
 
 import { useRef, useState } from "react"
 import type { Activity, Schedule, Settings } from "@/lib/types"
+import type { Template } from "@/lib/templates"
 import { Command, Console, SCREEN_HEIGHT, useTerminal, type LegendKey } from "./Machine"
 import { ActivitiesTerminal, HoursTerminal, MealsTerminal } from "./Terminals"
+import { TemplateLibrary } from "./TemplateLibrary"
 
 const STEP_COUNT = 3
 
@@ -25,11 +27,6 @@ const ACTIVITY_LEGENDS: Record<"line" | number, LegendKey[]> = {
     ["Esc", "Back"],
   ],
   2: [
-    ["Enter", "Next", true],
-    ["Space", "Pick"],
-    ["Esc", "Back"],
-  ],
-  3: [
     ["Enter", "Add", true],
     ["Space", "Pick"],
     ["Esc", "Back"],
@@ -51,6 +48,17 @@ const LEGENDS: LegendKey[][] = [
   ],
 ]
 
+/** The template library, browsing and then confirming a replacement. */
+const LIBRARY_LEGEND: LegendKey[] = [
+  ["↑ ↓", "Choose", true],
+  ["Enter", "Load"],
+  ["Esc", "Back"],
+]
+const CONFIRM_LEGEND: LegendKey[] = [
+  ["Y", "Replace", true],
+  ["N", "Keep mine"],
+]
+
 /**
  * The first run, fed to the machine one request at a time: what to do, the
  * operating hours, meals. Every answer lands in the same settings
@@ -67,7 +75,7 @@ export function Setup({
   onUpdateActivity,
   onRemoveActivity,
   onDone,
-  onOpenTemplates,
+  onPickTemplate,
 }: {
   settings: Settings
   schedule: Schedule
@@ -76,9 +84,12 @@ export function Setup({
   onUpdateActivity: (id: string, patch: Partial<Activity>) => void
   onRemoveActivity: (id: string) => void
   onDone: () => void
-  onOpenTemplates: () => void
+  onPickTemplate: (template: Template) => void
 }) {
   const [step, setStep] = useState(0)
+  // The template library opens on this same screen, over request 01.
+  const [library, setLibrary] = useState(false)
+  const [asking, setAsking] = useState<Template | null>(null)
   // The add-activity line's own step, so the legend can follow it into the parameters.
   const [flowStep, setFlowStep] = useState<number | null>(null)
   const root = useRef<HTMLDivElement>(null)
@@ -92,7 +103,34 @@ export function Setup({
   }
   const back = () => setStep(Math.max(step - 1, 0))
 
-  useTerminal(root, { onEnter: forward, onEscape: back, focusKey: step })
+  const closeLibrary = () => {
+    setAsking(null)
+    setLibrary(false)
+  }
+
+  useTerminal(root, {
+    onEnter: library ? undefined : forward,
+    onEscape: library ? closeLibrary : back,
+    focusKey: library ? "library" : step,
+  })
+
+  if (library) {
+    return (
+      <div ref={root}>
+        <Console captions={["Input terminal", "Template library"]} legend={asking ? CONFIRM_LEGEND : LIBRARY_LEGEND}>
+          <div className={`flex ${SCREEN_HEIGHT} flex-col`}>
+            <TemplateLibrary
+              replacing={settings.activities.length}
+              asking={asking}
+              onAsk={setAsking}
+              onLoad={onPickTemplate}
+              onCancel={closeLibrary}
+            />
+          </div>
+        </Console>
+      </div>
+    )
+  }
 
   return (
     <div ref={root}>
@@ -117,7 +155,7 @@ export function Setup({
 
           <div className="mt-auto flex flex-wrap items-center justify-between gap-4 border-t border-ink/30 pt-5">
             {step === 0 ? (
-              <Command onClick={onOpenTemplates} secondary>
+              <Command onClick={() => setLibrary(true)} secondary>
                 Load a template
               </Command>
             ) : (

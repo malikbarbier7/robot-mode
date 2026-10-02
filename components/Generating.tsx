@@ -166,7 +166,6 @@ function constraintCount(activity: Activity): number {
     activity.window !== undefined,
     activity.fixedAt !== undefined,
     (activity.bufferMinutes ?? 0) > 0,
-    activity.priority !== "medium",
   ].filter(Boolean).length
 }
 

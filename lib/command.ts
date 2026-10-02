@@ -378,7 +378,6 @@ function activityLine(words: string[], activities: Activity[], explicitAdd = fal
     name,
     durationMinutes: parts.durationMinutes ?? DEFAULT_LENGTH,
     sessionsPerWeek: parts.sessionsPerWeek ?? 1,
-    priority: "medium",
     ...(parts.allowedDays ? { allowedDays: parts.allowedDays } : {}),
     ...(parts.fixedAt ? { fixedAt: parts.fixedAt } : parts.window ? { window: parts.window } : {}),
   }
@@ -419,7 +418,6 @@ function addTo(parent: Activity, parts: Parts): CommandAction {
   const extra: Omit<Activity, "id"> = {
     name: parent.name,
     extraOf: parent.id,
-    priority: parent.priority,
     durationMinutes: parts.durationMinutes ?? parent.durationMinutes,
     sessionsPerWeek: sessionsPerWeek ?? 1,
     ...(parts.allowedDays ? { allowedDays: parts.allowedDays } : parent.allowedDays ? { allowedDays: parent.allowedDays } : {}),
@@ -572,7 +570,6 @@ function editSession(parent: Activity, owner: Activity, session: SessionRef, cha
   const extra: Omit<Activity, "id"> = {
     name: parent.name,
     extraOf: parent.id,
-    priority: parent.priority,
     durationMinutes: length,
     sessionsPerWeek: 1,
     allowedDays: [session.day],

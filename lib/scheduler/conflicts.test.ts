@@ -21,7 +21,6 @@ const breakfastVsGym: Settings = {
       name: "Gym",
       durationMinutes: 75,
       sessionsPerWeek: 4,
-      priority: "high",
       bufferMinutes: 15,
       fixedAt: { start: "08:00" },
     },
@@ -43,7 +42,7 @@ describe("conflict reporting", () => {
     const [conflict] = generate({
       ...base,
       activities: [
-        { id: "run", name: "Run", durationMinutes: 60, sessionsPerWeek: 3, priority: "high", fixedAt: { start: "05:00" } },
+        { id: "run", name: "Run", durationMinutes: 60, sessionsPerWeek: 3, fixedAt: { start: "05:00" } },
       ],
     }).unplaced
     expect(conflict.why).toContain("waking up")
@@ -51,12 +50,11 @@ describe("conflict reporting", () => {
   })
 
   it("reports the longest remaining gap when nothing long enough is left", () => {
+    // The meals cut every day into pieces; none of them is eight hours long.
     const [conflict] = generate({
       ...base,
-      activities: [
-        { id: "work", name: "Work", durationMinutes: 240, sessionsPerWeek: 21, priority: "critical" },
-        { id: "epic", name: "Epic session", durationMinutes: 480, sessionsPerWeek: 1, priority: "low" },
-      ],
+      meals: defaultMeals.map((m) => ({ ...m, enabled: true })),
+      activities: [{ id: "epic", name: "Epic session", durationMinutes: 480, sessionsPerWeek: 1 }],
     }).unplaced.filter((u) => u.activityId === "epic")
     expect(conflict.why).toContain("in a row")
     expect(conflict.why).toContain("longest gap")
@@ -67,8 +65,8 @@ describe("conflict reporting", () => {
       ...base,
       meals: defaultMeals.map((m) => (m.id === "breakfast" ? { ...m, start: "09:00", enabled: true } : m)),
       activities: [
-        { id: "gym", name: "Gym", durationMinutes: 75, sessionsPerWeek: 4, priority: "high", bufferMinutes: 15, fixedAt: { start: "08:00" } },
-        { id: "call", name: "Call", durationMinutes: 60, sessionsPerWeek: 2, priority: "high", fixedAt: { start: "09:15" } },
+        { id: "gym", name: "Gym", durationMinutes: 75, sessionsPerWeek: 4, bufferMinutes: 15, fixedAt: { start: "08:00" } },
+        { id: "call", name: "Call", durationMinutes: 60, sessionsPerWeek: 2, fixedAt: { start: "09:15" } },
       ],
     })
     expect(schedule.unplaced.map((u) => u.name).sort()).toEqual(["Call", "Gym"])
@@ -79,7 +77,7 @@ describe("conflict reporting", () => {
     const schedule = generate({
       ...base,
       activities: [
-        { id: "gym", name: "Gym", durationMinutes: 60, sessionsPerWeek: 3, priority: "high" },
+        { id: "gym", name: "Gym", durationMinutes: 60, sessionsPerWeek: 3 },
       ],
     })
     expect(schedule.unplaced).toEqual([])
@@ -89,11 +87,11 @@ describe("conflict reporting", () => {
     const busy: Settings = {
       ...base,
       activities: [
-        { id: "a", name: "A", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "09:00" } },
-        { id: "b", name: "B", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "10:00" } },
-        { id: "c", name: "C", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "11:00" } },
-        { id: "d", name: "D", durationMinutes: 60, sessionsPerWeek: 7, priority: "critical", fixedAt: { start: "12:00" } },
-        { id: "late", name: "Late", durationMinutes: 240, sessionsPerWeek: 7, priority: "low", fixedAt: { start: "09:00" } },
+        { id: "a", name: "A", durationMinutes: 60, sessionsPerWeek: 7, fixedAt: { start: "09:00" } },
+        { id: "b", name: "B", durationMinutes: 60, sessionsPerWeek: 7, fixedAt: { start: "10:00" } },
+        { id: "c", name: "C", durationMinutes: 60, sessionsPerWeek: 7, fixedAt: { start: "11:00" } },
+        { id: "d", name: "D", durationMinutes: 60, sessionsPerWeek: 7, fixedAt: { start: "12:00" } },
+        { id: "late", name: "Late", durationMinutes: 240, sessionsPerWeek: 7, fixedAt: { start: "09:00" } },
       ],
     }
     const conflict = generate(busy).unplaced.find((u) => u.activityId === "late")!

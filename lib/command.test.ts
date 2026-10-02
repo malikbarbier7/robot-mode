@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { commandFor, complete, describe as describeActivity, formatDays, interpret, nextHint, normalize, parseClock, parseDays } from "./command"
 import type { Activity } from "./types"
 
-const gym: Activity = { id: "gym", name: "Gym", durationMinutes: 240, sessionsPerWeek: 4, priority: "medium" }
+const gym: Activity = { id: "gym", name: "Gym", durationMinutes: 240, sessionsPerWeek: 4 }
 const ctx = { activities: [gym], wakeTime: "07:30", sleepTime: "23:30" }
 
 describe("interpret", () => {
@@ -104,7 +104,6 @@ describe("interpret", () => {
       name: "Surf",
       durationMinutes: 70,
       sessionsPerWeek: 4,
-      priority: "medium",
       allowedDays: [0, 1, 5, 6],
       fixedAt: { start: "06:00" },
     })
@@ -115,7 +114,7 @@ describe("interpret", () => {
   })
 
   it("reads a line in any order", () => {
-    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4, priority: "medium" }
+    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4 }
     const list = { ...ctx, activities: [gym, deep] }
     const lines = [
       "add deep work monday morning 1h starting at 10h00",
@@ -136,13 +135,13 @@ describe("interpret", () => {
   })
 
   it("adds to an activity you have: more sessions, or an extra one of its own", () => {
-    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4, priority: "high" }
+    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4 }
     const list = { ...ctx, activities: [deep] }
     expect(interpret("add deep work 2x", list)).toMatchObject({ kind: "update", patch: { sessionsPerWeek: 6 } })
     expect(interpret("add an extra session of deep work on friday", list)).toMatchObject({
       kind: "add",
       // What isn't said is taken from the activity.
-      activity: { extraOf: "deep-work", durationMinutes: 180, allowedDays: [4], priority: "high" },
+      activity: { extraOf: "deep-work", durationMinutes: 180, allowedDays: [4] },
       preview: "ADD DEEP WORK EXTRA SESSION · +3H F",
     })
     // Without ADD, the same words change the regular sessions.
@@ -150,7 +149,7 @@ describe("interpret", () => {
   })
 
   it("removes an extra session, or the activity with its extras", () => {
-    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4, priority: "medium" }
+    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4 }
     const extra: Activity = { ...deep, id: "deep-work-2", extraOf: "deep-work", durationMinutes: 60, sessionsPerWeek: 1, allowedDays: [0], fixedAt: { start: "10:00" } }
     const list = { ...ctx, activities: [deep, extra] }
     expect(interpret("remove deep work monday", list)).toMatchObject({ kind: "remove", id: "deep-work-2" })
@@ -170,7 +169,7 @@ describe("interpret", () => {
   })
 
   describe("editing one session", () => {
-    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4, priority: "medium" }
+    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4 }
     const extra: Activity = { ...deep, id: "deep-work-2", extraOf: "deep-work", durationMinutes: 60, sessionsPerWeek: 1, allowedDays: [0], fixedAt: { start: "10:00" } }
     const sessions = [
       { activityId: "deep-work-2", day: 0 as const, start: 600, end: 660 },
@@ -225,7 +224,7 @@ describe("interpret", () => {
   })
 
   describe("moving one session", () => {
-    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4, priority: "medium" }
+    const deep: Activity = { id: "deep-work", name: "Deep work", durationMinutes: 180, sessionsPerWeek: 4 }
     const extra: Activity = { ...deep, id: "deep-work-2", extraOf: "deep-work", durationMinutes: 60, sessionsPerWeek: 1, allowedDays: [0], fixedAt: { start: "10:00" } }
     const sessions = [
       { id: "deep-work-2#0", activityId: "deep-work-2", day: 0 as const, start: 600, end: 660 },

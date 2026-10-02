@@ -19,7 +19,6 @@ describe("draftToActivity", () => {
       name: "Gym",
       durationMinutes: 75,
       sessionsPerWeek: 4,
-      priority: "medium",
     })
   })
 
@@ -40,8 +39,8 @@ describe("draftToActivity", () => {
     expect(draftToActivity({ ...base, allowedDays: [] }).allowedDays).toBeUndefined()
   })
 
-  it("keeps a chosen priority", () => {
-    expect(draftToActivity({ ...base, priority: "high" }).priority).toBe("high")
+  it("never sets a priority: that is the scheduler's own business", () => {
+    expect(draftToActivity(base).priority).toBeUndefined()
   })
 
   it("ignores a zero travel buffer", () => {
@@ -62,7 +61,7 @@ describe("draftToActivity", () => {
 })
 
 describe("STEPS", () => {
-  it("asks four questions, with the two exclusive ones merged", () => {
-    expect([...STEPS]).toEqual(["Days", "Priority", "Travel buffer", "When"])
+  it("asks three questions, with the two exclusive ones merged", () => {
+    expect([...STEPS]).toEqual(["Days", "Travel buffer", "When"])
   })
 })

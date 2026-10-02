@@ -9,7 +9,12 @@ export type Activity = {
   /** Length of ONE session. Rounded up to a 15-minute multiple by the engine. */
   durationMinutes: number
   sessionsPerWeek: number
-  priority: Priority
+  /**
+   * Internal only: never set by people. Meals are "critical", so they are placed
+   * first and never given up; an activity without one is "medium", and every
+   * activity people add is the same.
+   */
+  priority?: Priority
 
   /** Defaults to every day. */
   allowedDays?: Day[]
