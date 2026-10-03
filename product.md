@@ -278,9 +278,13 @@ there, not followed inside the app.
 
 # 10. The terminal
 
-The machine has **one screen and one keyboard**. The screen keeps the same
-frame from boot to setup to the draft; on the paper views the printers take
-its place. Under either sits the **keyboard unit**, part of the beige casing,
+The machine has **one screen and one keyboard**, from the first screen. The
+screen keeps the same frame from boot to setup to the draft; on the paper
+views the printers take its place. Under either sits the **keyboard unit**.
+Until a week is drafted it is there but not lit: dark keys, lamps off, and a
+readout that says what to do instead (PRESS ENTER TO START, ANSWER ON THE
+SCREEN, CALCULATING), since the screen has the keys; its status line fills in
+as the questions are answered. It lights up when the draft appears. The unit is part of the beige casing,
 not a second screen: the hours, activities and budget printed on it, a row of
 function keycaps — **ADD · EDIT · SHUFFLE · PRINT · EXPORT .ICS · SYSTEM · HELP**,
 plus **FIX** and **CLEAR EDITS** when they apply — and a prompt that takes commands in shorthand

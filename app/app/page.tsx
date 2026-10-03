@@ -98,6 +98,11 @@ export default function Page() {
   const [receiving, setReceiving] = useState(false)
   const [filedId, setFiledId] = useState<string | null>(null)
   const filed = (rm.state.archive ?? []).find((w) => w.id === filedId) ?? null
+  // A sheet drawn out of the binder: its first key (Download) takes the keyboard.
+  const sheetKeys = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (filedId) sheetKeys.current?.querySelector("button")?.focus({ preventScroll: true })
+  }, [filedId])
   const putBack = () => {
     rustle()
     setFiledId(null)
@@ -488,7 +493,18 @@ export default function Page() {
                       ? `ticket · ${new Date(filed.filedAt).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}`
                       : `week ${filed.week} / ${filed.year}`}
                   </span>
-                  <span className="flex gap-2">
+                  {/* The sheet's keys take the keyboard as it comes out: ← → between them, Enter presses, Esc puts it back. */}
+                  <span
+                    ref={sheetKeys}
+                    className="flex gap-2"
+                    onKeyDown={(e) => {
+                      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
+                      e.preventDefault()
+                      const keys = [...e.currentTarget.querySelectorAll("button")]
+                      const at = keys.indexOf(document.activeElement as HTMLButtonElement)
+                      keys[Math.min(Math.max(at + (e.key === "ArrowRight" ? 1 : -1), 0), keys.length - 1)]?.focus()
+                    }}
+                  >
                     <Button onClick={() => window.print()} title="Download this sheet as a PDF, or send it to your printer">
                       Download ↓
                     </Button>
@@ -606,8 +622,18 @@ export default function Page() {
           </main>
         </div>
 
-        {showWeekChrome && (
+        {/* The keyboard is part of the machine from the start; it lights up once the week exists. */}
+        {rm.hydrated && (
           <Terminal
+            off={
+              showWeekChrome
+                ? null
+                : view === "generating"
+                  ? "Calculating"
+                  : view === "setup"
+                    ? "Answer on the screen"
+                    : "Press Enter to start"
+            }
             rm={rm}
             screen={screen}
             onScreen={setScreen}
