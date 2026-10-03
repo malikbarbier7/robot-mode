@@ -420,7 +420,8 @@ Settings + locks + printed week + binder (localStorage, versioned)
 
 - Next.js, TypeScript, Tailwind; one client page
 - A static export (`output: "export"`, trailing-slash URLs): `next build` writes
-  plain files to `out/` for any static host (Cloudflare Pages, Netlify).
+  plain files to `out/` for any static host. It is served by Cloudflare Workers as
+  static assets: `wrangler.jsonc` points at `out/`, so no server code runs.
   `public/_headers` gives the extensionless share image and icon their type.
 - The site's address comes from `NEXT_PUBLIC_SITE_URL` at build time; the
   name, value proposition, publisher and host are in `lib/site.ts`. Link
