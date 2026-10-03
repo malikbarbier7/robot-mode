@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useWords } from "@/lib/words"
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { Boot } from "@/components/Boot"
@@ -301,9 +302,10 @@ export default function Page() {
         <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b-2 border-ink bg-[#cdc5b1] px-3 py-2 sm:px-6 sm:py-2.5 shadow-[inset_0_1px_0_rgb(255_255_255/0.4)] no-print">
           {/* On a phone the views drop to a row of their own, under the nameplate and Menu. */}
           <div className="contents sm:flex sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-2">
-            <button
-              type="button"
-              onClick={() => setView(home)}
+            {/* The nameplate leads out to the front page; ?home shows it even with a week on the machine. */}
+            <Link
+              href="/?home"
+              title="Robot Mode: the front page"
               className="relative flex items-baseline gap-4 border-2 border-ink bg-paper px-3 py-1 text-left sm:px-4 sm:py-1.5"
             >
               {/* The plate's screws. */}
@@ -319,7 +321,7 @@ export default function Page() {
                 <span className="sr-only">{words.name}</span>
               </h1>
               <span className="label hidden text-ink/50 sm:inline">{words.model}</span>
-            </button>
+            </Link>
 
             <span className="label hidden items-center gap-1.5 text-ink/70 sm:flex">
               <Lamp /> Power

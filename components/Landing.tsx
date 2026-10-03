@@ -2,6 +2,7 @@
 
 import { useWords } from "@/lib/words"
 import { VALUE_PROP } from "@/lib/site"
+import { sampleTranscript } from "@/lib/sample"
 import type { Schedule, Settings } from "@/lib/types"
 import { formatSpan } from "@/lib/locale"
 import { Lamp } from "./Machine"
@@ -21,7 +22,7 @@ export function Landing({ settings, schedule }: { settings: Settings; schedule: 
       <main className="flex-1">
         <Hero settings={settings} />
         <Output settings={settings} schedule={schedule} />
-        <Steps />
+        <Steps settings={settings} schedule={schedule} />
         <Promises />
         <FinalCall />
       </main>
@@ -160,7 +161,7 @@ const STEPS = [
 ]
 
 /** The four beats, as plates on the panel, each with a line typed at the keyboard's readout. */
-function Steps() {
+function Steps({ settings, schedule }: { settings: Settings; schedule: Schedule }) {
   return (
     <section className="border-y-2 border-ink bg-[#cdc5b1]">
       <div className="mx-auto w-full max-w-[1100px] px-4 py-14 sm:px-6 sm:py-20">
@@ -179,15 +180,88 @@ function Steps() {
               <h3 className="mt-2 font-display text-[17px] font-semibold uppercase tracking-[0.08em]">{step.title}</h3>
               <p className="mt-2 flex-1 text-[15px] leading-relaxed text-ink/85">{step.body}</p>
               {/* The keyboard's readout, with the line typed in. */}
-              <p className="crt mt-5 px-3 py-1.5 font-crt text-[20px] uppercase" style={{ borderWidth: 4 }}>
+              <p className="crt mt-5 overflow-hidden whitespace-nowrap px-3 py-1.5 font-crt text-[18px] uppercase" style={{ borderWidth: 4 }}>
                 <span className="text-ink/70">&gt; </span>
                 {step.line}
               </p>
             </li>
           ))}
         </ol>
+
+        <CommandSystem settings={settings} schedule={schedule} />
       </div>
     </section>
+  )
+}
+
+/** What the command line understands, beside a session typed at it. */
+const COMMAND_FEATURES = [
+  { title: "Plain words or shorthand", body: "`gym 1h15 4x` and `gym 1 hour 15, 4 times a week` say the same thing." },
+  { title: "It completes as you type", body: "The first letters are enough: `e`, then Enter, opens EDIT." },
+  { title: "Any order", body: "`1h monday gym` is `gym monday 1h`. Days, times and lengths go where you like." },
+  { title: "One change, the whole week", body: "Every line re-places the week around it. Nothing ever overlaps." },
+  { title: "HELP lists everything", body: "Add, move, lock, remove, shuffle, print, export: one page, every command." },
+]
+
+/**
+ * The command line, shown working: a session typed at the machine on the sample
+ * week above, each line with the answer the real interpreter gives it, and what
+ * makes it quick to use.
+ */
+function CommandSystem({ settings, schedule }: { settings: Settings; schedule: Schedule }) {
+  const transcript = sampleTranscript(settings, schedule)
+  return (
+    <div className="mt-14 grid items-start gap-10 lg:grid-cols-[1.15fr_1fr]">
+      <figure>
+        <div className="crt px-5 py-4 font-crt uppercase sm:px-6" style={{ borderWidth: 10 }}>
+          <p className="text-[16px] tracking-[0.2em] text-ink/70">A session at the keyboard</p>
+          <ol className="mt-3 space-y-2.5">
+            {transcript.map(({ line, reply }) => (
+              <li key={line}>
+                <div className="text-[22px] leading-tight">
+                  <span className="text-ink/70">&gt; </span>
+                  {line}
+                </div>
+                <div className="flex gap-2 pl-3 text-[17px] leading-tight text-ink/75">
+                  <span aria-hidden>↳</span>
+                  <span>{reply}</span>
+                </div>
+              </li>
+            ))}
+            <li className="text-[22px] text-ink/80">
+              &gt; <span className="blink">_</span>
+            </li>
+          </ol>
+        </div>
+        <figcaption className="label mt-3 text-ink/70">Answers from the real command reader, on the sample week above.</figcaption>
+      </figure>
+
+      <div>
+        <h3 className="font-display text-[20px] font-semibold uppercase tracking-[0.08em]">A whole command language</h3>
+        <p className="mt-2 text-[15px] leading-relaxed text-ink/85">
+          Robot Mode is driven like a terminal. Each line is read as you type it, and the machine says what Enter will do before you press it.
+        </p>
+        <ul className="mt-5 space-y-4">
+          {COMMAND_FEATURES.map((f) => (
+            <li key={f.title} className="border-l-2 border-ink pl-4">
+              <p className="font-display text-[14px] font-semibold uppercase tracking-[0.08em]">{f.title}</p>
+              <p className="mt-1 text-[15px] leading-relaxed text-ink/85">
+                {/* `like this`: a line as typed at the machine, set in the screen's face. */}
+                {f.body.split("`").map((part, i) =>
+                  i % 2 ? (
+                    <span key={i} className="bg-screen px-1.5 py-0.5 font-crt text-[17px] uppercase text-phosphor">
+                      {part}
+                    </span>
+                  ) : (
+                    part
+                  ),
+                )}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   )
 }
 
