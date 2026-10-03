@@ -3,8 +3,7 @@
 import Link from "next/link"
 import type { ReactNode } from "react"
 import { useWords } from "@/lib/words"
-import { PUBLISHER } from "@/lib/site"
-import { Lamp } from "./Machine"
+import { PUBLISHER, PUBLISHER_X_URL } from "@/lib/site"
 
 /**
  * Where Build my week goes: the machine, already switched on, at its first
@@ -19,9 +18,9 @@ export function SiteHeader() {
     <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b-2 border-ink bg-[#cdc5b1] px-3 py-2 shadow-[inset_0_1px_0_rgb(255_255_255/0.4)] sm:px-6 sm:py-2.5">
       <div className="flex items-center gap-6">
         <Nameplate />
-        <span className="label hidden items-center gap-1.5 text-ink/70 sm:flex">
-          <Lamp /> Power
-        </span>
+        <Link href="/guides/" className="label hidden text-[11px] text-ink/80 hover:text-ink hover:underline sm:inline">
+          Guides
+        </Link>
       </div>
       <a href={START} className="key key-dark px-3 py-1.5">
         Build my week ▶
@@ -51,7 +50,7 @@ function Nameplate() {
 export function SiteFooter() {
   const words = useWords()
   return (
-    <footer className="label flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-ink/40 px-4 py-3 text-ink/70 sm:px-6">
+    <footer className="label flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-ink/40 px-4 py-3 text-[11px] text-ink/80 sm:px-6">
       <span>
         {words.model} · {words.boot.subtitle}
       </span>
@@ -70,7 +69,11 @@ export function SiteFooter() {
             Feedback
           </a>
         )}
-        <span className="text-ink/70">Rev. 2.7</span>
+        {PUBLISHER.x && (
+          <a href={PUBLISHER_X_URL} className="hover:text-ink hover:underline">
+            Built by @{PUBLISHER.x}
+          </a>
+        )}
       </nav>
     </footer>
   )

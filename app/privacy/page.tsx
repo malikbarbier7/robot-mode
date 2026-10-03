@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { SheetPage, Missing } from "@/components/SiteChrome"
-import { PUBLISHER, SITE_NAME } from "@/lib/site"
+import { PUBLISHER, PUBLISHER_X_URL, SITE_NAME } from "@/lib/site"
 
 export const metadata: Metadata = {
   title: "Privacy",
@@ -56,6 +56,10 @@ export default function PrivacyPage() {
           {PUBLISHER.email ? (
             <>
               Write to <a href={`mailto:${PUBLISHER.email}`}>{PUBLISHER.email}</a>.
+            </>
+          ) : PUBLISHER.x ? (
+            <>
+              Message <a href={PUBLISHER_X_URL}>@{PUBLISHER.x}</a> on X.
             </>
           ) : (
             <Missing what="Contact email" />

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { commandFor, complete, describe as describeActivity, formatDays, interpret, nextHint, normalize, parseClock, parseDays } from "./command"
 import type { Activity } from "./types"
+import { LANDING_LINES } from "./landing"
 
 const gym: Activity = { id: "gym", name: "Gym", durationMinutes: 240, sessionsPerWeek: 4 }
 const ctx = { activities: [gym], wakeTime: "07:30", sleepTime: "23:30" }
@@ -309,8 +310,13 @@ describe("interpret", () => {
     expect(interpret("gym 1h15 4x", { ...ctx, activities: [] })).toMatchObject({ kind: "add", activity: { name: "gym", durationMinutes: 75, sessionsPerWeek: 4 } })
     expect(interpret("move gym mon to tue", withSessions)).toMatchObject({ kind: "move", day: 1 })
     expect(interpret("move gym monday to tuesday", withSessions)).toMatchObject({ kind: "move", day: 1 })
-    expect(interpret("print", ctx)?.kind).toBe("print")
-    expect(interpret("today", ctx)).toMatchObject({ kind: "view", view: "today" })
+    expect(interpret("shuffle", ctx)?.kind).toBe("shuffle")
+    expect(interpret("export", ctx)?.kind).toBe("export")
+    for (const line of LANDING_LINES) {
+      const action = interpret(line, withSessions)
+      expect(action?.kind, `"${line}"`).toBeDefined()
+      expect(action?.kind, `"${line}" → ${action && "reply" in action ? action.reply : ""}`).not.toBe("error")
+    }
   })
 
   it("locks and unlocks sessions by day and start", () => {

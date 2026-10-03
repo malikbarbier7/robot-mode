@@ -286,8 +286,9 @@ readout that says what to do instead (PRESS ENTER TO START, ANSWER ON THE
 SCREEN, CALCULATING), since the screen has the keys; its status line fills in
 as the questions are answered. It lights up when the draft appears. The unit is part of the beige casing,
 not a second screen: the hours, activities and budget printed on it, a row of
-function keycaps — **ADD · EDIT · SHUFFLE · PRINT · EXPORT .ICS · SYSTEM · HELP**,
-plus **FIX** and **CLEAR EDITS** when they apply — and a prompt that takes commands in shorthand
+function keycaps — **ADD · EDIT · SHUFFLE · PRINT · EXPORT .ICS · SYSTEM · HELP · RESTART**
+(a red cap: it erases everything, confirmed Y / N), plus **FIX** and
+**CLEAR EDITS** when they apply — and a prompt that takes commands in shorthand
 or plain words, completing as you type:
 
 ```text
@@ -535,23 +536,37 @@ One sentence:
 
 ## Landing page
 
-**Hero** — the value proposition, a beat a line, on the machine's screen:
+**Hero**: the value proposition on the machine's screen:
 
-# Write your week. Let the robot decide. Print your schedule. Execute.
+# Tell it what you want to do. It finds the time.
 
-*Stop deciding what to do next. Robot Mode places every session of your week
-around when you wake, sleep and eat. You follow the paper.*
+*List what you want to fit into your week. Robot Mode finds a slot for every
+session, around your sleep, meals and fixed hours. You follow the plan.*
 
-**[ Build my week ▶ ]** · *Free · No AI · Private* · *Driven from the keyboard:
-best on a computer, works on a phone.*
+**[ Build my week ▶ ]** · *Free · No AI · No account*, and beside it a menu of
+ready-made weeks (Student, Full-time worker…), each a link
+(`/app/?template=student`) that loads it into the machine and solves it.
 
-**Demo** — a sample setup on the screen (five lines, wake and sleep), and what
-the machine prints from it: the plotted week and Wednesday's ticket. Solved by
-the real engine when the page is built, not drawn.
+**In and out**: right under the screen, the whole product in one view: five
+lines typed in, an arrow, and the week the real engine plots from them, solved
+when the page is built, not drawn.
 
-**How it works** — the four beats, each with the line actually typed at the
-keyboard (`gym 1h15 4x` · `move gym mon to tue` · `print` · `today`). A test
-keeps every one of them a real command.
+**How it works**: four steps, each with the line actually typed at the
+keyboard (`gym 1h15 4x` · `shuffle` · `move gym mon to tue` · `export`), beside
+Wednesday's ticket.
+
+**How it decides**: the engine's rules in plain words, beside its FIX screen
+on a line that can't fit the sample week (`run 45m 3x at 6:30`): why, and the
+fixes it has verified, from the real interpreter and engine.
+
+**The machine**: a screenshot of the app with a week drafted, and a few lines
+at the keyboard with the machine's answers.
+
+**Questions**: fixed commitments, calendar sync, "do I need a printer", missed
+sessions, how it differs from time-blocking and AI planners, phones, data.
+
+Every line the page shows typed at the machine is in `lib/landing.ts`; a test
+keeps each one a real command.
 
 The value proposition lives in `lib/site.ts` (`VALUE_PROP`), shared by the hero,
 the steps and the link preview image.

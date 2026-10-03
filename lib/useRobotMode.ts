@@ -183,9 +183,12 @@ export function useRobotMode() {
     setStored({ ...initialState, settings: { ...template.settings }, templateId: template.id })
   }, [])
 
-  /** A setup opened from a link: it replaces the list and hours, and the week is solved afresh. */
-  const loadSetup = useCallback((settings: Settings) => {
-    setStored((s) => ({ ...initialState, settings, exportSequence: s.exportSequence, display: s.display, archive: s.archive }))
+  /**
+   * A setup opened from a link, or a template from the landing page: it replaces the list and hours,
+   * and the week is solved afresh. The binder and the display are kept.
+   */
+  const loadSetup = useCallback((settings: Settings, templateId?: string) => {
+    setStored((s) => ({ ...initialState, settings, templateId, exportSequence: s.exportSequence, display: s.display, archive: s.archive }))
   }, [])
 
   /** Flipped by the Generate button. The week view only exists after this. Nothing is on paper until PRINT. */

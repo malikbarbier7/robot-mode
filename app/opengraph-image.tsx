@@ -62,7 +62,7 @@ export default async function Image() {
               </div>
             ))}
             <div style={{ display: "flex", marginTop: 26, fontSize: 32, letterSpacing: 8, color: "rgba(255,178,56,0.85)" }}>
-              FREE · NO AI · PRIVATE
+              FREE · NO AI · NO ACCOUNT
             </div>
           </div>
         </div>

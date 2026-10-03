@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { SITE_DESCRIPTION, SITE_TITLE } from "@/lib/site"
 import { Landing } from "@/components/Landing"
 import { generate } from "@/lib/scheduler"
-import { SAMPLE } from "@/lib/sample"
+import { SAMPLE, sampleConflict } from "@/lib/sample"
 
 export const metadata: Metadata = {
   title: { absolute: SITE_TITLE },
@@ -13,6 +13,6 @@ export const metadata: Metadata = {
 export default function Home() {
   return (
     // Someone who already has a week skips this page before it paints: see PASS_THROUGH in the root layout.
-    <Landing settings={SAMPLE} schedule={generate(SAMPLE)} />
+    <Landing settings={SAMPLE} schedule={generate(SAMPLE)} conflict={sampleConflict(SAMPLE)} />
   )
 }
