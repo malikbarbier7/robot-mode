@@ -1,0 +1,7 @@
+# Read by Cloudflare Pages and Netlify. The share image and the home-screen icon
+# are generated without a file extension, so their type is stated here: link
+# previews (X, LinkedIn, Slack, WhatsApp) skip an image served as plain bytes.
+/opengraph-image
+  Content-Type: image/png
+/apple-icon
+  Content-Type: image/png

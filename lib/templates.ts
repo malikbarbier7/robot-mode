@@ -123,7 +123,8 @@ export const templates: Template[] = [
       sleepTime: "23:00",
       meals: [
         { id: "breakfast", name: "Breakfast", start: "08:00", durationMinutes: 30, enabled: false },
-        { id: "lunch", name: "Lunch", start: "12:30", durationMinutes: 60, enabled: true },
+        // At 12:00, so the midday walk fits after it, inside its 12:00–14:00 window.
+        { id: "lunch", name: "Lunch", start: "12:00", durationMinutes: 60, enabled: true },
         { id: "dinner", name: "Dinner", start: "19:00", durationMinutes: 60, enabled: true },
       ],
       activities: [

@@ -303,6 +303,16 @@ describe("interpret", () => {
     expect(interpret("printout", ctx)).toMatchObject({ kind: "view", view: "printout" })
   })
 
+  it("understands every line the landing page shows", () => {
+    const sessions = [{ id: "gym#0", activityId: "gym", day: 0 as const, start: 1080, end: 1155 }]
+    const withSessions = { ...ctx, sessions }
+    expect(interpret("gym 1h15 4x", { ...ctx, activities: [] })).toMatchObject({ kind: "add", activity: { name: "gym", durationMinutes: 75, sessionsPerWeek: 4 } })
+    expect(interpret("move gym mon to tue", withSessions)).toMatchObject({ kind: "move", day: 1 })
+    expect(interpret("move gym monday to tuesday", withSessions)).toMatchObject({ kind: "move", day: 1 })
+    expect(interpret("print", ctx)?.kind).toBe("print")
+    expect(interpret("today", ctx)).toMatchObject({ kind: "view", view: "today" })
+  })
+
   it("locks and unlocks sessions by day and start", () => {
     const sessions = [
       { id: "gym#0", activityId: "gym", day: 0 as const, start: 600, end: 660 },

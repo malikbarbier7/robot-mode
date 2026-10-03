@@ -117,6 +117,7 @@ export function Terminal({
   unprinted = false,
   tip,
   slot,
+  off = null,
 }: {
   rm: RobotMode
   screen: TerminalScreen
@@ -141,6 +142,11 @@ export function Terminal({
   tip?: string | null
   /** Where on the machine's screen a function's screen opens, in place of the week. */
   slot: HTMLElement | null
+  /**
+   * Not lit yet (boot, setup, the reveal): the keys are there but dark and
+   * inactive, and the readout says what to do instead (the screen has the keys).
+   */
+  off?: string | null
 }) {
   const { clock } = useDisplay()
   const settings = rm.state.settings
@@ -188,29 +194,45 @@ export function Terminal({
   }
 
   // The screen's own keys: Esc steps back; the selection starts on the right item.
-  useTerminal(root, { onEscape: back, focusKey: current ? `${current.name}-${current.id ?? ""}` : null })
+  // The screen draws a render after it opens (once its place on the machine's screen exists), so that
+  // is part of the key too: the keyboard moves onto it when it is actually there, off the readout.
+  useTerminal(root, { onEscape: back, focusKey: current && slot ? `${current.name}-${current.id ?? ""}` : null })
   useEffect(() => {
     if (current?.name === "activities" && current.id) {
       root.current?.querySelector<HTMLElement>(`[data-activity="${current.id}"]`)?.focus()
     } else if (current?.name === "activities") {
       root.current?.querySelector<HTMLElement>("[data-activity]")?.focus()
     }
-  }, [current?.name, current?.id])
+  }, [current?.name, current?.id, slot])
+
+  const screenOpen = useRef(false)
+  useEffect(() => {
+    screenOpen.current = !!current
+  })
 
   // The keyboard starts on the prompt; "/" brings it back from anywhere. A phone
   // starts without it, or its on-screen keyboard would cover the week on arrival.
+  // Not lit yet, the keyboard takes nothing: the screen above has the keys.
   useEffect(() => {
+    if (off) return
     if (!touchOnly()) prompt.current?.focus()
     const handler = (e: KeyboardEvent) => {
-      if (e.key !== "/" || e.defaultPrevented) return
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA")) return
-      e.preventDefault()
-      prompt.current?.focus()
+      if (e.key === "/") {
+        e.preventDefault()
+        prompt.current?.focus()
+        return
+      }
+      // With nothing holding the keyboard (a sheet put back, the binder closed), typing goes to the readout:
+      // focused now, the letter lands in it.
+      // Not while a screen is open: there the keys are its own (1–9, Y, N…).
+      if (e.key.length === 1 && (!t || t === document.body) && !screenOpen.current) prompt.current?.focus()
     }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [])
+  }, [off])
 
   const load = (line: string, id: string | null = null) => {
     setText(line)
@@ -397,14 +419,14 @@ export function Terminal({
       <div className="no-print shrink-0 border-t-2 border-ink bg-[#cdc5b1] px-3 pb-3 pt-2 shadow-[inset_0_1px_0_rgb(255_255_255/0.4)] sm:px-6">
         {/* What the week is built from, printed on the casing. Click anything to change it. */}
         <div className="label hidden flex-wrap items-baseline gap-x-5 gap-y-1 text-ink/70 sm:flex [&_button]:uppercase">
-          <button type="button" onClick={() => onScreen({ name: "hours" })} className="hover:text-ink" title="Edit your hours">
+          <button type="button" disabled={!!off} onClick={() => onScreen({ name: "hours" })} className="enabled:hover:text-ink" title="Edit your hours">
             <span className="opacity-60">Wake </span>
             {formatClock(parseTime(settings.wakeTime), clock)}
             <span className="opacity-60"> · Sleep </span>
             {formatClock(parseTime(settings.sleepTime), clock)}
           </button>
           <span aria-hidden className="text-ink/30">│</span>
-          <button type="button" onClick={() => onScreen({ name: "activities" })} className="hover:text-ink" title="Edit your activities">
+          <button type="button" disabled={!!off} onClick={() => onScreen({ name: "activities" })} className="enabled:hover:text-ink" title="Edit your activities">
             {mains.length} <span className="opacity-60">{mains.length === 1 ? "activity" : "activities"}</span>
           </button>
           <span className="ml-auto tabular-nums" title="Hours your activities ask for, out of the hours the week has for them">
@@ -425,11 +447,13 @@ export function Terminal({
               <button
                 key={f.word}
                 type="button"
+                disabled={!!off}
+                tabIndex={off ? -1 : undefined}
                 onClick={() => runWord(f.word)}
                 aria-pressed={lit === f.word || (current ? functionOf({ kind: "open", screen: current.name }) === f.word : false)}
                 className="key flex items-center gap-2 px-2.5 py-1.5"
               >
-                {f.alert && <span aria-hidden className="inline-block h-1.5 w-1.5 bg-alert" style={{ boxShadow: "0 0 4px var(--color-alert)" }} />}
+                {f.alert && !off && <span aria-hidden className="inline-block h-1.5 w-1.5 bg-alert" style={{ boxShadow: "0 0 4px var(--color-alert)" }} />}
                 {f.label}
               </button>
             ))}
@@ -437,6 +461,20 @@ export function Terminal({
 
         {/* The readout: one line to type on, one for the answer. */}
         <div className="crt mt-2 px-3 py-1 sm:px-4" style={{ borderWidth: 4 }}>
+        {off ? (
+          // Not lit yet: no line to type on, only what to do, on the screen above.
+          <div aria-live="polite" className="font-crt">
+            <div className="flex items-baseline gap-3 text-[22px] text-ink/60">
+              <span className="text-ink/35">&gt;</span>
+              <span className="uppercase">
+                {off}
+                <span className="blink">_</span>
+              </span>
+            </div>
+            <div className="min-h-[1.4em] text-[17px] leading-tight text-ink/35">KEYBOARD LIGHTS UP ONCE YOUR WEEK IS DRAFTED</div>
+          </div>
+        ) : (
+        <>
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -521,6 +559,8 @@ export function Terminal({
             status && localizeTimes(status.text, clock)
           )}
         </div>
+        </>
+        )}
         </div>
       </div>
     </>
