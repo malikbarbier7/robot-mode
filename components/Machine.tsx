@@ -41,7 +41,7 @@ export function Console({
     <div className="mx-auto w-full max-w-[1000px] py-6 sm:px-6">
       <div className="crt px-5 py-6 sm:px-12 sm:py-10">{children}</div>
 
-      <div className="label mt-3 flex justify-between gap-4 px-4 text-ink/55 sm:px-0">
+      <div className="label mt-3 flex justify-between gap-4 px-4 text-ink/70 sm:px-0">
         <span>{left}</span>
         <span className="text-right">{right}</span>
       </div>
@@ -255,7 +255,7 @@ export function Command({
         primary ? "border-2 border-ink px-4 py-2 text-[28px] hover:bg-ink/15 sm:px-5 sm:text-[34px]" : "px-2 text-[26px] hover:bg-ink/15"
       }`}
     >
-      {keyName && <span className="text-ink/60 pointer-coarse:hidden">[{keyName}] </span>}
+      {keyName && <span className="text-ink/70 pointer-coarse:hidden">[{keyName}] </span>}
       {children}
     </button>
   )

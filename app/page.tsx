@@ -1,12 +1,13 @@
 import type { Metadata } from "next"
+import { SITE_DESCRIPTION, SITE_TITLE } from "@/lib/site"
 import { Landing } from "@/components/Landing"
 import { generate } from "@/lib/scheduler"
 import type { Settings } from "@/lib/types"
 
 export const metadata: Metadata = {
-  title: "Robot Mode · Stop deciding what to do next",
-  description:
-    "List what you want to do this week. Robot Mode fits it around when you wake and sleep, and prints the timetable. No AI. Private.",
+  title: { absolute: SITE_TITLE },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
 }
 
 /**
@@ -32,18 +33,9 @@ const SAMPLE: Settings = {
   ],
 }
 
-/**
- * Before anything paints: a setup link made before the machine moved to /app
- * is passed on to it, and someone who already has a week goes straight to it.
- * `/?home` shows this page anyway.
- */
-const PASS_THROUGH = `try{var h=location.hash;if(h.indexOf("#setup=")===0)location.replace("/app"+h);else if(!/[?&]home(=|&|$)/.test(location.search)){var s=JSON.parse(localStorage.getItem("robot-mode:v1")||"null");if(s&&s.generated)location.replace("/app")}}catch(e){}`
-
 export default function Home() {
   return (
-    <>
-      <script dangerouslySetInnerHTML={{ __html: PASS_THROUGH }} />
-      <Landing settings={SAMPLE} schedule={generate(SAMPLE)} />
-    </>
+    // Someone who already has a week skips this page before it paints: see PASS_THROUGH in the root layout.
+    <Landing settings={SAMPLE} schedule={generate(SAMPLE)} />
   )
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { matchesTemplate, templateById, templates } from "./templates"
 import { computeBudget } from "./scheduler/budget"
 import { generate } from "./scheduler/generate"
+import { parseTime } from "./scheduler/time"
 
 describe("templates", () => {
   it("is listed in the order the picker should show", () => {
@@ -110,5 +111,20 @@ describe("matchesTemplate", () => {
   it("does not match a different template", () => {
     const worker = templates.find((t) => t.id === "worker")!
     expect(matchesTemplate(worker.settings, student)).toBe(false)
+  })
+})
+
+describe("ready-made weeks, as the guides show them", () => {
+  it("place every session, each inside the window it asks for", () => {
+    for (const { id, settings } of templates) {
+      const schedule = generate(settings)
+      expect(schedule.unplaced, id).toEqual([])
+      for (const b of schedule.blocks) {
+        const a = settings.activities.find((x) => x.id === b.activityId)
+        if (!a?.window) continue
+        expect(b.startMinute, `${id}: ${a.name} on day ${b.day}`).toBeGreaterThanOrEqual(parseTime(a.window.start))
+        expect(b.endMinute, `${id}: ${a.name} on day ${b.day}`).toBeLessThanOrEqual(parseTime(a.window.end))
+      }
+    }
   })
 })

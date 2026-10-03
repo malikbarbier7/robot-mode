@@ -418,6 +418,13 @@ Settings + locks + printed week + binder (localStorage, versioned)
 ```
 
 - Next.js, TypeScript, Tailwind; one client page
+- A static export (`output: "export"`, trailing-slash URLs): `next build` writes
+  plain files to `out/` for any static host (Cloudflare Pages, Netlify).
+  `public/_headers` gives the extensionless share image and icon their type.
+- The site's address comes from `NEXT_PUBLIC_SITE_URL` at build time; the
+  name, value proposition, publisher and host are in `lib/site.ts`. Link
+  previews, `robots.txt` and the sitemap are generated from them; only `/`,
+  `/privacy/` and `/legal/` are indexed
 - No backend, no database, no auth, no dependencies beyond the framework
 - localStorage with a version field and a try/catch fallback; the browser is
   asked to keep it persistent (Safari otherwise clears it after a week unvisited)
@@ -528,23 +535,38 @@ One sentence:
 
 ## Landing page
 
-**Hero**
+**Hero** — the value proposition, a beat a line, on the machine's screen:
 
-# Stop deciding what to do next.
+# Write your week. Let the robot decide. Print your schedule. Execute.
 
-Tell Robot Mode when you wake, when you sleep, and everything you want to get done. It builds your week around your constraints.
+*Stop deciding what to do next. Robot Mode places every session of your week
+around when you wake, sleep and eat. You follow the paper.*
 
-**[ Build My Week ]**
-
-*No AI. No setup. No account.*
+**[ Build my week ▶ ]** · *Free · No AI · Private* · *Driven from the keyboard:
+best on a computer, works on a phone.*
 
 **Demo** — a sample setup on the screen (five lines, wake and sleep), and what
 the machine prints from it: the plotted week and Wednesday's ticket. Solved by
 the real engine when the page is built, not drawn.
 
-The landing page is `/`; the machine is `/app`. Someone with a week already
-printed skips straight to it (`/?home` shows the landing anyway), and setup
-links made for `/` are passed on to `/app`.
+**How it works** — the four beats, each with the line actually typed at the
+keyboard (`gym 1h15 4x` · `move gym mon to tue` · `print` · `today`). A test
+keeps every one of them a real command.
+
+The value proposition lives in `lib/site.ts` (`VALUE_PROP`), shared by the hero,
+the steps and the link preview image.
+
+**Guides** — `/guides/` and three articles: *How to plan your week*, *Time
+blocking: real examples*, *How to design your ideal week*. Each shows real
+weeks solved by the engine (from the machine's ready-made weeks) and leads into
+the machine; they
+carry Article structured data. Their targets and the reasoning are in
+`plans/seo-keywords.md`; a test keeps every line they show a real command.
+
+The landing page is `/`; the machine is `/app/`. Someone with a week already
+drafted skips straight to it (`/?home` shows the landing anyway), and setup
+links made for `/` are passed on to `/app/`. `/privacy/` and `/legal/` are
+linked from every footer; a wrong address gets the machine's own 404 screen.
 
 ---
 

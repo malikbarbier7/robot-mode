@@ -1,6 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" fill="#1d2be0"/>
-  <rect x="6" y="8"  width="20" height="3" fill="#fff"/>
-  <rect x="6" y="14.5" width="13" height="3" fill="#fff"/>
-  <rect x="6" y="21" width="20" height="3" fill="#fff"/>
+  <!-- The machine's screen: amber phosphor lines on a dark CRT, in its casing. -->
+  <rect width="32" height="32" rx="3" fill="#2a2620"/>
+  <rect x="3" y="3" width="26" height="26" fill="#14110c"/>
+  <rect x="7" y="9" width="18" height="3" fill="#ffb238"/>
+  <rect x="7" y="14.5" width="12" height="3" fill="#ffb238"/>
+  <rect x="7" y="20" width="7" height="3" fill="#ffb238"/>
+  <rect x="16" y="20" width="3" height="3" fill="#ffb238" opacity="0.6"/>
 </svg>

@@ -659,6 +659,8 @@ export default function Page() {
                 ? "SHEET FILED · TYPE PRINT FOR A FRESH ONE"
                 : !printed && view !== "screen"
                 ? "NOTHING ON PAPER YET · TYPE PRINT TO PRINT THE DRAFT ON THE SCREEN"
+                : !printed
+                ? firstTry(rm.state.settings.activities, rm.schedule.blocks)
                 : rm.unprinted && printed
                 ? "THE SCREEN HAS CHANGES THE PAPER DOESN'T · TYPE PRINT TO UPDATE IT"
                 : weekDue
@@ -689,6 +691,20 @@ function dropStartFlag() {
   params.delete("start")
   const query = params.toString()
   window.history.replaceState(null, "", window.location.pathname + (query ? `?${query}` : "") + window.location.hash)
+}
+
+/**
+ * The first thing to try, before anything is printed: a real line about the
+ * week on the screen (its first activity's session, moved a day on), so the
+ * keyboard's whole idea is shown with the visitor's own week.
+ */
+function firstTry(activities: Settings["activities"], blocks: { activityId: string; day: number }[]): string {
+  const DAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]
+  const main = activities.find((a) => !a.extraOf && blocks.some((b) => b.activityId === a.id))
+  const block = main && blocks.find((b) => b.activityId === main.id)
+  if (!main || !block) return "TYPE ADD TO WRITE WHAT YOU WANT TO DO · HELP LISTS EVERYTHING"
+  const name = main.name.toUpperCase()
+  return `TRY: MOVE ${name} ${DAYS[block.day]} TO ${DAYS[(block.day + 1) % 7]} · LOCK ${name} · HELP · THEN PRINT`
 }
 
 function onOutput(view: View): boolean {
