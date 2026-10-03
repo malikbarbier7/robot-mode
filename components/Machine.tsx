@@ -103,7 +103,10 @@ export function useTerminal(
         if (inside && !selectable) return
         if (selectable && isTextField(target) && !atEdge(target as HTMLInputElement, e.key)) return
         e.preventDefault()
-        move(el, from, e.key === "ArrowRight" ? 1 : -1)
+        const by = e.key === "ArrowRight" ? 1 : -1
+        // A screen laid out in columns (data-columns) goes across to the next column; anywhere else, ← → read in order.
+        if (from?.closest("[data-columns]") && moveAcross(el, from, by)) return
+        move(el, from, by)
       } else if (e.key === "Enter") {
         // A held key would race through every screen; one press, one step.
         if (e.repeat) return e.preventDefault()
@@ -199,6 +202,30 @@ function scrollerOf(el: HTMLElement): HTMLElement | null {
     if ((overflowY === "auto" || overflowY === "scroll") && p.scrollHeight > p.clientHeight) return p
   }
   return null
+}
+
+/**
+ * Across to the next column: the item beside this one, on the same line or the
+ * nearest to it, in the column to the left or right. False when there is no
+ * column that way, so the caller can fall back to reading order.
+ */
+function moveAcross(root: HTMLElement, from: HTMLElement, by: 1 | -1): boolean {
+  const items = navItems(root)
+  const here = from.getBoundingClientRect()
+  const midY = here.top + here.height / 2
+  const beyond = items
+    .filter((el) => el !== from)
+    .map((el) => ({ el, r: el.getBoundingClientRect() }))
+    .filter(({ r }) => (by === 1 ? r.left >= here.right - 4 : r.right <= here.left + 4))
+  if (!beyond.length) return false
+  // The nearest column first, then the line closest to this one within it.
+  const columnX = by === 1 ? Math.min(...beyond.map(({ r }) => r.left)) : Math.max(...beyond.map(({ r }) => r.right))
+  const column = beyond.filter(({ r }) => Math.abs((by === 1 ? r.left : r.right) - columnX) < 40)
+  const distance = (r: DOMRect) => Math.abs(r.top + r.height / 2 - midY)
+  const next = column.sort((a, b) => distance(a.r) - distance(b.r))[0]?.el
+  if (!next) return false
+  show(next, items)
+  return true
 }
 
 /**

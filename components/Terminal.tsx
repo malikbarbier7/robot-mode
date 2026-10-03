@@ -865,126 +865,121 @@ function FixKeys({ items, children }: { items: MenuItem[]; children: ReactNode }
 
 /** The functions as the manual lists them; each one runs from here. */
 const MANUAL_FUNCTIONS: [word: string, what: string][] = [
-  ["add", "Add an activity. ADD SURF starts from 1H 1×; or type the whole line."],
-  ["edit", "Change activities, hours or meals. EDIT GYM · EDIT MEALS."],
-  ["shuffle", "Same rules, a different arrangement of the week."],
-  ["screen", "The draft: the week on the screen, where it is changed. Paper only changes on PRINT."],
-  ["print", "Print the draft on the screen onto paper. Lit while the screen has changes the paper doesn't."],
-  ["export", "Download the week on paper as .ics, for any calendar app."],
-  ["today", "Today's ticket, from the paper: print it and keep it."],
-  ["list", "The week on paper as the printed list, day after day."],
-  ["grid", "The week on paper as a calendar grid."],
-  ["backup", "Download your setup, week and binder as a file. LOAD opens one."],
-  ["system", "Backup, load, 12H / 24H clock, week start, reset, restart."],
-  ["fix", "Shown when a session doesn't fit: suggested fixes, one key each."],
-  ["clear", "Shown after moving or locking blocks: undo those edits."],
-  ["tear", "File the sheet on paper in the binder; only its printer empties. From the binder, DOWNLOAD keeps it as a PDF, or sends it to your printer. Once the week is over, it also clears the week's edits. Or pull the sheet down by its tab. PRINT fills it again."],
-  ["shred", "Shred a filed week for good: SHRED 39. Or ✕ on its sheet in the binder, twice."],
-  ["binder", "The filing unit at the right edge (or bring the pointer there): torn-off weeks. Pull a sheet out to read it, Esc to put it back."],
+  ["add", "an activity, or a whole line"],
+  ["edit", "activities, hours or meals"],
+  ["shuffle", "same rules, another arrangement"],
+  ["print", "the draft onto paper"],
+  ["export", "the paper as .ics, for calendars"],
+  ["screen", "the draft, where the week changes"],
+  ["list · grid · today", "the paper, three ways"],
+  ["tear", "file the paper (or pull it down)"],
+  ["binder", "filed sheets: read, download, shred"],
+  ["fix", "fixes for what doesn't fit"],
+  ["clear", "undo this week's edits"],
+  ["system", "backup, load, clock, sound, restart"],
 ]
 
-/** One section of the manual: a heading, then aligned lines. */
+/** One section of the manual: a heading, then its lines. */
 function ManualSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="mt-6">
-      <h3 className="border-b border-ink/30 pb-0.5 text-[22px] tracking-[0.2em] text-ink/60">{title}</h3>
-      <div className="mt-2">{children}</div>
+    <section className="mt-3 break-inside-avoid">
+      <h3 className="border-b border-ink/30 text-[17px] tracking-[0.2em] text-ink/70">{title}</h3>
+      <div className="mt-1">{children}</div>
     </section>
   )
 }
 
-const MANUAL_ROW = "flex flex-wrap items-baseline gap-x-6 px-1 text-[24px] leading-snug"
-const MANUAL_CMD = "w-[22rem] shrink-0"
+const MANUAL_ROW = "block px-1 text-[18px] leading-[1.22] py-[1px]"
 
 /**
- * A line of the manual: what to type, then what it does. Selectable like any
- * terminal line, so ↑ ↓ read down the whole page. Day letters keep their case.
+ * A line of the manual: what to type, then what it does, on one line when it
+ * fits. Selectable like any terminal line, so ↑ ↓ read through the page. Day
+ * letters keep their case.
  */
 function ManualLine({ cmd, children }: { cmd: ReactNode; children: ReactNode }) {
   return (
     <div data-nav tabIndex={-1} className={MANUAL_ROW}>
-      <span className={MANUAL_CMD}>{cmd}</span>
-      <span className="min-w-0 flex-1 opacity-60">{children}</span>
+      <span>{cmd}</span> <span className="opacity-70">· {children}</span>
     </div>
   )
 }
 
 /**
  * The manual page, as a terminal would print one: every function, the
- * shape of an activity line, and the keys. Functions are selectable and run.
+ * shape of an activity line, and the keys, in two columns where there is
+ * room, so it fits on a screen or two. Functions are selectable and run.
  */
 function HelpScreen({ onRunWord }: { onRunWord: (word: string) => void }) {
   const words = useWords()
   const days = <span className="normal-case">MTSaSu</span>
   return (
     <div className="font-crt uppercase">
-      <div className="flex flex-wrap items-baseline gap-x-6">
-        <h2 className="text-[48px] leading-none tracking-[0.04em]">Help</h2>
-        <span className="text-[22px] tracking-[0.2em] text-ink/60">{words.help.title}</span>
+      <div className="flex flex-wrap items-baseline gap-x-5">
+        <h2 className="text-[30px] leading-none tracking-[0.04em]">Help</h2>
+        <span className="text-[18px] tracking-[0.2em] text-ink/70">{words.help.title}</span>
       </div>
-      <p className="mt-2 text-[22px] tracking-[0.08em] text-ink/60">
-        Type a function and press Enter. The first letters are enough: the rest is completed for you.
+      <p className="mt-1 text-[17px] leading-snug tracking-[0.06em] text-ink/70">
+        Type, then Enter: the first letters are enough. Every change is typed here.
       </p>
 
-      <ManualSection title="Functions">
-        {MANUAL_FUNCTIONS.map(([word, what]) => (
-          <button key={word} type="button" data-nav onClick={() => onRunWord(word)} className={`${MANUAL_ROW} w-full text-left uppercase hover:bg-ink/15`}>
-            <span className={MANUAL_CMD}>[{word}]</span>
-            <span className="min-w-0 flex-1 opacity-60">{what}</span>
-          </button>
-        ))}
-      </ManualSection>
+      {/* Two columns where there is room: ← → go across, ↑ ↓ down each one. */}
+      <div data-columns className="gap-x-10 lg:columns-2">
+        <ManualSection title="Functions">
+          {MANUAL_FUNCTIONS.map(([word, what]) => (
+            <button
+              key={word}
+              type="button"
+              data-nav
+              onClick={() => onRunWord(word.split(" ")[0])}
+              className={`${MANUAL_ROW} w-full text-left uppercase hover:bg-ink/15`}
+            >
+              <span>[{word}]</span> <span className="opacity-70">· {what}</span>
+            </button>
+          ))}
+        </ManualSection>
 
-      <ManualSection title="Activities">
-        <ManualLine cmd="SURF 1H10 4×">Add it, or change it if it is already on your list.</ManualLine>
-        <ManualLine cmd={<>SURF 1H10 4× {days} MORNING</>}>With days and a time of day.</ManualLine>
-        <ManualLine cmd="SURF ALWAYS AT 06:00">Always at the same time.</ManualLine>
-        <ManualLine cmd="GYM 3× · GYM 1H30">Change one thing; the rest stays.</ManualLine>
-        <ManualLine cmd="ADD GYM · ADD GYM 2×">One or two more of the same sessions.</ManualLine>
-        <ManualLine cmd="ADD DEEP WORK MONDAY 1H AT 10:00">An extra session of an activity you have; the regular ones stay.</ManualLine>
-        <ManualLine cmd="REMOVE GYM">Take it off the list, with its extra sessions.</ManualLine>
-        <ManualLine cmd="REMOVE GYM WEDNESDAY">Only Wednesday&rsquo;s session, this week only (or that day&rsquo;s extra session, if it has one). CLEAR EDITS brings it back.</ManualLine>
-        <ManualLine cmd="EDIT DEEP WORK MONDAY 2H">Change only Monday’s session. A regular one becomes an extra, kept at its time.</ManualLine>
-        <ManualLine cmd="MOVE GYM MONDAY 10H TO 11H">Move one session; every hour here is a time. Locked there, like [M] MOVE.</ManualLine>
-        <ManualLine cmd="MOVE GYM MONDAY TO TUESDAY">Same time, another day. Or both: TO TUESDAY 11H.</ManualLine>
-        <ManualLine cmd="EDIT DEEP WORK MONDAY 10:00 TO 3H AT 11:00">When a day has several: name it by its start. TO separates which from what changes.</ManualLine>
-        <ManualLine cmd="Any order">The parts of a line can come in any order: 1H MONDAY GYM is GYM MONDAY 1H.</ManualLine>
-      </ManualSection>
+        <ManualSection title="Keys">
+          <ManualLine cmd="Enter">run the line</ManualLine>
+          <ManualLine cmd="Tab · →">take the completion</ManualLine>
+          <ManualLine cmd="↑ ↓">your activities, one by one</ManualLine>
+          <ManualLine cmd="Esc">back one screen, or clear the line</ManualLine>
+        </ManualSection>
 
-      <ManualSection title="What goes in a line">
-        <ManualLine cmd="Length">1H · 45M · 1H30 · 90 MIN</ManualLine>
-        <ManualLine cmd="Times a week">4× · 4X · 3 TIMES · TWICE · DAILY</ManualLine>
-        <ManualLine cmd="Days">
-          <span className="normal-case">M T W T F Sa Su</span>, in week order: {days} = Mon Tue Sat Sun ·{" "}
-          <span className="normal-case">TT</span> = Tue Thu · MONDAY · MON · WEEKDAYS · WEEKENDS
-        </ManualLine>
-        <ManualLine cmd="Time of day">MORNING 06–12 · AFTERNOON 12–18 · EVENING 18–23</ManualLine>
-        <ManualLine cmd="Start time">AT 10:00 · AT 10H00 · STARTING AT 10 · FROM 7AM · ALWAYS AT 07:00</ManualLine>
-      </ManualSection>
+        <ManualSection title="Activities">
+          <ManualLine cmd="SURF 1H10 4×">add it, or change it</ManualLine>
+          <ManualLine cmd={<>SURF 1H10 4× {days} MORNING</>}>days and when</ManualLine>
+          <ManualLine cmd="GYM ALWAYS AT 07:00">same time every session</ManualLine>
+          <ManualLine cmd="GYM 3× · GYM 1H30">change one thing</ManualLine>
+          <ManualLine cmd="ADD GYM 2×">two more sessions</ManualLine>
+          <ManualLine cmd="ADD DEEP WORK MONDAY 1H AT 10:00">an extra session</ManualLine>
+          <ManualLine cmd="REMOVE GYM">off the list</ManualLine>
+          <ManualLine cmd="REMOVE GYM WEDNESDAY">that session, this week only</ManualLine>
+          <ManualLine cmd="EDIT DEEP WORK MONDAY 2H">that session only</ManualLine>
+          <ManualLine cmd="MOVE GYM MON TO TUE 11H">moved, and locked</ManualLine>
+          <ManualLine cmd="EDIT GYM MONDAY 18:00 TO 2H">by its start time</ManualLine>
+        </ManualSection>
 
-      <ManualSection title="Your day">
-        <ManualLine cmd="WAKE 7:00 · SLEEP 23:30">When the day starts and ends.</ManualLine>
-        <ManualLine cmd="Free time">What your activities leave empty. To keep a break, add it: ADD BREAK 1H DAILY.</ManualLine>
-        <ManualLine cmd="12H · 24H · MON · SUN">How times read, and which day starts the week.</ManualLine>
-      </ManualSection>
+        <ManualSection title="Sessions">
+          <ManualLine cmd="LOCK GYM MONDAY">keep it there · LOCK GYM: all</ManualLine>
+          <ManualLine cmd="UNLOCK GYM MONDAY">let it move again</ManualLine>
+        </ManualSection>
 
-      <ManualSection title="Sound">
-        <ManualLine cmd="SOUND · MUTE">The machine’s clicks, printer and hum. Also SYSTEM [S] and ♪ on the panel.</ManualLine>
-      </ManualSection>
+        <ManualSection title="In a line, any order">
+          <ManualLine cmd="Length">1H · 45M · 1H30 · 90 MIN</ManualLine>
+          <ManualLine cmd="Times">4× · 3 TIMES · TWICE · DAILY</ManualLine>
+          <ManualLine cmd="Days">
+            <span className="normal-case">M T W T F Sa Su</span> · MON · WEEKDAYS
+          </ManualLine>
+          <ManualLine cmd="When">MORNING · AFTERNOON · EVENING · AT 10:00</ManualLine>
+        </ManualSection>
 
-      <ManualSection title="Sessions">
-        <ManualLine cmd="The screen · the paper">They only show the week. Every change is typed here.</ManualLine>
-        <ManualLine cmd="LOCK GYM MONDAY">Keep that session where it is, through shuffles and edits. LOCK GYM locks every one.</ManualLine>
-        <ManualLine cmd="UNLOCK GYM MONDAY">Let shuffles move it again. CLEAR EDITS unlocks everything.</ManualLine>
-      </ManualSection>
-
-      <ManualSection title="Keys">
-        <ManualLine cmd="Enter">Run the line, or the dimmed completion.</ManualLine>
-        <ManualLine cmd="Tab · →">Take the completion without running it.</ManualLine>
-        <ManualLine cmd="↑ ↓">On the prompt: step through your activities, ready to change.</ManualLine>
-        <ManualLine cmd="/">Back to the prompt from anywhere.</ManualLine>
-        <ManualLine cmd="Esc">Back one screen, or clear the line.</ManualLine>
-      </ManualSection>
+        <ManualSection title="Your day">
+          <ManualLine cmd="WAKE 7:00 · SLEEP 23:30">the day&rsquo;s edges</ManualLine>
+          <ManualLine cmd="ADD BREAK 1H DAILY">keep a break</ManualLine>
+          <ManualLine cmd="12H · 24H · MON · SUN">clock, week start</ManualLine>
+          <ManualLine cmd="SOUND · MUTE">the machine&rsquo;s sounds</ManualLine>
+        </ManualSection>
+      </div>
     </div>
   )
 }
