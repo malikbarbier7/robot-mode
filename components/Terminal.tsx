@@ -376,7 +376,7 @@ export function Terminal({
   const mains = activities.filter((a) => !a.extraOf)
 
   // Editing the week lives here; the views and EXPORT are the panel's (and can still be typed).
-  const functionRow: { word: string; label: string; show: boolean; alert?: boolean }[] = [
+  const functionRow: { word: string; label: string; show: boolean; alert?: boolean; danger?: boolean }[] = [
     { word: "add", label: "Add", show: true },
     { word: "edit", label: "Edit", show: true },
     { word: "shuffle", label: "Shuffle", show: true },
@@ -386,6 +386,8 @@ export function Terminal({
     { word: "export", label: "Export .ics", show: true },
     { word: "system", label: "System", show: true },
     { word: "help", label: "Help", show: true },
+    // Erases everything: a red cap, and its screen asks Y / N first.
+    { word: "restart", label: "Restart", show: true, danger: true },
     { word: "clear", label: `Clear edits (${weekEdits})`, show: weekEdits > 0 },
     { word: "fix", label: conflicts === 1 ? "Fix 1 conflict" : `Fix ${conflicts} conflicts`, show: conflicts > 0, alert: true },
   ]
@@ -451,7 +453,7 @@ export function Terminal({
                 tabIndex={off ? -1 : undefined}
                 onClick={() => runWord(f.word)}
                 aria-pressed={lit === f.word || (current ? functionOf({ kind: "open", screen: current.name }) === f.word : false)}
-                className="key flex items-center gap-2 px-2.5 py-1.5"
+                className={`key flex items-center gap-2 px-2.5 py-1.5 ${f.danger ? "key-red" : ""}`}
               >
                 {f.alert && !off && <span aria-hidden className="inline-block h-1.5 w-1.5 bg-alert" style={{ boxShadow: "0 0 4px var(--color-alert)" }} />}
                 {f.label}
@@ -577,7 +579,7 @@ function functionOf(action: { kind: string; screen?: string; view?: string }): s
   if (action.kind === "open") {
     const screen = action.screen as Screen
     if (["activities", "hours", "meals"].includes(screen)) return "edit"
-    if (screen === "restart" || screen === "reset") return "system"
+    if (screen === "reset") return "system"
     return screen
   }
   if (action.kind === "view") return action.view ?? null

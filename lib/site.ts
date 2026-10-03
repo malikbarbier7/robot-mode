@@ -3,25 +3,26 @@
  * introduces itself in search results and link previews, and who publishes it.
  *
  * The address comes from NEXT_PUBLIC_SITE_URL at build time (set it on the
- * host once the domain exists, e.g. https://robotmode.app). Without it, links
- * in previews and the sitemap point at the local dev server.
+ * host to point a preview deploy elsewhere). Without it, links in previews and
+ * the sitemap point at the live site.
  */
-export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/+$/, "")
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.getrobotmode.com").replace(/\/+$/, "")
 
 export const SITE_NAME = "Robot Mode"
 
 /** The value proposition, a line per beat. The landing page's headline and the share image both use it. */
-export const VALUE_PROP = ["Write your week.", "Let the robot decide.", "Print your schedule.", "Execute."] as const
+export const VALUE_PROP = ["Tell it what you want to do.", "It finds the time."] as const
 
 /** Search results and link previews: what it is, in a sentence. */
 export const SITE_TITLE = `${SITE_NAME} · Free automatic weekly schedule maker`
 export const SITE_DESCRIPTION =
-  "A free, automatic weekly schedule maker. Write what you want to do; Robot Mode places every session around when you wake, sleep and eat, and prints your schedule. No AI, no account: it runs in your browser."
+  "A free, automatic weekly schedule maker. List what you want to do each week; Robot Mode finds the time for every session, around your sleep, meals and fixed hours. No AI, no account: it runs in your browser."
 
 /**
- * Who publishes the site, for the legal notice and the privacy page. Required
- * before publishing (in France, the "mentions légales"). Empty fields show as
- * missing on those pages, so nothing goes out half-filled by accident.
+ * Who publishes the site, for the legal notice and the privacy page (in
+ * France, the "mentions légales"). Published by an individual: without a name,
+ * the notice says so, and the contact is the handle on X. A host left empty
+ * shows as missing, so nothing goes out half-filled by accident.
  */
 export const PUBLISHER = {
   /** Your full name, or your company's. */
@@ -30,10 +31,15 @@ export const PUBLISHER = {
   address: "",
   /** Where people can reach you: also shown as Contact in the footers once set. */
   email: "",
+  /** The publisher's handle on X, without the @: the public way to reach them, shown as Built by in the footers. */
+  x: "malikbuilds",
 }
 
-/** Where the static site is hosted (also part of the legal notice). Fill in once the host is chosen. */
+/** The publisher's profile on X. */
+export const PUBLISHER_X_URL = `https://x.com/${PUBLISHER.x}`
+
+/** Where the static site is hosted (also part of the legal notice). */
 export const HOST = {
-  name: "",
-  address: "",
+  name: "Cloudflare, Inc.",
+  address: "101 Townsend St, San Francisco, CA 94107, USA",
 }

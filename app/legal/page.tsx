@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { SheetPage, Missing } from "@/components/SiteChrome"
-import { HOST, PUBLISHER, SITE_NAME, SITE_URL } from "@/lib/site"
+import { HOST, PUBLISHER, PUBLISHER_X_URL, SITE_NAME, SITE_URL } from "@/lib/site"
 
 export const metadata: Metadata = {
   title: "Legal notice",
@@ -21,15 +21,26 @@ export default function LegalPage() {
       <section>
         <h2>Publisher</h2>
         <p>
-          {SITE_NAME} ({SITE_URL}) is published by <Field value={PUBLISHER.name} what="Publisher name" />,{" "}
-          <Field value={PUBLISHER.address} what="Postal address" />.
+          {SITE_NAME} ({SITE_URL}) is published by {PUBLISHER.name || "an individual, as an independent project"}
+          {PUBLISHER.address && <>, {PUBLISHER.address}</>}.
           <br />
           Contact:{" "}
-          {PUBLISHER.email ? <a href={`mailto:${PUBLISHER.email}`}>{PUBLISHER.email}</a> : <Missing what="Contact email" />}
+          {PUBLISHER.email ? (
+            <a href={`mailto:${PUBLISHER.email}`}>{PUBLISHER.email}</a>
+          ) : PUBLISHER.x ? (
+            <>
+              <a href={PUBLISHER_X_URL}>@{PUBLISHER.x}</a> on X
+            </>
+          ) : (
+            <Missing what="Contact" />
+          )}
+          {PUBLISHER.email && PUBLISHER.x && (
+            <>
+              {" "}· <a href={PUBLISHER_X_URL}>@{PUBLISHER.x}</a> on X
+            </>
+          )}
         </p>
-        <p>
-          Director of publication: <Field value={PUBLISHER.name} what="Publisher name" />.
-        </p>
+        {PUBLISHER.name && <p>Director of publication: {PUBLISHER.name}.</p>}
       </section>
 
       <section>

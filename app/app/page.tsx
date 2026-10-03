@@ -18,6 +18,7 @@ import { Button } from "@/components/ui"
 import { downloadIcs, downloadText } from "@/lib/ics"
 import { fromJson, setupFromHash, setupLink, toJson } from "@/lib/storage"
 import type { Settings } from "@/lib/types"
+import { templateById, type Template } from "@/lib/templates"
 import { useRobotMode } from "@/lib/useRobotMode"
 import { useNow } from "@/lib/useNow"
 import { useMachineSound } from "@/lib/useMachineSound"
@@ -246,27 +247,32 @@ export default function Page() {
     return () => window.clearTimeout(t)
   }, [notice])
 
-  // A setup opened from a link, until it is taken or turned down.
-  const [linked, setLinked] = useState<Settings | null>(() =>
-    typeof window === "undefined" ? null : setupFromHash(window.location.hash),
-  )
+  // A setup opened from a link, or a template the landing page named (?template=…), until it is taken or turned down.
+  const [linked, setLinked] = useState<Linked | null>(() => {
+    if (typeof window === "undefined") return null
+    const settings = setupFromHash(window.location.hash)
+    if (settings) return { settings }
+    const template = templateFromAddress()
+    return template ? { settings: { ...template.settings }, template } : null
+  })
   // The link has done its job: a reload shouldn't offer it again. A link pasted into a tab
   // already showing the machine only changes the hash, so that is listened for too.
   useEffect(() => {
     const clear = () => window.history.replaceState(null, "", window.location.pathname + window.location.search)
     if (setupFromHash(window.location.hash)) clear()
+    if (templateFromAddress()) dropTemplateFlag()
     const onHash = () => {
       const settings = setupFromHash(window.location.hash)
       if (!settings) return
       clear()
-      setLinked(settings)
+      setLinked({ settings })
     }
     window.addEventListener("hashchange", onHash)
     return () => window.removeEventListener("hashchange", onHash)
   }, [])
-  const openSetup = (settings: Settings) => {
+  const openSetup = ({ settings, template }: Linked) => {
     setLinked(null)
-    rm.loadSetup(settings)
+    rm.loadSetup(settings, template?.id)
     setScreen(null)
     setView(settings.activities.length > 0 ? "generating" : "setup")
   }
@@ -440,7 +446,8 @@ export default function Page() {
         {linked && rm.hydrated ? (
           <div role="alert" className="label flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b-2 border-ink bg-ink px-3 py-2 text-paper sm:px-6 no-print">
             <span>
-              This link holds a setup of {linked.activities.length} {linked.activities.length === 1 ? "activity" : "activities"}. Replace yours with it?
+              {linked.template ? `The ${linked.template.name} template holds` : "This link holds a setup of"} {linked.settings.activities.length}{" "}
+              {linked.settings.activities.length === 1 ? "activity" : "activities"}. Replace yours with it?
             </span>
             <span className="flex gap-2">
               <button type="button" onClick={() => openSetup(linked)} className="border border-paper px-2 py-0.5 hover:bg-paper hover:text-ink">
@@ -680,6 +687,24 @@ export default function Page() {
       </div>
     </DisplayProvider>
   )
+}
+
+/** A setup to offer: from a link, or one of the ready-made weeks. */
+type Linked = { settings: Settings; template?: Template }
+
+/** The ready-made week the landing page asked for (?template=student), if it names one. */
+function templateFromAddress(): Template | undefined {
+  if (typeof window === "undefined") return undefined
+  const template = templateById(new URLSearchParams(window.location.search).get("template") ?? undefined)
+  return template && template.settings.activities.length > 0 ? template : undefined
+}
+
+/** Like the start flag, the template leaves the address once read. */
+function dropTemplateFlag() {
+  const params = new URLSearchParams(window.location.search)
+  params.delete("template")
+  const query = params.toString()
+  window.history.replaceState(null, "", window.location.pathname + (query ? `?${query}` : "") + window.location.hash)
 }
 
 /** Whether the visit came from the landing page's Build my week. */

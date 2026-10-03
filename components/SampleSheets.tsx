@@ -30,15 +30,27 @@ function Unit({ name, spec, className = "", children }: { name: string; spec: st
   )
 }
 
-const HOUR_PX = 22
+/** An hour of the chart: small beside an article's text, large where the week is the thing being shown. */
+const HOUR_PX = { small: 22, large: 30 }
 
 /** The plotter's chart of the week, as the app draws it, at a fixed scale. */
-export function PlottedWeek({ settings, schedule, label = "Sample week" }: { settings: Settings; schedule: Schedule; label?: string }) {
+export function PlottedWeek({
+  settings,
+  schedule,
+  label = "Sample week",
+  size = "small",
+}: {
+  settings: Settings
+  schedule: Schedule
+  label?: string
+  size?: keyof typeof HOUR_PX
+}) {
   const words = useWords()
+  const hourPx = HOUR_PX[size]
   const wake = parseTime(settings.wakeTime)
   let sleep = parseTime(settings.sleepTime)
   if (sleep <= wake) sleep += 1440
-  const height = ((sleep - wake) / 60) * HOUR_PX
+  const height = ((sleep - wake) / 60) * hourPx
   const hours: number[] = []
   for (let m = Math.ceil(wake / 60) * 60; m <= sleep; m += 60) hours.push(m)
   const days: Day[] = [0, 1, 2, 3, 4, 5, 6]
@@ -57,7 +69,7 @@ export function PlottedWeek({ settings, schedule, label = "Sample week" }: { set
               <div className="h-7 border-b border-ink/40" />
               <div className="relative" style={{ height }}>
                 {hours.map((m) => (
-                  <div key={m} className="absolute right-2 text-[10px] tabular-nums text-ink/70" style={{ top: ((m - wake) / 60) * HOUR_PX - 5 }}>
+                  <div key={m} className="absolute right-2 text-[10px] tabular-nums text-ink/70" style={{ top: ((m - wake) / 60) * hourPx - 5 }}>
                     {formatClock(m, "24h")}
                   </div>
                 ))}
@@ -71,12 +83,12 @@ export function PlottedWeek({ settings, schedule, label = "Sample week" }: { set
                   </div>
                   <div className="relative" style={{ height }}>
                     {hours.map((m) => (
-                      <div key={m} className="absolute inset-x-0 border-t border-dashed border-ink/20" style={{ top: ((m - wake) / 60) * HOUR_PX }} />
+                      <div key={m} className="absolute inset-x-0 border-t border-dashed border-ink/20" style={{ top: ((m - wake) / 60) * hourPx }} />
                     ))}
                     {schedule.blocks
                       .filter((b) => b.day === day)
                       .map((b) => (
-                        <PlottedBlock key={b.id} block={b} wake={wake} />
+                        <PlottedBlock key={b.id} block={b} wake={wake} hourPx={hourPx} />
                       ))}
                   </div>
                 </div>
@@ -89,19 +101,24 @@ export function PlottedWeek({ settings, schedule, label = "Sample week" }: { set
   )
 }
 
-function PlottedBlock({ block, wake }: { block: PlacedBlock; wake: number }) {
-  const top = ((block.startMinute - wake) / 60) * HOUR_PX
-  const height = ((block.endMinute - block.startMinute) / 60) * HOUR_PX
+function PlottedBlock({ block, wake, hourPx }: { block: PlacedBlock; wake: number; hourPx: number }) {
+  const top = ((block.startMinute - wake) / 60) * hourPx
+  const height = ((block.endMinute - block.startMinute) / 60) * hourPx
   const drawn = Math.max(height - 2, 13)
   const short = drawn < 26
+  const large = hourPx > HOUR_PX.small
   return (
     <div
       className={`absolute inset-x-[3px] overflow-hidden border-[1.5px] border-ink bg-sheet px-1.5 ${short ? "flex items-center" : "py-1"}`}
       style={{ top: top + 1, height: drawn }}
     >
-      <div className={`truncate leading-[1.15] tracking-[0.06em] ${short ? "text-[8.5px]" : "text-[10px]"}`}>{block.name}</div>
+      <div
+        className={`leading-[1.15] tracking-[0.04em] ${short ? "truncate" : "line-clamp-2 break-words"} ${short ? (large ? "text-[10px]" : "text-[8.5px]") : large ? "text-[11.5px]" : "text-[10px]"}`}
+      >
+        {block.name}
+      </div>
       {height >= 36 && (
-        <div className="text-[9px] tabular-nums opacity-65">
+        <div className={`tabular-nums opacity-70 ${large ? "text-[10.5px]" : "text-[9px]"}`}>
           {formatClock(block.startMinute, "24h")}–{formatClock(block.endMinute, "24h")}
         </div>
       )}

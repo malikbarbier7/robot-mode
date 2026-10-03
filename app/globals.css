@@ -219,6 +219,23 @@
   }
 }
 
+/* The red cap, for the one key that throws everything away. */
+@utility key-red {
+  background: var(--color-alert);
+  color: var(--color-sheet);
+  border-color: #5e170d;
+
+  &:hover:not(:disabled) {
+    background: #a8291a;
+  }
+
+  &[aria-pressed="true"],
+  &[aria-pressed="true"]:hover {
+    background: #8f2213;
+    color: var(--color-sheet);
+  }
+}
+
 /* Paper fed from the machine: sprocket holes down both margins. */
 @utility sheet {
   --color-ink: #1b1914;

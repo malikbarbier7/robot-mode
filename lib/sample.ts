@@ -1,5 +1,7 @@
-import type { Day, PlacedBlock, Schedule, Settings } from "./types"
+import type { Activity, Day, PlacedBlock, Schedule, Settings } from "./types"
 import { interpret } from "./command"
+import { generate } from "./scheduler/generate"
+import { suggestFixes } from "./suggest"
 
 /**
  * The week shown on the landing page. Not a drawing: the real engine solves it
@@ -58,4 +60,33 @@ export function sampleTranscript(settings: Settings, schedule: Schedule): { line
     const action = interpret(line, ctx)
     return { line, reply: action ? (action.kind === "error" ? action.reply : action.preview) : "" }
   })
+}
+
+/** A line added to the sample week that cannot fit as asked: the run is pinned before the alarm goes off. */
+export const CONFLICT_LINE = "run 45m 3x at 6:30"
+
+export type SampleConflict = { line: string; reply: string; name: string; placed: number; requested: number; why: string; fixes: string[] }
+
+/**
+ * What the machine's FIX screen says when the line above is added to the
+ * sample week: why it failed, and the ways out the engine has verified by
+ * re-solving. Worked out by the real interpreter and engine when the page is
+ * built, like the week itself.
+ */
+export function sampleConflict(settings: Settings): SampleConflict {
+  const action = interpret(CONFLICT_LINE, { ...settings, sessions: [] })
+  if (action?.kind !== "add") throw new Error(`"${CONFLICT_LINE}" is not an add`)
+  const activity: Activity = { id: "run", ...action.activity }
+  const withRun = { ...settings, activities: [...settings.activities, activity] }
+  const conflict = generate(withRun).unplaced.find((u) => u.activityId === "run")
+  if (!conflict) throw new Error(`"${CONFLICT_LINE}" fits the sample week: it no longer shows a conflict`)
+  return {
+    line: CONFLICT_LINE,
+    reply: action.reply,
+    name: conflict.name,
+    placed: conflict.sessionsPlaced,
+    requested: conflict.sessionsRequested,
+    why: conflict.why,
+    fixes: suggestFixes(withRun, conflict).map((f) => f.label),
+  }
 }
