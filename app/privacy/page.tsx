@@ -24,7 +24,7 @@ export default function PrivacyPage() {
           are never sent to us or to anyone else. Nobody but you can see them.
         </p>
         <p>
-          To erase them, use RESTART on the machine (SYSTEM, then Restart terminal), or clear this site&rsquo;s data in your browser. Using
+          To erase them, press RESTART on the machine&rsquo;s keyboard, or clear this site&rsquo;s data in your browser. Using
           another browser or device starts from a blank machine.
         </p>
       </section>
@@ -41,8 +41,9 @@ export default function PrivacyPage() {
       <section>
         <h2>Visits</h2>
         <p>
-          We count visits with Umami, a privacy-friendly analytics tool: no cookies, no advertising, no tracking across sites, and nothing
-          that identifies you. It tells us how many people come and which pages and buttons they use, never what they type into the machine.
+          We count visits with Cloudflare Web Analytics, run by the site&rsquo;s host: no cookies, no advertising, no tracking across sites,
+          and nothing that identifies you. It tells us how many people come, which pages they open and roughly from where, never what they
+          type into the machine.
         </p>
         <p>
           The host that serves the site may keep standard technical logs (such as IP addresses) for security, as every web host does. The

@@ -1,0 +1,15 @@
+// Cloudflare Workers: the site is a static export, served as plain files from out/.
+// No server code runs. Without this file, Wrangler takes the project for a server-rendered
+// Next.js app and tries to build it with OpenNext, which a static export can't go through.
+{
+  // Must match the Worker's name in the Cloudflare dashboard.
+  "name": "robot-mode",
+  "compatibility_date": "2026-10-03",
+  "assets": {
+    "directory": "./out",
+    // /legal/ is written as legal/index.html: served at its trailing-slash address.
+    "html_handling": "auto-trailing-slash",
+    // A wrong address gets the machine's own 404 screen.
+    "not_found_handling": "404-page"
+  }
+}
