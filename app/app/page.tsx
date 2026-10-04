@@ -25,6 +25,8 @@ import { useMachineSound } from "@/lib/useMachineSound"
 import { beep, buzz, chime, rip, rustle, shred } from "@/lib/sound"
 import { dayKey, weekKey } from "@/lib/printout"
 import { BinderDrawer, useArmed } from "@/components/BinderDrawer"
+import { ticketContent } from "@/lib/ticket"
+import { saveImage, ticketImage, ticketWallpaper } from "@/lib/ticketImage"
 
 type View = "boot" | "setup" | "screen" | "print" | "week" | "today" | "generating"
 /** The draft on the screen, and the three ways the week comes out of the machine, as the terminal names them. */
@@ -102,9 +104,21 @@ export default function Page() {
   const filed = (rm.state.archive ?? []).find((w) => w.id === filedId) ?? null
   // A sheet drawn out of the binder: its first key (Download) takes the keyboard.
   const sheetKeys = useRef<HTMLSpanElement>(null)
+  // A ticket's Download key opens its three ways out in place of the sheet's keys: on paper, as a picture, as a lock screen.
+  // Kept as the sheet it was opened for, so another sheet drawn out comes with its own keys.
+  const [outputsFor, setOutputsFor] = useState<string | null>(null)
+  const outputs = outputsFor !== null && outputsFor === filedId
+  const setOutputs = (open: boolean) => setOutputsFor(open ? filedId : null)
+  const [saving, setSaving] = useState(false)
   useEffect(() => {
     if (filedId) sheetKeys.current?.querySelector("button")?.focus({ preventScroll: true })
   }, [filedId])
+  // The row of keys changed under the focus: the keyboard follows to its first key.
+  const outputsShown = useRef(false)
+  useEffect(() => {
+    if (outputsShown.current !== outputs) sheetKeys.current?.querySelector("button")?.focus({ preventScroll: true })
+    outputsShown.current = outputs
+  }, [outputs])
   const putBack = () => {
     rustle()
     setFiledId(null)
@@ -119,6 +133,21 @@ export default function Page() {
     shred()
     shredFiled(filedId)
   })
+  // The drawn-out ticket as a picture: as it is on the screen, or laid out as a phone's lock screen.
+  const saveTicket = async (as: "image" | "wallpaper") => {
+    if (!filed || saving) return
+    const day = new Date(filed.filedAt)
+    const content = ticketContent({ ...rm.state.settings, wakeTime: filed.wakeTime, sleepTime: filed.sleepTime }, filed.blocks, day)
+    setSaving(true)
+    try {
+      const blob = await (as === "image" ? ticketImage : ticketWallpaper)(content, words, rm.display.clock)
+      await saveImage(blob, `robot-mode-${dayKey(day)}${as === "wallpaper" ? "-wallpaper" : ""}.png`)
+    } catch {
+      setNotice({ text: "Couldn't draw the ticket", error: true })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   // Tearing a sheet off: it flies into the binder with a rip, and that printer alone is left
   // empty until the next PRINT (the empty slot's key, or typed). Switching views or
@@ -197,12 +226,14 @@ export default function Page() {
       if (e.key !== "Escape" || binderPinned) return
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === "INPUT" || t.tagName === "SELECT") && (t as HTMLInputElement).value) return
+      // The Download keys first, back to the sheet's own; then the sheet, back in the binder.
+      if (outputs) return setOutputsFor(null)
       rustle()
       setFiledId(null)
     }
     window.addEventListener("keydown", esc)
     return () => window.removeEventListener("keydown", esc)
-  }, [filedId, binderPinned])
+  }, [filedId, binderPinned, outputs])
 
 
   // Shown once the sheet is out of the printer.
@@ -514,7 +545,27 @@ export default function Page() {
                       keys[Math.min(Math.max(at + (e.key === "ArrowRight" ? 1 : -1), 0), keys.length - 1)]?.focus()
                     }}
                   >
-                    <Button onClick={() => window.print()} title="Download this sheet as a PDF, or send it to your printer">
+                    {outputs ? (
+                      <>
+                        <Button onClick={() => window.print()} title="Send the ticket to your printer, or save it as a PDF">
+                          Print
+                        </Button>
+                        <Button onClick={() => saveTicket("image")} disabled={saving} title="Save the ticket as a picture">
+                          Image
+                        </Button>
+                        <Button onClick={() => saveTicket("wallpaper")} disabled={saving} title="Save the ticket as a phone lock screen, below the clock">
+                          Wallpaper
+                        </Button>
+                        <Button onClick={() => setOutputs(false)} title="Back to the sheet's keys (Esc)">
+                          ◀ Back
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                    <Button
+                      onClick={() => (filed.format === "ticket" ? setOutputs(true) : window.print())}
+                      title={filed.format === "ticket" ? "Print it, or save it as a picture or a wallpaper" : "Download this sheet as a PDF, or send it to your printer"}
+                    >
                       Download ↓
                     </Button>
                     <button
@@ -528,6 +579,8 @@ export default function Page() {
                     <Button onClick={putBack} title="Put the sheet back in the binder (Esc)">
                       Put back ▶
                     </Button>
+                      </>
+                    )}
                   </span>
                 </div>
                 {/* As it was torn off: the printed list, the plotted grid, or the day's ticket. */}
