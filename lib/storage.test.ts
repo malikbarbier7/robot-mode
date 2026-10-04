@@ -25,13 +25,30 @@ describe("setup link", () => {
 })
 
 describe("backup", () => {
-  it("keeps the printers empty after a tear-off, through a save and load", () => {
-    const torn = { ...initialState, emptied: ["grid" as const], ticketTornOn: "2026-10-02" }
-    expect(fromJson(toJson(torn))).toMatchObject({ emptied: ["grid"], ticketTornOn: "2026-10-02" })
-    // Saves from before these were kept print as usual.
-    expect(fromJson(toJson(initialState))).toMatchObject({ emptied: [], ticketTornOn: undefined })
-    // A save from when one tear-off emptied both printers still has both empty.
-    expect(fromJson(JSON.stringify({ ...initialState, printerEmpty: true }))).toMatchObject({ emptied: ["list", "grid"] })
+  it("keeps what each printer holds through a save and load", () => {
+    const sheet = { at: 1, wakeTime: "07:00", sleepTime: "23:00", blocks: [] }
+    // The list printed, the grid torn off, never a ticket but Monday's, Friday's torn off.
+    const sheets = { list: sheet, grid: null, tickets: { "2026-09-28": sheet, "2026-10-02": null } }
+    const back = fromJson(toJson({ ...initialState, printed: sheet, sheets }))?.sheets
+    expect(back).toEqual(sheets)
+    // Nothing printed anywhere: every printer empty, none torn off.
+    expect(fromJson(toJson(initialState))?.sheets).toEqual({})
+  })
+
+  it("fills every printer from a save made when one PRINT printed them all", () => {
+    const block = (day: number) => ({ id: `b${day}`, activityId: "a", name: "Gym", day, startMinute: 600, endMinute: 660 })
+    const printed = { at: 1, wakeTime: "07:00", sleepTime: "23:00", blocks: [block(0), block(4)] }
+    const old = { ...initialState, generated: true, currentWeek: "2026-W40", printed, emptied: ["grid"], ticketsTorn: ["2026-10-02"] }
+    const { sheets } = fromJson(JSON.stringify(old))!
+    expect(sheets?.list).toEqual(printed)
+    expect(sheets?.grid).toBeNull()
+    // Each day's ticket holds that day's lines; the one torn off stays torn.
+    expect(sheets?.tickets?.["2026-09-28"]?.blocks).toEqual([block(0)])
+    expect(sheets?.tickets?.["2026-10-01"]?.blocks).toEqual([])
+    expect(sheets?.tickets?.["2026-10-02"]).toBeNull()
+    // Older still: one tear-off emptied both printers, or only today's ticket could be torn off.
+    expect(fromJson(JSON.stringify({ ...old, emptied: undefined, printerEmpty: true }))?.sheets).toMatchObject({ list: null, grid: null })
+    expect(fromJson(JSON.stringify({ ...old, ticketsTorn: undefined, ticketTornOn: "2026-09-28" }))?.sheets?.tickets?.["2026-09-28"]).toBeNull()
   })
 
   it("keeps the week on paper apart from the draft", () => {

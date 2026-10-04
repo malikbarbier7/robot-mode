@@ -24,6 +24,7 @@ export function Ticket({
   never = false,
   onFormFeed,
   filed = false,
+  keysAbove = false,
 }: {
   settings: Settings
   schedule: Schedule
@@ -42,6 +43,8 @@ export function Ticket({
   onFormFeed?: () => void
   /** A ticket from the binder: no printer above it. */
   filed?: boolean
+  /** The printer's keys sit right above it. */
+  keysAbove?: boolean
 }) {
   const { clock } = useDisplay()
   const words = useWords()
@@ -60,6 +63,7 @@ export function Ticket({
       never={never}
       onFormFeed={onFormFeed}
       bare={filed}
+      keysAbove={keysAbove}
     >
       <header className="text-center">
         <div className="font-display text-[16px] font-semibold tracking-[0.3em]">{words.name}</div>

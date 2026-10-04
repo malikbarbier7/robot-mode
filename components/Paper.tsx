@@ -21,6 +21,7 @@ export function Paper({
   onFed,
   compact = false,
   bare = false,
+  keysAbove = false,
   onTear,
   tearing = false,
   empty = false,
@@ -33,6 +34,8 @@ export function Paper({
   compact?: boolean
   /** Paper alone, no printer: a sheet already out of the machine (the binder's). */
   bare?: boolean
+  /** Its keys sit just above it (the ticket printer's day keys): no room left at the top. */
+  keysAbove?: boolean
   /** The paper's width, as a Tailwind max-width class. */
   width: string
   className: string
@@ -60,7 +63,7 @@ export function Paper({
 
   return (
     // Grows to whatever is widest (a chart wider than the phone), keeping its margin on both sides.
-    <div className={`min-w-fit px-3 sm:px-6 ${compact ? "py-3" : "py-4 sm:py-10"}`}>
+    <div className={`min-w-fit px-3 sm:px-6 ${compact ? "py-3" : keysAbove ? "pb-4 pt-3 sm:pb-10" : "py-4 sm:py-10"}`}>
       {!bare && (
         <Printer
           {...printer}

@@ -16,6 +16,7 @@ import { WeekGrid } from "@/components/WeekGrid"
 import { Ticket } from "@/components/Ticket"
 import { Button } from "@/components/ui"
 import { downloadIcs, downloadText } from "@/lib/ics"
+import type { PrintedWeek } from "@/lib/storage"
 import { fromJson, setupFromHash, setupLink, toJson } from "@/lib/storage"
 import type { Settings } from "@/lib/types"
 import { templateById, type Template } from "@/lib/templates"
@@ -23,15 +24,20 @@ import { useRobotMode } from "@/lib/useRobotMode"
 import { useNow } from "@/lib/useNow"
 import { useMachineSound } from "@/lib/useMachineSound"
 import { beep, buzz, chime, rip, rustle, shred } from "@/lib/sound"
-import { dayKey, weekKey } from "@/lib/printout"
+import { dateInWeek, dayKey, ticketDay, weekKey } from "@/lib/printout"
+import { momentOf } from "@/lib/today"
+import type { Day } from "@/lib/types"
 import { BinderDrawer, useArmed } from "@/components/BinderDrawer"
 import { ticketContent } from "@/lib/ticket"
-import { saveImage, ticketImage, ticketWallpaper } from "@/lib/ticketImage"
+import { saveImage, ticketImage, ticketStrip, ticketWallpaper } from "@/lib/ticketImage"
 
 type View = "boot" | "setup" | "screen" | "print" | "week" | "today" | "generating"
 /** The draft on the screen, and the three ways the week comes out of the machine, as the terminal names them. */
 type Output = "screen" | "printout" | "grid" | "today"
 const OUTPUT_VIEW: Record<Output, View> = { screen: "screen", printout: "print", grid: "week", today: "today" }
+/** The days of the week on paper, in the order of their dates (the week runs Monday to Sunday underneath). */
+const WEEK: Day[] = [0, 1, 2, 3, 4, 5, 6]
+const DAY_KEYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 export default function Page() {
   const rm = useRobotMode()
@@ -75,12 +81,32 @@ export default function Page() {
   const [slot, setSlot] = useState<HTMLElement | null>(null)
 
   // What the paper shows: the week as last PRINTed, never the draft.
+  // The week as last printed, on whichever printer.
   const printed = rm.state.printed ?? null
-  const paperSettings = printed ? { ...rm.state.settings, wakeTime: printed.wakeTime, sleepTime: printed.sleepTime } : rm.state.settings
-  const paperSchedule = { ...rm.schedule, blocks: printed?.blocks ?? [], unplaced: [] }
+  // What each printer holds: each prints on its own, and keeps its sheet until it prints again or it is torn off.
+  const sheets = rm.state.sheets ?? {}
+  const onPaper = (sheet: PrintedWeek | null | undefined) => ({
+    settings: sheet ? { ...rm.state.settings, wakeTime: sheet.wakeTime, sleepTime: sheet.sleepTime } : rm.state.settings,
+    schedule: { ...rm.schedule, blocks: sheet?.blocks ?? [], unplaced: [] },
+  })
+
+  // The ticket printer prints any day of the week on paper, with that day's date in it: there is one
+  // calendar at a time, so one Monday. Today's, when today is in that week; the week's first day otherwise.
+  const paperWeek = rm.state.currentWeek ?? (now ? weekKey(now) : null)
+  const [ticketPick, setTicketPick] = useState<Day | null>(null)
+  const shownDay: Day = ticketPick ?? (now && paperWeek === weekKey(now) ? momentOf(now).day : 0)
+  const ticketDate = paperWeek ? dateInWeek(paperWeek, shownDay) : now
+  const ticketOf = (date: Date) => sheets.tickets?.[dayKey(date)]
+  const ticketSheet = ticketDate ? ticketOf(ticketDate) : undefined
+  /** Another day's ticket: it feeds out of the printer, if that day's has been printed. */
+  const pickDay = (day: Day) => {
+    if (day === shownDay) return
+    setTicketPick(day)
+    if (paperWeek && ticketOf(dateInWeek(paperWeek, day))) setFeed(true)
+  }
 
   // Each view is printed by its own unit, so switching prints it in front of you.
-  const showView = (next: Output | "binder") => {
+  const showView = (next: Output | "binder", day?: Day) => {
     setTodayTip(false)
     // A view key puts the week (or its paper) back on show: an open function's screen gives way.
     if (next !== "binder" && screen) setScreen(null)
@@ -89,6 +115,13 @@ export default function Page() {
     // A sheet drawn out of the binder goes back when a view of this week is asked for.
     const wasOut = filedId !== null
     setFiledId(null)
+    // On the ticket printer already, a day named is that day's ticket; TODAY alone is today's again.
+    if (next === "today" && view === "today" && !wasOut) {
+      const today = now && paperWeek === weekKey(now) ? momentOf(now).day : 0
+      pickDay(day ?? today)
+      return setTicketPick(day ?? null)
+    }
+    if (next === "today") setTicketPick(day ?? null)
     if (OUTPUT_VIEW[next] === view && !wasOut) return
     // The week was printed once; switching between views shows it, it doesn't print it again.
     // A printer left empty by a tear-off stays empty until PRINT: coming back to it isn't asking for a copy.
@@ -104,11 +137,13 @@ export default function Page() {
   const filed = (rm.state.archive ?? []).find((w) => w.id === filedId) ?? null
   // A sheet drawn out of the binder: its first key (Download) takes the keyboard.
   const sheetKeys = useRef<HTMLSpanElement>(null)
-  // A ticket's Download key opens its three ways out in place of the sheet's keys: on paper, as a picture, as a lock screen.
-  // Kept as the sheet it was opened for, so another sheet drawn out comes with its own keys.
+  // A ticket's Download key opens its ways out in place of the sheet's keys: on paper, as a picture, the whole
+  // week as a strip, as a lock screen. Kept as the ticket it was opened for (a filed one, or the printer's),
+  // so another sheet drawn out comes with its own keys.
+  const outputsKey = filedId ?? (view === "today" ? "today" : null)
   const [outputsFor, setOutputsFor] = useState<string | null>(null)
-  const outputs = outputsFor !== null && outputsFor === filedId
-  const setOutputs = (open: boolean) => setOutputsFor(open ? filedId : null)
+  const outputs = outputsFor !== null && outputsFor === outputsKey
+  const setOutputs = (open: boolean) => setOutputsFor(open ? outputsKey : null)
   const [saving, setSaving] = useState(false)
   useEffect(() => {
     if (filedId) sheetKeys.current?.querySelector("button")?.focus({ preventScroll: true })
@@ -133,15 +168,30 @@ export default function Page() {
     shred()
     shredFiled(filedId)
   })
-  // The drawn-out ticket as a picture: as it is on the screen, or laid out as a phone's lock screen.
-  const saveTicket = async (as: "image" | "wallpaper") => {
-    if (!filed || saving) return
-    const day = new Date(filed.filedAt)
-    const content = ticketContent({ ...rm.state.settings, wakeTime: filed.wakeTime, sleepTime: filed.sleepTime }, filed.blocks, day)
+  /**
+   * A ticket as a picture: the one drawn out of the binder, or the one in the printer. For a thermal
+   * printer's app, as a phone's lock screen, or (from the printer) the whole week on one strip.
+   */
+  const saveTicket = async (as: "image" | "wallpaper" | "week") => {
+    if (saving) return
+    let day: Date
+    let days: ReturnType<typeof ticketContent>[]
+    if (filed) {
+      day = ticketDay(filed)
+      days = [ticketContent({ ...rm.state.settings, wakeTime: filed.wakeTime, sleepTime: filed.sleepTime }, filed.blocks, day)]
+    } else if (ticketSheet && paperWeek && ticketDate) {
+      day = ticketDate
+      // The week's strip: each day as its ticket was printed, or as the week was last printed if it wasn't.
+      const dates = as === "week" ? WEEK.map((d) => dateInWeek(paperWeek, d)) : [ticketDate]
+      days = dates.map((date) => {
+        const { settings, schedule } = onPaper(ticketOf(date) ?? printed)
+        return ticketContent(settings, schedule.blocks, date)
+      })
+    } else return
     setSaving(true)
     try {
-      const blob = await (as === "image" ? ticketImage : ticketWallpaper)(content, words, rm.display.clock)
-      await saveImage(blob, `robot-mode-${dayKey(day)}${as === "wallpaper" ? "-wallpaper" : ""}.png`)
+      const blob = await (as === "week" ? ticketStrip(days, words, rm.display.clock) : (as === "image" ? ticketImage : ticketWallpaper)(days[0], words, rm.display.clock))
+      await saveImage(blob, as === "week" ? `robot-mode-${paperWeek}.png` : `robot-mode-${dayKey(day)}${as === "wallpaper" ? "-wallpaper" : ""}.png`)
     } catch {
       setNotice({ text: "Couldn't draw the ticket", error: true })
     } finally {
@@ -154,39 +204,40 @@ export default function Page() {
   // reloading leaves it empty; the other printers keep their sheets.
   const [tearing, setTearing] = useState(false)
   // Kept with the week, so a reload doesn't print again what was torn off.
-  const listTorn = (rm.state.emptied ?? []).includes("list")
-  const gridTorn = (rm.state.emptied ?? []).includes("grid")
-  // The ticket printer's own empty slot: today's ticket torn off, the week untouched. Tomorrow prints anew.
-  const ticketTorn = !!now && rm.state.ticketTornOn === dayKey(now)
+
+  // The sheet on show, if the view is one of the printers: null once torn off, missing if never printed there.
+  const sheetOnShow = view === "print" ? sheets.list : view === "week" ? sheets.grid : view === "today" ? ticketSheet : undefined
+  const onPrinter = view === "print" || view === "week" || view === "today"
 
   /**
-   * PRINT: the draft on the screen goes onto paper, every printer refilled. The first
-   * time, the machine turns to the paper to show it coming out; after that you stay on
-   * the screen, unless you printed from the paper itself.
+   * PRINT, on one printer: the one on show (the list, the grid, or the day's ticket); from the
+   * screen, the grid (a phone's list). The other printers keep what they hold. The first time,
+   * from the screen, the machine turns to that paper to show it coming out.
    */
   const print = () => {
     const first = printed === null
-    rm.printWeek()
+    const printer = view === "print" ? "list" : view === "week" ? "grid" : view === "today" && ticketDate ? ticketDate : paperView === "print" ? "list" : "grid"
+    rm.printWeek(printer)
     setFeed(true)
-    if (first) {
+    if (first && !onPrinter) {
       setTodayTip(true)
       setScreen(null)
-      setView(paperView)
+      setView(printer === "list" ? "print" : "week")
     }
   }
 
   const tear = (): string | void => {
     if (tearing) return
-    // Nothing on paper: a week that is over still starts the next one; otherwise there is nothing to file.
-    if (!printed) {
-      if (!weekDue) return "NOTHING ON PAPER TO TEAR OFF · PRINT FIRST"
-      rm.tearWeek("grid", true)
-      return
-    }
     // On the ticket printer, the ticket is what comes off, unless the week is over: then it's the week's turn.
     if (view === "today" && !weekDue) return tearTicket()
     // From the screen, the paper it tears is the one the machine prints on: the grid, or a phone's list.
     const format = view === "print" || (view !== "week" && phone) ? "list" : "grid"
+    // Nothing on that printer: a week that is over still starts the next one; otherwise there is nothing to file.
+    if (!sheets[format]) {
+      if (!weekDue) return "NOTHING ON PAPER TO TEAR OFF · PRINT FIRST"
+      rm.tearWeek(format, true)
+      return
+    }
     if (view !== "print" && view !== "week") setView(format === "list" ? "print" : "week")
     setTearing(true)
     setScreen(null)
@@ -203,31 +254,57 @@ export default function Page() {
     window.setTimeout(() => setReceiving(false), 1700)
   }
 
-  // Today's ticket, torn off and filed under Tickets. Only the ticket printer empties.
-  const tearTicket = () => {
-    if (tearing || !now) return
+  // The day's ticket on show, torn off and filed under Tickets. Only the ticket printer empties, for that day.
+  const tearTicket = (): string | void => {
+    if (tearing || !ticketDate) return
+    if (!ticketSheet) return "NOTHING ON PAPER TO TEAR OFF · PRINT FIRST"
+    const date = ticketDate
     setTearing(true)
     setScreen(null)
     rip()
     setReceiving(true)
     window.setTimeout(() => {
-      rm.tearTicket(now)
+      rm.tearTicket(date)
       setTearing(false)
     }, 600)
     window.setTimeout(() => setReceiving(false), 1700)
   }
 
+  /** A ticket's ways out, in place of its keys; the printer's also prints the whole week as one strip. */
+  const ticketOutputs = (week: boolean) => (
+    <>
+      <Button onClick={() => window.print()} title="Send the ticket to your printer, or save it as a PDF">
+        Print
+      </Button>
+      <Button onClick={() => saveTicket("image")} disabled={saving} title="Save the ticket as a picture, ready for a thermal printer's app">
+        Image
+      </Button>
+      {week && (
+        <Button onClick={() => saveTicket("week")} disabled={saving} title="The whole week's tickets on one strip, to print once and cut into seven">
+          Week
+        </Button>
+      )}
+      <Button onClick={() => saveTicket("wallpaper")} disabled={saving} title="Save the ticket as a phone lock screen, below the clock">
+        Wallpaper
+      </Button>
+      <Button onClick={() => setOutputs(false)} title="Back (Esc)">
+        ◀ Back
+      </Button>
+    </>
+  )
+
   useMachineSound(rm.display.sound)
 
-  // Esc puts a drawn-out sheet back, unless it is meant for the prompt or a field.
+  // Esc closes a ticket's Download keys, then puts a drawn-out sheet back, unless it is meant for the prompt or a field.
   useEffect(() => {
-    if (!filedId) return
+    if (!filedId && !outputs) return
     const esc = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || binderPinned) return
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === "INPUT" || t.tagName === "SELECT") && (t as HTMLInputElement).value) return
       // The Download keys first, back to the sheet's own; then the sheet, back in the binder.
       if (outputs) return setOutputsFor(null)
+      if (!filedId) return
       rustle()
       setFiledId(null)
     }
@@ -249,10 +326,9 @@ export default function Page() {
     setView("boot")
   }
 
-  // What leaves the machine is what is on paper.
+  // The calendar file is the week on the screen, as it stands: the most recent version, printed or not.
   const exportIcs = (): string | void => {
-    if (!printed) return "NOTHING ON PAPER YET · PRINT FIRST"
-    downloadIcs(printed.blocks, { sequence: rm.bumpExport() })
+    downloadIcs(rm.schedule.blocks, { sequence: rm.bumpExport() })
   }
 
   // Stable, so the screen's reveal timer isn't restarted by every render.
@@ -530,7 +606,7 @@ export default function Page() {
                   <span className="label text-ink/60">
                     From the binder ·{" "}
                     {filed.format === "ticket"
-                      ? `ticket · ${new Date(filed.filedAt).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}`
+                      ? `ticket · ${ticketDay(filed).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}`
                       : `week ${filed.week} / ${filed.year}`}
                   </span>
                   {/* The sheet's keys take the keyboard as it comes out: ← → between them, Enter presses, Esc puts it back. */}
@@ -546,20 +622,7 @@ export default function Page() {
                     }}
                   >
                     {outputs ? (
-                      <>
-                        <Button onClick={() => window.print()} title="Send the ticket to your printer, or save it as a PDF">
-                          Print
-                        </Button>
-                        <Button onClick={() => saveTicket("image")} disabled={saving} title="Save the ticket as a picture">
-                          Image
-                        </Button>
-                        <Button onClick={() => saveTicket("wallpaper")} disabled={saving} title="Save the ticket as a phone lock screen, below the clock">
-                          Wallpaper
-                        </Button>
-                        <Button onClick={() => setOutputs(false)} title="Back to the sheet's keys (Esc)">
-                          ◀ Back
-                        </Button>
-                      </>
+                      ticketOutputs(false)
                     ) : (
                       <>
                     <Button
@@ -588,7 +651,7 @@ export default function Page() {
                   <Ticket
                     settings={{ ...rm.state.settings, wakeTime: filed.wakeTime, sleepTime: filed.sleepTime }}
                     schedule={{ ...rm.schedule, blocks: filed.blocks, unplaced: [] }}
-                    now={new Date(filed.filedAt)}
+                    now={ticketDay(filed)}
                     filed
                   />
                 ) : filed.format === "list" ? (
@@ -636,42 +699,71 @@ export default function Page() {
               />
             ) : view === "print" && generated ? (
               <Printout
-                settings={paperSettings}
-                schedule={paperSchedule}
+                {...onPaper(sheets.list)}
                 feed={feed}
                 onFed={() => setFeed(false)}
                 onTear={tear}
                 tearing={tearing}
-                empty={listTorn || !printed}
-                never={!printed}
+                empty={!sheets.list}
+                never={sheets.list === undefined}
                 onFormFeed={print}
               />
             ) : view === "week" && generated ? (
               <WeekGrid
-                settings={paperSettings}
-                schedule={paperSchedule}
+                {...onPaper(sheets.grid)}
                 feed={feed}
                 onFed={() => setFeed(false)}
                 onTear={tear}
                 tearing={tearing}
-                empty={gridTorn || !printed}
-                never={!printed}
+                empty={!sheets.grid}
+                never={sheets.grid === undefined}
                 onFormFeed={print}
               />
             ) : view === "today" && generated ? (
-              now && (
-                <Ticket
-                  settings={paperSettings}
-                  schedule={paperSchedule}
-                  now={now}
-                  feed={feed}
-                  onFed={() => setFeed(false)}
-                  onTear={tearTicket}
-                  tearing={tearing}
-                  empty={ticketTorn || !printed}
-                  never={!printed}
-                  onFormFeed={print}
-                />
+              ticketDate && (
+                <>
+                  {/* The ticket printer's keys: which day of the week it prints, and its ways out. */}
+                  <div className="mx-auto mt-4 flex max-w-[560px] flex-wrap items-center justify-between gap-2 px-4 no-print">
+                    <span role="group" aria-label="Which day's ticket" className="flex gap-1">
+                      {WEEK.map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          aria-pressed={d === shownDay}
+                          onClick={() => pickDay(d)}
+                          title={`Print ${DAY_KEYS[d]}'s ticket (or type TODAY ${DAY_KEYS[d].toUpperCase()})`}
+                          className={`key px-2 py-1 ${d === shownDay ? "key-dark" : ""}`}
+                        >
+                          <span className="sm:hidden">{DAY_KEYS[d][0]}</span>
+                          <span className="max-sm:hidden">{DAY_KEYS[d]}</span>
+                        </button>
+                      ))}
+                    </span>
+                    {ticketSheet && (
+                      <span ref={sheetKeys} className="flex flex-wrap gap-2">
+                        {outputs ? (
+                          ticketOutputs(true)
+                        ) : (
+                          <Button onClick={() => setOutputs(true)} title="Print it, save it as a picture or a wallpaper, or the whole week as a strip">
+                            Download ↓
+                          </Button>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  <Ticket
+                    {...onPaper(ticketSheet)}
+                    now={ticketDate}
+                    keysAbove
+                    feed={feed}
+                    onFed={() => setFeed(false)}
+                    onTear={tearTicket}
+                    tearing={tearing}
+                    empty={!ticketSheet}
+                    never={ticketSheet === undefined}
+                    onFormFeed={print}
+                  />
+                </>
               )
             ) : (
               <Boot
@@ -717,10 +809,10 @@ export default function Page() {
             unprinted={rm.unprinted}
             slot={screenOpen ? slot : null}
             tip={
-              printed && ((view === "print" && listTorn) || (view === "week" && gridTorn) || (view === "today" && ticketTorn))
+              onPrinter && sheetOnShow === null
                 ? "SHEET FILED · TYPE PRINT FOR A FRESH ONE"
-                : !printed && view !== "screen"
-                ? "NOTHING ON PAPER YET · TYPE PRINT TO PRINT THE DRAFT ON THE SCREEN"
+                : onPrinter && sheetOnShow === undefined
+                ? "NOTHING ON THIS PRINTER YET · TYPE PRINT TO PRINT THE DRAFT ON THE SCREEN"
                 : !printed
                 ? firstTry(rm.state.settings.activities, rm.schedule.blocks)
                 : rm.unprinted && printed

@@ -203,6 +203,49 @@ export async function ticketImage(content: TicketContent, words: Words, clock: C
   return toBlob(c)
 }
 
+/** Between two days on the week's strip: a line to cut along. */
+const SCISSORS = 34
+
+/**
+ * The week's tickets on one strip, a day after another with a line to cut
+ * along between them: printed once on a thermal roll, cut into seven, one
+ * for each morning.
+ */
+export async function ticketStrip(days: TicketContent[], words: Words, clock: Clock): Promise<Blob> {
+  const fonts = await pageFonts()
+  const s = 3
+  const l = THERMAL_ROLL
+  const heights = days.map((d) => ticketHeight(d, l))
+  const [c, ctx] = canvas(l.width * s, (heights.reduce((a, b) => a + b, 0) + SCISSORS * (days.length - 1)) * s)
+  ctx.fillStyle = "#fff"
+  ctx.fillRect(0, 0, c.width, c.height)
+  let y = 0
+  days.forEach((day, i) => {
+    if (i > 0) {
+      ctx.save()
+      ctx.scale(s, s)
+      const mid = y / s + SCISSORS / 2
+      ctx.fillStyle = "#000"
+      // The mono face has no scissors: the system's, large enough to see on the roll.
+      ctx.font = "22px sans-serif"
+      ctx.textBaseline = "middle"
+      ctx.fillText("✂", 0, mid)
+      ctx.strokeStyle = "#000"
+      ctx.lineWidth = 1.5
+      ctx.setLineDash([4, 4])
+      ctx.beginPath()
+      ctx.moveTo(30, mid)
+      ctx.lineTo(l.width, mid)
+      ctx.stroke()
+      ctx.restore()
+      y += SCISSORS * s
+    }
+    drawTicket(ctx, 0, y, s, day, words, clock, fonts, l)
+    y += heights[i] * s
+  })
+  return toBlob(c)
+}
+
 /**
  * The ticket as a phone's lock screen: sized to this screen when it is a
  * phone held upright, to a tall phone's otherwise. The ticket sits below

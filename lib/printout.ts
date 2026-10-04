@@ -1,4 +1,4 @@
-import type { PlacedBlock, Settings } from "./types"
+import type { Day, PlacedBlock, Settings } from "./types"
 import type { PrintedWeek } from "./storage"
 
 export type PrintRow =
@@ -33,6 +33,21 @@ export function isoWeek(date: Date): { week: number; year: number } {
 /** "2026-10-02": which day a ticket belongs to, in local time. */
 export function dayKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+}
+
+/** The date of one day (0 = Monday) of an ISO week ("2026-W40"), at local midnight. */
+export function dateInWeek(week: string, day: Day): Date {
+  const [year, w] = week.split("-W").map(Number)
+  // 4 January is always in week 1; that week's Monday, then whole weeks and days on from it.
+  const jan4 = new Date(year, 0, 4)
+  return new Date(year, 0, 4 - ((jan4.getDay() + 6) % 7) + (w - 1) * 7 + day)
+}
+
+/** The day a filed ticket is for: its own, or, on tickets from before they had one, the day it was torn off. */
+export function ticketDay(sheet: { day?: string; filedAt: number }): Date {
+  if (!sheet.day) return new Date(sheet.filedAt)
+  const [y, m, d] = sheet.day.split("-").map(Number)
+  return new Date(y, m - 1, d)
 }
 
 /** "2026-W40": which week a sheet belongs to. */

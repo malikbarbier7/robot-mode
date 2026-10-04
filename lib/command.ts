@@ -17,8 +17,8 @@ export type CommandAction = { preview: string; reply: string; note?: string } & 
   | { kind: "open"; screen: Screen; id?: string }
   /** BACKUP downloads the whole state as JSON; LOAD opens one. */
   | { kind: "clear" | "backup" | "load" }
-  /** Show the draft on the screen, or the week on paper as the list, the grid or today's ticket. */
-  | { kind: "view"; view: "screen" | "printout" | "grid" | "today" | "binder" }
+  /** Show the draft on the screen, or the week on paper as the list, the grid or a day's ticket (today's unless `day` says). */
+  | { kind: "view"; view: "screen" | "printout" | "grid" | "today" | "binder"; day?: Day }
   /** Tear the sheet off: file this week in the binder; the printer stays empty. */
   | { kind: "tear" }
   /** PRINT: the draft on the screen goes onto paper. */
@@ -167,8 +167,14 @@ export function interpret(input: string, ctx: CommandContext): CommandAction | C
     case "history":
       return { kind: "view", view: "binder", preview: "OPEN THE BINDER OF PAST WEEKS", reply: "BINDER" }
     case "today":
-    case "ticket":
-      return { kind: "view", view: "today", preview: "SHOW TODAY'S TICKET", reply: "TODAY VIEW" }
+    case "ticket": {
+      if (!arg) return { kind: "view", view: "today", preview: "SHOW TODAY'S TICKET", reply: "TODAY VIEW" }
+      // "today mon", "ticket friday": that day of the week on paper.
+      const days = parseDays(arg.replace(/\s+/g, ""))
+      if (days?.length !== 1) return error("WHICH DAY? E.G. TODAY MON")
+      const name = DAY_NAMES[days[0]][0].toUpperCase()
+      return { kind: "view", view: "today", day: days[0], preview: `SHOW ${name}'S TICKET`, reply: `${name} TICKET` }
+    }
     case "sound":
     case "mute":
     case "unmute": {
