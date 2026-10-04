@@ -103,7 +103,7 @@ export function downloadText(text: string, filename: string, type = "application
   triggerDownload(new Blob([text], { type: `${type};charset=utf-8` }), filename)
 }
 
-function triggerDownload(blob: Blob, filename: string): void {
+export function triggerDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url

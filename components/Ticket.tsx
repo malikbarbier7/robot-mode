@@ -2,15 +2,10 @@
 
 import { useWords } from "@/lib/words"
 import type { Schedule, Settings } from "@/lib/types"
-import { parseTime } from "@/lib/scheduler/time"
 import { formatClock, formatSpan } from "@/lib/locale"
-import { dayTimeline } from "@/lib/printout"
-import { momentOf } from "@/lib/today"
+import { ticketContent } from "@/lib/ticket"
 import { useDisplay } from "./Display"
 import { Paper } from "./Paper"
-
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
 /**
  * Today, as a receipt from the machine's ticket printer: the day's lines,
@@ -50,15 +45,7 @@ export function Ticket({
 }) {
   const { clock } = useDisplay()
   const words = useWords()
-  const moment = momentOf(now)
-  const wake = parseTime(settings.wakeTime)
-  let sleep = parseTime(settings.sleepTime)
-  if (sleep <= wake) sleep += 1440
-
-  const activityIds = new Set(settings.activities.map((a) => a.id))
-  const blocks = schedule.blocks.filter((b) => b.day === moment.day)
-  const tasks = blocks.filter((b) => activityIds.has(b.activityId))
-  const planned = tasks.reduce((sum, b) => sum + b.endMinute - b.startMinute, 0)
+  const { date, rows, tasks, planned } = ticketContent(settings, schedule.blocks, now)
 
   return (
     <Paper
@@ -78,13 +65,13 @@ export function Ticket({
         <div className="font-display text-[16px] font-semibold tracking-[0.3em]">{words.name}</div>
         <div className="tracking-[0.18em] text-ink/60">{words.sheet.ticket}</div>
         <div className="mt-1 tracking-[0.12em]">
-          {DAYS[moment.day]} {String(now.getDate()).padStart(2, "0")} {MONTHS[now.getMonth()]} {now.getFullYear()}
+          {date}
         </div>
       </header>
       <Cut />
 
       <ol>
-        {dayTimeline(blocks, wake, sleep).map((row) => {
+        {rows.map((row) => {
           const time = <span className={`${clock === "12h" ? "w-[4.5rem]" : "w-12"} shrink-0 tabular-nums`}>{formatClock(row.minute, clock)}</span>
           if (row.kind !== "block") {
             return (
@@ -111,7 +98,7 @@ export function Ticket({
       <Cut />
       <div className="flex justify-between">
         <span>Tasks</span>
-        <span className="tabular-nums">{tasks.length}</span>
+        <span className="tabular-nums">{tasks}</span>
       </div>
       <div className="flex justify-between">
         <span>Planned</span>
