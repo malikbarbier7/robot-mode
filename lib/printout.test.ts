@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { dayTimeline, isoWeek, samePrint } from "./printout"
+import { dateInWeek, dayKey, dayTimeline, isoWeek, samePrint, ticketDay, weekKey } from "./printout"
 import type { PlacedBlock } from "./types"
 
 const block = (id: string, start: number, end: number): PlacedBlock => ({
@@ -57,5 +57,24 @@ describe("samePrint", () => {
   it("is false with nothing printed yet", () => {
     expect(samePrint(null, hours, week)).toBe(false)
     expect(samePrint(undefined, hours, [])).toBe(false)
+  })
+})
+
+describe("dateInWeek", () => {
+  it("finds each day of an ISO week, across year ends", () => {
+    expect(dayKey(dateInWeek("2026-W40", 0))).toBe("2026-09-28")
+    expect(dayKey(dateInWeek("2026-W40", 6))).toBe("2026-10-04")
+    // Week 1 of 2026 starts on Monday 29 December 2025.
+    expect(dayKey(dateInWeek("2026-W01", 0))).toBe("2025-12-29")
+    expect(dayKey(dateInWeek("2020-W53", 4))).toBe("2021-01-01")
+    // Round trip with weekKey.
+    expect(weekKey(dateInWeek("2027-W17", 3))).toBe("2027-W17")
+  })
+})
+
+describe("ticketDay", () => {
+  it("reads the ticket's own day, or the tear-off on older tickets", () => {
+    expect(dayKey(ticketDay({ day: "2026-10-05", filedAt: new Date(2026, 9, 4, 21).getTime() }))).toBe("2026-10-05")
+    expect(dayKey(ticketDay({ filedAt: new Date(2026, 9, 4, 21).getTime() }))).toBe("2026-10-04")
   })
 })

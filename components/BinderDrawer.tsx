@@ -4,6 +4,7 @@ import { useWords } from "@/lib/words"
 import { useEffect, useRef, useState } from "react"
 import type { ArchivedWeek } from "@/lib/storage"
 import { formatHours } from "@/lib/duration"
+import { ticketDay } from "@/lib/printout"
 import { drawer as drawerSound, rustle, shred as shredSound } from "@/lib/sound"
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
@@ -282,7 +283,8 @@ function FiledSheet({
   const [carry, setCarry] = useState<{ left: number; top: number; width: number; height: number; x: number; y: number } | null>(null)
   const { armed, press } = useArmed(onShred)
   const moved = useRef(false)
-  const filedAt = new Date(week.filedAt)
+  // A ticket reads as its own day; a week, as when it was filed.
+  const filedAt = week.format === "ticket" ? ticketDay(week) : new Date(week.filedAt)
   const planned = week.blocks.reduce((sum, b) => sum + b.endMinute - b.startMinute, 0)
   // A ticket is one day: its tab says which, and it reads as that date.
   const ticket = week.format === "ticket"

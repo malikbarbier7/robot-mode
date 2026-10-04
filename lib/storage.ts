@@ -1,7 +1,8 @@
 import { defaultMeals } from "./meals"
 import { generate } from "./scheduler/generate"
 import type { Clock, WeekStart } from "./locale"
-import type { PlacedBlock, Settings } from "./types"
+import type { Day, PlacedBlock, Settings } from "./types"
+import { dateInWeek, dayKey, weekKey } from "./printout"
 
 /** How times and weeks are shown. A missing clock follows the browser's locale. */
 export type Display = {
@@ -19,13 +20,15 @@ export type ArchivedWeek = {
   year: number
   /** When it was torn off (ms since epoch). */
   filedAt: number
+  /** A ticket's day ("2026-10-05"): any day of the week can be printed and torn off, not only today. */
+  day?: string
   wakeTime: string
   sleepTime: string
   /** The sessions as they stood, moves and removals included. */
   blocks: PlacedBlock[]
   /**
    * The document that was torn off: the printed list, the plotted grid, or one
-   * day's ticket (then `blocks` is that day's, and `filedAt` its date). Older sheets were grids.
+   * day's ticket (then `blocks` is that day's, and `day` its date). Older sheets were grids.
    */
   format?: "list" | "grid" | "ticket"
 }
@@ -56,10 +59,47 @@ function readPrinted(value: unknown): PrintedWeek | null | undefined {
 /** The week's two printers: the line printer's list and the plotter's grid. */
 export type Sheet = "list" | "grid"
 
-/** Which printers stand empty. A save from when one tear-off emptied both says so with `printerEmpty`. */
-function readEmptied(parsed: Partial<SavedState> & { printerEmpty?: unknown }): Sheet[] {
-  if (Array.isArray(parsed.emptied)) return parsed.emptied.filter((x): x is Sheet => x === "list" || x === "grid")
-  return parsed.printerEmpty === true ? ["list", "grid"] : []
+/**
+ * What each printer holds, each printed on its own: the list, the grid, and
+ * one ticket per day ("2026-10-05", that day's lines only). A sheet; null once
+ * it was torn off and nothing printed there since; missing if that printer
+ * hasn't printed yet.
+ */
+export type Sheets = {
+  list?: PrintedWeek | null
+  grid?: PrintedWeek | null
+  tickets?: Record<string, PrintedWeek | null>
+}
+
+/** Saves from before; they had one PRINT for every printer, and kept which ones were torn off. */
+type OlderPaper = { emptied?: unknown; printerEmpty?: unknown; ticketsTorn?: unknown; ticketTornOn?: unknown }
+
+function readSheets(parsed: Partial<SavedState> & OlderPaper, printed: PrintedWeek | null | undefined): Sheets {
+  const sheet = (value: unknown) => (value === null ? null : (readPrinted(value) ?? undefined))
+  if (parsed.sheets && typeof parsed.sheets === "object") {
+    const { list, grid, tickets } = parsed.sheets as Sheets
+    const days: Record<string, PrintedWeek | null> = {}
+    for (const [key, value] of Object.entries(tickets && typeof tickets === "object" ? tickets : {})) {
+      const read = sheet(value)
+      if (read !== undefined) days[key] = read
+    }
+    return { list: sheet(list), grid: sheet(grid), tickets: days }
+  }
+  // One PRINT filled every printer: each holds that week, except the ones torn off since.
+  if (!printed) return {}
+  const emptied = Array.isArray(parsed.emptied) ? parsed.emptied : parsed.printerEmpty === true ? ["list", "grid"] : []
+  const torn = Array.isArray(parsed.ticketsTorn) ? parsed.ticketsTorn : typeof parsed.ticketTornOn === "string" ? [parsed.ticketTornOn] : []
+  const week = parsed.currentWeek ?? weekKey(new Date())
+  const tickets: Record<string, PrintedWeek | null> = {}
+  for (let d = 0; d < 7; d++) {
+    const key = dayKey(dateInWeek(week, d as Day))
+    tickets[key] = torn.includes(key) ? null : { ...printed, blocks: printed.blocks.filter((b) => b.day === d) }
+  }
+  return {
+    list: emptied.includes("list") ? null : printed,
+    grid: emptied.includes("grid") ? null : printed,
+    tickets,
+  }
 }
 
 export type SavedState = {
@@ -78,14 +118,13 @@ export type SavedState = {
   currentWeek?: string
   /** Weeks torn off, newest first. */
   archive?: ArchivedWeek[]
-  /** Printers whose sheet was torn off with nothing printed since: each stands empty on its own, even after a reload. */
-  emptied?: Sheet[]
-  /** The day ("2026-10-02") whose ticket was torn off: the ticket printer stays empty until the next day, or a fresh one is asked for. */
-  ticketTornOn?: string
+  /** What each printer holds: every printer prints on its own, and keeps its sheet until it prints again or it is torn off. */
+  sheets?: Sheets
   /**
-   * The week on paper. Null once a week has been drafted and not yet printed;
-   * missing in saves from before the draft moved to the screen (their week is
-   * then printed as it stands, so nobody's paper goes blank).
+   * The week as last printed, on whichever printer. Null once a week has been
+   * drafted and not yet printed; missing in saves from before the draft moved
+   * to the screen (their week is then printed as it stands, so nobody's paper
+   * goes blank).
    */
   printed?: PrintedWeek | null
 }
@@ -123,13 +162,18 @@ function readSettings(saved: Partial<Settings> & { minFreeMinutesPerDay?: unknow
 }
 
 /**
- * A save from before the paper was a copy of the screen: its week was on paper
- * as it stood, so it is printed now, and nobody's paper goes blank.
+ * What is on paper, read from a save. A save from before the paper was a copy
+ * of the screen had its week on paper as it stood, so it is printed now, and
+ * nobody's paper goes blank; one from before each printer printed on its own
+ * has every printer holding that week, except the ones torn off since.
  */
-function withPaper(state: SavedState): SavedState {
-  if (!state.generated || state.printed !== undefined) return state
-  const { blocks } = generate(state.settings, { locked: state.locked, skip: state.skipped })
-  return { ...state, printed: { at: Date.now(), wakeTime: state.settings.wakeTime, sleepTime: state.settings.sleepTime, blocks } }
+function withPaper(state: Omit<SavedState, "sheets"> & { sheets: Partial<SavedState> & OlderPaper }): SavedState {
+  let printed = state.printed
+  if (state.generated && printed === undefined) {
+    const { blocks } = generate(state.settings, { locked: state.locked, skip: state.skipped })
+    printed = { at: Date.now(), wakeTime: state.settings.wakeTime, sleepTime: state.settings.sleepTime, blocks }
+  }
+  return { ...state, printed, sheets: readSheets(state.sheets, printed) }
 }
 
 /** Never throws: a stale or corrupt entry falls back to a clean slate. */
@@ -151,9 +195,8 @@ export function load(): SavedState {
       display: parsed.display,
       currentWeek: parsed.currentWeek,
       archive: Array.isArray(parsed.archive) ? parsed.archive : [],
-      emptied: readEmptied(parsed),
-      ticketTornOn: typeof parsed.ticketTornOn === "string" ? parsed.ticketTornOn : undefined,
       printed: readPrinted(parsed.printed),
+      sheets: parsed as Partial<SavedState> & OlderPaper,
     })
   } catch {
     return initialState
@@ -188,9 +231,8 @@ export function fromJson(text: string): SavedState | null {
       display: parsed.display,
       currentWeek: parsed.currentWeek,
       archive: Array.isArray(parsed.archive) ? parsed.archive : [],
-      emptied: readEmptied(parsed),
-      ticketTornOn: typeof parsed.ticketTornOn === "string" ? parsed.ticketTornOn : undefined,
       printed: readPrinted(parsed.printed),
+      sheets: parsed as Partial<SavedState> & OlderPaper,
     })
   } catch {
     return null

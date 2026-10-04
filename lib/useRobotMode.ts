@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import type { Activity, Day, PlacedBlock, Settings } from "./types"
 import { generate, readSkip } from "./scheduler/generate"
 import { computeBudget } from "./scheduler/budget"
-import { initialState, load, save, type ArchivedWeek, type Display, type SavedState, type Sheet } from "./storage"
+import { initialState, load, save, type ArchivedWeek, type Display, type PrintedWeek, type SavedState, type Sheet } from "./storage"
 import { detectClock, type Clock, type WeekStart } from "./locale"
 import { matchesTemplate, templateById, type Template } from "./templates"
-import { dayKey, isoWeek, samePrint, weekKey } from "./printout"
+import { dayKey, isoWeek, samePrint, ticketDay, weekKey } from "./printout"
 
 /** How many filed weeks the binder keeps: two years. */
 const BINDER_SIZE = 104
@@ -193,22 +193,28 @@ export function useRobotMode() {
 
   /** Flipped by the Generate button. The week view only exists after this. Nothing is on paper until PRINT. */
   const markGenerated = useCallback(() => {
-    setStored((s) => ({ ...s, generated: true, currentWeek: weekKey(new Date()), printed: null }))
+    setStored((s) => ({ ...s, generated: true, currentWeek: weekKey(new Date()), printed: null, sheets: {} }))
   }, [])
 
   /**
-   * PRINT: the draft on the screen goes onto paper, and every printer that
-   * stood empty gets a fresh sheet. Until the next PRINT the paper stays as it is.
+   * PRINT on one printer: the draft on the screen goes onto its paper, the
+   * list, the grid, or one day's ticket (`date`). The other printers keep
+   * what they hold, like any printer whose paper doesn't change by itself.
    */
-  const printWeek = useCallback(() => {
-    setStored((s) => ({
-      ...s,
-      printed: { at: Date.now(), wakeTime: s.settings.wakeTime, sleepTime: s.settings.sleepTime, blocks: schedule.blocks },
-      emptied: [],
-      ticketTornOn: undefined,
-      currentWeek: s.currentWeek ?? weekKey(new Date()),
-    }))
-  }, [schedule.blocks])
+  const printWeek = useCallback(
+    (printer: Sheet | Date) => {
+      setStored((s) => {
+        const sheet: PrintedWeek = { at: Date.now(), wakeTime: s.settings.wakeTime, sleepTime: s.settings.sleepTime, blocks: schedule.blocks }
+        const sheets = { ...s.sheets }
+        if (printer instanceof Date) {
+          const day = ((printer.getDay() + 6) % 7) as Day
+          sheets.tickets = { ...sheets.tickets, [dayKey(printer)]: { ...sheet, blocks: sheet.blocks.filter((b) => b.day === day) } }
+        } else sheets[printer] = sheet
+        return { ...s, printed: sheet, sheets, currentWeek: s.currentWeek ?? weekKey(new Date()) }
+      })
+    },
+    [schedule.blocks],
+  )
 
   /** The screen has changes the paper doesn't: PRINT is lit until they are printed. */
   const unprinted = useMemo(() => !samePrint(state.printed, state.settings, schedule.blocks), [state.printed, state.settings, schedule.blocks])
@@ -240,8 +246,8 @@ export function useRobotMode() {
   }, [activeTemplate])
 
   /**
-   * Tear a sheet off: the week on paper goes into the binder and that
-   * printer stands empty; the other keeps its sheet. Mid-week that is all: a
+   * Tear a sheet off: that printer's sheet goes into the binder and the
+   * printer stands empty; the others keep theirs. Mid-week that is all: a
    * copy filed. Once the week is over (`newWeek`), its adjustments are cleared
    * too, and the activities and settings stay for the next one.
    */
@@ -250,52 +256,57 @@ export function useRobotMode() {
     setStored((s) => {
       const [year, w] = (s.currentWeek ?? weekKey(now)).split("-W").map(Number)
       const { week: thisWeek, year: thisYear } = isoWeek(now)
-      // Nothing on paper to file: a week that is over still gives way to the next.
-      if (!s.printed) return newWeek ? { ...s, locked: [], skipped: [], currentWeek: weekKey(now) } : s
+      // Nothing on that printer to file: a week that is over still gives way to the next.
+      const sheet = s.sheets?.[format]
+      if (!sheet) return newWeek ? { ...s, locked: [], skipped: [], currentWeek: weekKey(now) } : s
       const filed: ArchivedWeek = {
         id: `${year}-W${w}-${now.getTime()}-${Math.random().toString(36).slice(2, 7)}`,
         week: w || thisWeek,
         year: year || thisYear,
         filedAt: now.getTime(),
-        wakeTime: s.printed.wakeTime,
-        sleepTime: s.printed.sleepTime,
-        blocks: s.printed.blocks,
+        wakeTime: sheet.wakeTime,
+        sleepTime: sheet.sleepTime,
+        blocks: sheet.blocks,
         format,
       }
       return {
         ...s,
         ...(newWeek ? { locked: [], skipped: [], currentWeek: weekKey(now) } : { currentWeek: s.currentWeek ?? weekKey(now) }),
         archive: fileSheet(s.archive, filed),
-        emptied: [...new Set([...(s.emptied ?? []), format])],
+        sheets: { ...s.sheets, [format]: null },
       }
     })
   }, [])
 
   /**
-   * File today's ticket: that day's lines, as they stand. Unlike tearing the
-   * week off, nothing about the week changes: no edits cleared, no new week begun.
+   * File one day's ticket (`date`, a day of the week on paper): that day's
+   * lines, as they stand. Unlike tearing the week off, nothing about the week
+   * changes: no edits cleared, no new week begun.
    */
   const tearTicket = useCallback(
-    (now: Date) => {
-      const day = ((now.getDay() + 6) % 7) as Day
-      const { week, year } = isoWeek(now)
+    (date: Date) => {
+      const day = ((date.getDay() + 6) % 7) as Day
+      const { week, year } = isoWeek(date)
+      const key = dayKey(date)
       // Its own id, whatever the clock says: two tickets torn within the same minute are still two sheets.
-      const id = `${dayKey(now)}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+      const id = `${key}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
       setStored((s) => {
-        if (!s.printed) return s
+        const sheet = s.sheets?.tickets?.[key]
+        if (!sheet) return s
         const filed: ArchivedWeek = {
           id,
           week,
           year,
-          filedAt: now.getTime(),
-          wakeTime: s.printed.wakeTime,
-          sleepTime: s.printed.sleepTime,
-          blocks: s.printed.blocks.filter((b) => b.day === day),
+          filedAt: Date.now(),
+          day: key,
+          wakeTime: sheet.wakeTime,
+          sleepTime: sheet.sleepTime,
+          blocks: sheet.blocks.filter((b) => b.day === day),
           format: "ticket",
         }
-        // One ticket a day: a fresh one torn off later the same day replaces the earlier.
-        const others = (s.archive ?? []).filter((w) => !(w.format === "ticket" && dayKey(new Date(w.filedAt)) === dayKey(now)))
-        return { ...s, archive: fileSheet(others, filed), ticketTornOn: dayKey(now) }
+        // One ticket a day: a fresh one of the same day replaces the earlier.
+        const others = (s.archive ?? []).filter((w) => !(w.format === "ticket" && dayKey(ticketDay(w)) === key))
+        return { ...s, archive: fileSheet(others, filed), sheets: { ...s.sheets, tickets: { ...s.sheets?.tickets, [key]: null } } }
       })
     },
     [],

@@ -4,6 +4,7 @@ import { useWords } from "@/lib/words"
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 import type { RobotMode } from "@/lib/useRobotMode"
+import type { Day } from "@/lib/types"
 import { formatClock, localizeTimes } from "@/lib/locale"
 import { parseTime } from "@/lib/scheduler/time"
 import { formatHours } from "@/lib/duration"
@@ -130,8 +131,8 @@ export function Terminal({
   onPrint: () => void
   onLoad: () => void
   onRestart: () => void
-  /** Switch what is shown above (typed: screen, list, grid, today, binder). */
-  onView: (view: View) => void
+  /** Switch what is shown above (typed: screen, list, grid, today, binder); a ticket's day when one was named. */
+  onView: (view: View, day?: Day) => void
   /** Tear the sheet on paper off into the binder; a reason when there is none. */
   onTear: () => string | void
   /** Shred a filed week by its number; false when the binder has no such week. */
@@ -294,7 +295,7 @@ export function Terminal({
         onLoad()
         break
       case "view":
-        onView(a.view)
+        onView(a.view, a.day)
         break
       case "shred":
         if (!onShred(a.week)) {
@@ -874,6 +875,7 @@ const MANUAL_FUNCTIONS: [word: string, what: string][] = [
   ["export", "the paper as .ics, for calendars"],
   ["screen", "the draft, where the week changes"],
   ["list · grid · today", "the paper, three ways"],
+  ["today mon", "another day's ticket"],
   ["tear", "file the paper (or pull it down)"],
   ["binder", "filed sheets: read, download, shred"],
   ["fix", "fixes for what doesn't fit"],
