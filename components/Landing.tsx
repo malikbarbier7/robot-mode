@@ -55,15 +55,21 @@ function Hero() {
   const templates = TEMPLATE_IDS.map(templateById).filter((t) => t !== undefined)
 
   return (
-    <section className="flex min-h-[calc(100svh-52px)] flex-col items-center justify-center px-4 pb-6 pt-6 sm:min-h-[calc(100svh-60px)] sm:px-6 sm:pt-8">
-      {/* The casing: warm plastic, lit from above, with the tube set deep in a dark bezel. */}
-      <div className="monitor w-full max-w-[1080px] p-2.5 sm:p-5">
-        <div className="border-2 border-t-[6px] border-[#0d0b08] bg-[#1c1915] p-2 sm:p-3.5">
-          <div className="crt crt-on overflow-hidden px-5 py-7 sm:px-12 sm:py-9 lg:px-16" style={{ borderWidth: 0, outline: "none" }}>
+    <section className="flex min-h-[calc(100svh-52px)] flex-col items-center justify-center px-4 pb-5 pt-5 sm:min-h-[calc(100svh-60px)] sm:px-6 sm:pt-8">
+      <div className="w-full max-w-[1080px]">
+        {/* The deep body of the tube, running back from the face: what makes it read as a CRT and not a panel. */}
+        <div aria-hidden className="monitor-hood mx-auto h-4 w-[84%] sm:h-6" />
+
+        {/* The casing: warm moulded plastic, a thick bezel stepping down into the well the glass sits in. */}
+        <div className="monitor">
+          <div className="monitor-casing px-3 pt-3 sm:px-7 sm:pt-6">
+            <div className="monitor-frame">
+              <div className="tube-well">
+                <div className="crt crt-on tube px-6 py-8 sm:px-14 sm:py-8 lg:px-[72px]" style={{ borderWidth: 0, outline: "none" }}>
             <p className="label text-[11px] text-ink/80">
               {words.model} · Automatic weekly scheduler · <span className="text-ink">Ready</span>
             </p>
-            <h1 className="mt-5 font-crt text-[38px] uppercase leading-[1.02] tracking-[0.02em] sm:text-[56px] lg:text-[64px]">
+            <h1 className="mt-5 font-crt text-[38px] uppercase leading-[1.02] tracking-[0.02em] sm:text-[52px] lg:text-[58px]">
               {VALUE_PROP.map((line, i) => (
                 <span key={line} className="block">
                   {line}
@@ -80,11 +86,11 @@ function Hero() {
               Mode finds a slot for every session, around your sleep, meals and fixed hours. You follow the plan.
             </p>
 
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+            <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
               {/* Inverse video: the selected line on a terminal, and the brightest thing on the screen. */}
               <a
                 href={START}
-                className="group inline-flex items-center gap-3 bg-ink px-5 py-2 font-crt text-[28px] uppercase tracking-[0.14em] text-paper [text-shadow:none] hover:bg-[#ffc560] sm:text-[34px]"
+                className="group inline-flex items-center gap-3 bg-ink whitespace-nowrap px-4 py-2 font-crt text-[24px] uppercase tracking-[0.1em] sm:px-5 sm:tracking-[0.14em] text-paper [text-shadow:none] hover:bg-[#ffc560] sm:text-[34px]"
               >
                 Build my week
                 <span aria-hidden>▶</span>
@@ -93,7 +99,7 @@ function Hero() {
             </div>
 
             {/* A menu line along the foot of the screen: pick a week someone like you might want, and change it from there. */}
-            <nav aria-label="Start from a ready-made week" className="mt-9 border-t border-ink/35 pt-4 font-crt uppercase">
+            <nav aria-label="Start from a ready-made week" className="mt-7 border-t border-ink/35 pt-4 font-crt uppercase">
               <p className="label text-[11px] text-ink/80">Or load a ready-made week · change anything after</p>
               <ul className="mt-2 grid grid-cols-1 gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
                 {templates.map((t) => (
@@ -115,29 +121,50 @@ function Hero() {
                 ))}
               </ul>
             </nav>
-          </div>
-        </div>
 
-        {/* The chin: badge, vents, the power lamp. */}
-        <div aria-hidden className="flex items-center justify-between gap-4 px-2 pt-2.5 sm:px-3 sm:pt-4">
-          <span className="flex items-baseline gap-2.5 border border-ink/40 bg-[#d6cdb6] px-2.5 py-0.5">
-            <span className="font-logo text-[13px] uppercase tracking-[0.18em]">{words.logo}</span>
-            <span className="label text-ink/70">{words.model}</span>
-          </span>
-          <span className="hidden flex-1 justify-center gap-1.5 sm:flex">
-            {Array.from({ length: 14 }, (_, i) => (
-              <span key={i} className="h-3.5 w-1 border-t-2 border-ink/50 bg-ink/15" />
-            ))}
-          </span>
-          <span className="label flex items-center gap-2 text-ink/70">
-            Power <Lamp />
-          </span>
+                  {/* The glass: dark curving corners, a glare across the top, and a band of light rolling down. */}
+                  <span aria-hidden className="tube-glass" />
+                  <span aria-hidden className="tube-roll" />
+                </div>
+              </div>
+            </div>
+
+            {/* The chin: badge, vents, the two knobs and the power switch. */}
+            <div aria-hidden className="flex items-center justify-between gap-4 px-1 py-3 sm:px-2 sm:py-3.5">
+              <span className="flex items-baseline gap-2.5 border border-ink/50 bg-[#e4dcc6] px-2.5 py-0.5">
+                <span className="font-logo text-[13px] uppercase tracking-[0.18em]">{words.logo}</span>
+                <span className="label text-ink/70">{words.model}</span>
+              </span>
+              <span className="hidden flex-1 justify-center gap-1.5 md:flex">
+                {Array.from({ length: 16 }, (_, i) => (
+                  <span key={i} className="h-4 w-1 border-t-2 border-ink/55 bg-ink/15" />
+                ))}
+              </span>
+              <span className="flex items-center gap-3 sm:gap-5">
+                <span className="hidden items-center gap-3 sm:flex">
+                  {["Bright", "Contrast"].map((k) => (
+                    <span key={k} className="flex flex-col items-center gap-1">
+                      <span className="knob" />
+                      <span className="label text-[8px] text-ink/60">{k}</span>
+                    </span>
+                  ))}
+                </span>
+                <span className="flex flex-col items-center gap-1">
+                  <span className="flex items-center gap-2">
+                    <span className="h-5 w-7 border border-ink border-b-[3px] bg-[#e4dcc6]" />
+                    <Lamp />
+                  </span>
+                  <span className="label text-[8px] text-ink/60">Power</span>
+                </span>
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* The stand. */}
-      <div aria-hidden className="h-4 w-28 border-x-2 border-ink bg-gradient-to-b from-[#9d937c] to-[#b9af97] sm:h-6 sm:w-40" />
-      <div aria-hidden className="h-2.5 w-64 border-2 border-b-4 border-ink bg-gradient-to-b from-[#c9bfa6] to-[#b4aa91] sm:h-3 sm:w-96" />
+      <div aria-hidden className="h-3 w-32 border-x-2 border-ink bg-gradient-to-b from-[#7f7663] to-[#a99f86] sm:h-5 sm:w-48" />
+      <div aria-hidden className="monitor-foot h-3 w-72 sm:h-4 sm:w-[28rem]" />
 
       <a href="#what-it-makes" className="label mt-5 text-[11px] text-ink/70 hover:text-ink">
         ▼ See what it makes of five lines
