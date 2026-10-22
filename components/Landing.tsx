@@ -57,9 +57,6 @@ function Hero() {
   return (
     <section className="flex min-h-[calc(100svh-52px)] flex-col items-center justify-center px-4 pb-5 pt-5 sm:min-h-[calc(100svh-60px)] sm:px-6 sm:pt-8">
       <div className="w-full max-w-[1080px]">
-        {/* The deep body of the tube, running back from the face: what makes it read as a CRT and not a panel. */}
-        <div aria-hidden className="monitor-hood mx-auto h-4 w-[84%] sm:h-6" />
-
         {/* The casing: warm moulded plastic, a thick bezel stepping down into the well the glass sits in. */}
         <div className="monitor">
           <div className="monitor-casing px-3 pt-3 sm:px-7 sm:pt-6">

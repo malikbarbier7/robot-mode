@@ -594,14 +594,6 @@
   animation: tube-roll 9s linear infinite;
 }
 
-/* The back of the set, tapering away behind the face. */
-@utility monitor-hood {
-  clip-path: polygon(7% 0, 93% 0, 100% 100%, 0 100%);
-  background:
-    linear-gradient(to bottom, var(--color-ink) 2px, transparent 2px),
-    linear-gradient(to bottom, #a1977d, #c4ba9f);
-}
-
 @utility monitor-foot {
   clip-path: polygon(4% 0, 96% 0, 100% 100%, 0 100%);
   background:
