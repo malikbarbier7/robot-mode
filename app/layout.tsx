@@ -5,11 +5,11 @@ import "./globals.css"
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site"
 
 // No serif anywhere: the machine is set in a technical mono, its screens in a
-// bitmap terminal face, and its printouts in a plain grotesk.
-const display = IBM_Plex_Mono({ variable: "--font-display-ui", subsets: ["latin"], weight: ["500", "600"] })
+// bitmap terminal face, and its printouts in a plain grotesk. The display face
+// is the mono's heavier weights, loaded once: globals.css points --font-display at it.
 const crt = VT323({ variable: "--font-crt-ui", subsets: ["latin"], weight: "400" })
 const sans = IBM_Plex_Sans({ variable: "--font-sans-ui", subsets: ["latin"], weight: ["400", "500", "600"] })
-const mono = IBM_Plex_Mono({ variable: "--font-mono-ui", subsets: ["latin"], weight: ["400", "500"] })
+const mono = IBM_Plex_Mono({ variable: "--font-mono-ui", subsets: ["latin"], weight: ["400", "500", "600"] })
 // The nameplate only: a Soviet-poster face, with Cyrillic for its lookalike letters.
 const logo = Russo_One({ variable: "--font-logo-ui", subsets: ["latin", "cyrillic"], weight: "400" })
 
@@ -43,7 +43,7 @@ const PASS_THROUGH = `try{if(location.pathname==="/"){var h=location.hash;if(h.i
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${display.variable} ${crt.variable} ${sans.variable} ${mono.variable} ${logo.variable} h-full`}>
+    <html lang="en" className={`${crt.variable} ${sans.variable} ${mono.variable} ${logo.variable} h-full`}>
       <body className="min-h-full">
         <Script id="pass-through" strategy="beforeInteractive">
           {PASS_THROUGH}

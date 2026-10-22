@@ -113,12 +113,13 @@ function PlottedBlock({ block, wake, hourPx }: { block: PlacedBlock; wake: numbe
       style={{ top: top + 1, height: drawn }}
     >
       <div
-        className={`leading-[1.15] tracking-[0.04em] ${short ? "truncate" : "line-clamp-2 break-words"} ${short ? (large ? "text-[10px]" : "text-[8.5px]") : large ? "text-[11.5px]" : "text-[10px]"}`}
+        className={`leading-[1.15] tracking-[0.04em] ${short ? "truncate" : "line-clamp-2 break-words"} ${short ? (large ? "text-[10px]" : "text-[8.5px]") : large ? "text-[11px]" : "text-[10px]"}`}
       >
         {block.name}
       </div>
-      {height >= 36 && (
-        <div className={`tabular-nums opacity-70 ${large ? "text-[10.5px]" : "text-[9px]"}`}>
+      {/* The hours, on one line, only where a two-line name still leaves room for them. */}
+      {height >= (large ? 48 : 40) && (
+        <div className={`whitespace-nowrap tabular-nums tracking-normal opacity-70 ${large ? "text-[9px]" : "text-[8px]"}`}>
           {formatClock(block.startMinute, "24h")}–{formatClock(block.endMinute, "24h")}
         </div>
       )}

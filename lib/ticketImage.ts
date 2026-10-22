@@ -39,6 +39,7 @@ type Fonts = { mono: string; display: string }
 async function pageFonts(): Promise<Fonts> {
   const css = getComputedStyle(document.documentElement)
   const mono = css.getPropertyValue("--font-mono-ui").trim() || "monospace"
+  // The display face is the mono itself (see the root layout), so without a variable of its own it falls back to it.
   const display = css.getPropertyValue("--font-display-ui").trim() || mono
   await Promise.all([
     document.fonts.load(`400 12px ${mono}`),
