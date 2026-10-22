@@ -46,73 +46,102 @@ const TEMPLATE_IDS = ["student", "worker", "entrepreneur", "fitness", "exam", "d
 const templateHref = (id: string) => `/app/?template=${id}`
 
 /**
- * The screen: what it does in one sentence, the key to press, and, beside it,
- * the ready-made weeks for anyone who would rather start from one.
+ * The machine itself, alone on the first screen: a monitor on its stand, and
+ * on its screen what it does, the key to press, and the ready-made weeks for
+ * anyone who would rather start from one. Everything else waits below the fold.
  */
 function Hero() {
   const words = useWords()
   const templates = TEMPLATE_IDS.map(templateById).filter((t) => t !== undefined)
 
   return (
-    <section className="mx-auto w-full max-w-[1100px] pt-6 sm:px-6 sm:pt-8">
-      <div className="crt grid gap-10 px-5 py-8 sm:px-12 sm:py-9 lg:grid-cols-[1.45fr_1fr] lg:items-center">
-        <div>
-          <p className="label text-[11px] text-ink/80">{words.model} · Automatic weekly scheduler</p>
-          <h1 className="mt-4 font-crt text-[36px] uppercase leading-[1.02] tracking-[0.02em] sm:text-[56px]">
-            {VALUE_PROP.map((line) => (
-              <span key={line} className="block">
-                {line}
-              </span>
-            ))}
-          </h1>
-          <p className="mt-5 max-w-[34rem] font-mono text-[15px] leading-relaxed text-ink/90 sm:text-[16px]">
-            List what you want to fit into your week: the gym four times, Spanish most days, deep work every weekday morning. Robot
-            Mode finds a slot for every session, around your sleep, meals and fixed hours. You follow the plan.
-          </p>
+    <section className="flex min-h-[calc(100svh-52px)] flex-col items-center justify-center px-4 pb-6 pt-6 sm:min-h-[calc(100svh-60px)] sm:px-6 sm:pt-8">
+      {/* The casing: warm plastic, lit from above, with the tube set deep in a dark bezel. */}
+      <div className="monitor w-full max-w-[1080px] p-2.5 sm:p-5">
+        <div className="border-2 border-t-[6px] border-[#0d0b08] bg-[#1c1915] p-2 sm:p-3.5">
+          <div className="crt crt-on overflow-hidden px-5 py-7 sm:px-12 sm:py-9 lg:px-16" style={{ borderWidth: 0, outline: "none" }}>
+            <p className="label text-[11px] text-ink/80">
+              {words.model} · Automatic weekly scheduler · <span className="text-ink">Ready</span>
+            </p>
+            <h1 className="mt-5 font-crt text-[38px] uppercase leading-[1.02] tracking-[0.02em] sm:text-[56px] lg:text-[64px]">
+              {VALUE_PROP.map((line, i) => (
+                <span key={line} className="block">
+                  {line}
+                  {i === VALUE_PROP.length - 1 && (
+                    <span aria-hidden className="blink">
+                      _
+                    </span>
+                  )}
+                </span>
+              ))}
+            </h1>
+            <p className="mt-5 max-w-[40rem] font-mono text-[15px] leading-relaxed text-ink/90 sm:text-[16px]">
+              List what you want to fit into your week: the gym four times, Spanish most days, deep work every weekday morning. Robot
+              Mode finds a slot for every session, around your sleep, meals and fixed hours. You follow the plan.
+            </p>
 
-          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
-            {/* Inverse video: the selected line on a terminal, and the brightest thing on the screen. */}
-            <a
-              href={START}
-              className="group inline-flex items-center gap-3 bg-ink px-5 py-2 font-crt text-[28px] uppercase tracking-[0.14em] text-paper [text-shadow:none] hover:bg-[#ffc560] sm:text-[32px]"
-            >
-              Build my week
-              <span aria-hidden>▶</span>
-            </a>
-            <span className="whitespace-nowrap font-crt text-[20px] uppercase tracking-[0.1em] text-ink/90 sm:text-[24px] sm:tracking-[0.16em]">Free · No AI · No account</span>
+            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+              {/* Inverse video: the selected line on a terminal, and the brightest thing on the screen. */}
+              <a
+                href={START}
+                className="group inline-flex items-center gap-3 bg-ink px-5 py-2 font-crt text-[28px] uppercase tracking-[0.14em] text-paper [text-shadow:none] hover:bg-[#ffc560] sm:text-[34px]"
+              >
+                Build my week
+                <span aria-hidden>▶</span>
+              </a>
+              <span className="whitespace-nowrap font-crt text-[20px] uppercase tracking-[0.1em] text-ink/90 sm:text-[24px] sm:tracking-[0.16em]">Free · No AI · No account</span>
+            </div>
+
+            {/* A menu line along the foot of the screen: pick a week someone like you might want, and change it from there. */}
+            <nav aria-label="Start from a ready-made week" className="mt-9 border-t border-ink/35 pt-4 font-crt uppercase">
+              <p className="label text-[11px] text-ink/80">Or load a ready-made week · change anything after</p>
+              <ul className="mt-2 grid grid-cols-1 gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
+                {templates.map((t) => (
+                  <li key={t.id}>
+                    <a
+                      href={templateHref(t.id)}
+                      title={t.blurb}
+                      className="-mx-2 flex items-center justify-between gap-3 px-2 py-0.5 text-[21px] leading-tight hover:bg-ink hover:text-paper hover:[text-shadow:none] sm:text-[22px]"
+                    >
+                      <span>
+                        <span className="text-ink/70" aria-hidden>
+                          &gt;{" "}
+                        </span>
+                        {t.name}
+                      </span>
+                      <span aria-hidden>▶</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
           </div>
         </div>
 
-        {/* A menu on the screen: pick a week someone like you might want, and change it from there. */}
-        <nav aria-label="Start from a ready-made week" className="border border-ink/35 font-crt uppercase">
-          <p className="label flex justify-between gap-4 border-b border-ink/35 px-4 py-2 text-[11px] text-ink/80">
-            <span>Or start from</span>
-            <span>A ready-made week</span>
-          </p>
-          <ul className="py-1.5">
-            {templates.map((t) => (
-              <li key={t.id}>
-                <a
-                  href={templateHref(t.id)}
-                  title={t.blurb}
-                  className="flex items-center justify-between gap-3 px-4 py-1 text-[22px] leading-tight hover:bg-ink hover:text-paper hover:[text-shadow:none] sm:text-[24px]"
-                >
-                  <span>
-                    <span className="text-ink/70" aria-hidden>
-                      &gt;{" "}
-                    </span>
-                    {t.name}
-                  </span>
-                  <span aria-hidden>▶</span>
-                </a>
-              </li>
+        {/* The chin: badge, vents, the power lamp. */}
+        <div aria-hidden className="flex items-center justify-between gap-4 px-2 pt-2.5 sm:px-3 sm:pt-4">
+          <span className="flex items-baseline gap-2.5 border border-ink/40 bg-[#d6cdb6] px-2.5 py-0.5">
+            <span className="font-logo text-[13px] uppercase tracking-[0.18em]">{words.logo}</span>
+            <span className="label text-ink/70">{words.model}</span>
+          </span>
+          <span className="hidden flex-1 justify-center gap-1.5 sm:flex">
+            {Array.from({ length: 14 }, (_, i) => (
+              <span key={i} className="h-3.5 w-1 border-t-2 border-ink/50 bg-ink/15" />
             ))}
-          </ul>
-          <p className="border-t border-ink/35 px-4 py-2 font-mono text-[13px] normal-case leading-snug text-ink/80">
-            A whole week in one click. Change anything after.
-          </p>
-        </nav>
+          </span>
+          <span className="label flex items-center gap-2 text-ink/70">
+            Power <Lamp />
+          </span>
+        </div>
       </div>
+
+      {/* The stand. */}
+      <div aria-hidden className="h-4 w-28 border-x-2 border-ink bg-gradient-to-b from-[#9d937c] to-[#b9af97] sm:h-6 sm:w-40" />
+      <div aria-hidden className="h-2.5 w-64 border-2 border-b-4 border-ink bg-gradient-to-b from-[#c9bfa6] to-[#b4aa91] sm:h-3 sm:w-96" />
+
+      <a href="#what-it-makes" className="label mt-5 text-[11px] text-ink/70 hover:text-ink">
+        ▼ See what it makes of five lines
+      </a>
     </section>
   )
 }
@@ -121,8 +150,9 @@ function Hero() {
 function InAndOut({ settings, schedule }: { settings: Settings; schedule: Schedule }) {
   const meals = (settings.meals ?? []).filter((m) => m.enabled)
   return (
-    <section aria-label="What goes in and what comes out" className="mx-auto w-full max-w-[1100px] px-4 pb-14 pt-8 sm:px-6 sm:pb-20">
-      <div className="grid items-start gap-6 lg:grid-cols-[300px_auto_minmax(0,1fr)] lg:gap-5">
+    <section id="what-it-makes" className="mx-auto w-full max-w-[1100px] scroll-mt-16 px-4 py-14 sm:px-6 sm:py-20">
+      <SectionHead eyebrow="What it does" title="Five lines in. A whole week out." />
+      <div className="mt-10 grid items-start gap-6 lg:grid-cols-[300px_auto_minmax(0,1fr)] lg:gap-5">
         <div>
           <p className="font-display text-[15px] font-semibold">You type five lines</p>
           {/* Request 01, filled in: the whole input, five lines and two times. */}

@@ -496,3 +496,39 @@
     color: var(--color-ink);
   }
 }
+
+/*
+ * The monitor's casing on the front door: warm plastic, lit from above, and
+ * a heavy bottom edge, like a key, where another object would cast a shadow.
+ */
+@utility monitor {
+  background: linear-gradient(to bottom, #d3c9b0, #bdb398 70%, #aea488);
+  border: 2px solid var(--color-ink);
+  border-bottom-width: 6px;
+}
+
+/* The tube warming up: a line across the middle that opens into the picture. */
+@keyframes crt-on {
+  0% {
+    transform: scaleY(0.006) scaleX(0.6);
+    filter: brightness(3);
+  }
+  45% {
+    transform: scaleY(0.006) scaleX(1);
+    filter: brightness(3);
+  }
+  100% {
+    transform: none;
+    filter: none;
+  }
+}
+
+@utility crt-on {
+  animation: crt-on 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt-on {
+    animation: none;
+  }
+}
