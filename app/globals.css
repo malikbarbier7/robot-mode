@@ -15,9 +15,9 @@
   /* Continuous-feed printer paper. */
   --color-sheet: #f4f0e4;
 
-  --font-display: var(--font-display-ui), ui-monospace, monospace;
+  --font-display: var(--font-mono-ui), ui-monospace, monospace;
   --font-crt: var(--font-crt-ui), ui-monospace, monospace;
-  --font-logo: var(--font-logo-ui), var(--font-display-ui), sans-serif;
+  --font-logo: var(--font-logo-ui), var(--font-mono-ui), sans-serif;
   --font-sans: var(--font-sans-ui), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-ui), ui-monospace, "SF Mono", monospace;
 }

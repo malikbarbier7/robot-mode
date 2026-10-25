@@ -1,12 +1,15 @@
 "use client"
 
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
 import { useWords } from "@/lib/words"
-import { PUBLISHER, PUBLISHER_X_URL, VALUE_PROP } from "@/lib/site"
+import { CATEGORY, PUBLISHER, PUBLISHER_X_URL, TERMS, VALUE_PROP } from "@/lib/site"
 import { sampleTranscript, type SampleConflict } from "@/lib/sample"
 import { templateById } from "@/lib/templates"
-import type { Schedule, Settings } from "@/lib/types"
+import type { Activity, Schedule, Settings } from "@/lib/types"
 import { formatSpan } from "@/lib/locale"
+import { formatDays } from "@/lib/command"
+import { generate } from "@/lib/scheduler"
+import { setupLink } from "@/lib/storage"
 import { FAQ, RULES, STEPS } from "@/lib/landing"
 import { Lamp } from "./Machine"
 import { SiteFooter, SiteHeader, START } from "./SiteChrome"
@@ -78,9 +81,11 @@ function Hero() {
                 </span>
               ))}
             </h1>
-            <p className="mt-5 max-w-[40rem] font-mono text-[15px] leading-relaxed text-ink/90 sm:text-[16px]">
-              List what you want to fit into your week: the gym four times, Spanish most days, deep work every weekday morning. Robot
-              Mode finds a slot for every session, around your sleep, meals and fixed hours. You follow the plan.
+            {/* What it is, in plain words, for anyone arriving cold (and for the search engines that sent them). */}
+            <p className="mt-5 font-mono text-[15px] font-medium leading-snug text-ink sm:text-[17px]">{CATEGORY}</p>
+            <p className="mt-3 max-w-[40rem] font-mono text-[15px] leading-relaxed text-ink/85 sm:text-[16px]">
+              The gym four times, Spanish most days, deep work every weekday morning: list it, and Robot Mode fits every session around
+              your sleep, meals and fixed hours.
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
@@ -92,7 +97,7 @@ function Hero() {
                 Build my week
                 <span aria-hidden>▶</span>
               </a>
-              <span className="whitespace-nowrap font-crt text-[20px] uppercase tracking-[0.1em] text-ink/90 sm:text-[24px] sm:tracking-[0.16em]">Free · No AI · No account</span>
+              <span className="whitespace-nowrap font-crt text-[20px] uppercase tracking-[0.1em] text-ink/90 sm:text-[24px] sm:tracking-[0.16em]">{TERMS}</span>
             </div>
 
             {/* A menu line along the foot of the screen: pick a week someone like you might want, and change it from there. */}
@@ -170,41 +175,74 @@ function Hero() {
   )
 }
 
-/** The whole product in one view: five lines typed in, and the week the real engine makes of them. */
-function InAndOut({ settings, schedule }: { settings: Settings; schedule: Schedule }) {
+/**
+ * The whole product in one view: five lines typed in, and the week the real
+ * engine makes of them. Live: the week on the page is first solved at build
+ * time, then re-solved in the visitor's browser each time they change a count
+ * or press Shuffle, so the claim that it is real can be checked on the spot.
+ */
+function InAndOut({ settings: initial, schedule: initialSchedule }: { settings: Settings; schedule: Schedule }) {
+  const [settings, setSettings] = useState(initial)
+  const [solved, setSolved] = useState<{ schedule: Schedule; ms: number | null }>({ schedule: initialSchedule, ms: null })
+  const touched = settings !== initial
   const meals = (settings.meals ?? []).filter((m) => m.enabled)
+
+  const solve = (next: Settings) => {
+    setSettings(next)
+    setSolved(timed(next))
+  }
+  const shuffle = () => solve({ ...settings, seed: settings.seed + 1 })
+  const setCount = (id: string, sessionsPerWeek: number) =>
+    solve({ ...settings, activities: settings.activities.map((a) => (a.id === id ? { ...a, sessionsPerWeek } : a)) })
+  const reset = () => {
+    setSettings(initial)
+    setSolved({ schedule: initialSchedule, ms: null })
+  }
+
+  const { schedule } = solved
+  // The machine, with this very week loaded: the setup travels in the link, nothing is uploaded.
+  const openHref = setupLink(settings, "/app/")
+
   return (
     <section id="what-it-makes" className="mx-auto w-full max-w-[1100px] scroll-mt-16 px-4 py-14 sm:px-6 sm:py-20">
       <SectionHead eyebrow="What it does" title="Five lines in. A whole week out." />
-      <div className="mt-10 grid items-start gap-6 lg:grid-cols-[300px_auto_minmax(0,1fr)] lg:gap-5">
+      <div className="mt-10 grid items-start gap-6 lg:grid-cols-[340px_auto_minmax(0,1fr)] lg:gap-5">
         <div>
           <p className="font-display text-[15px] font-semibold">You type five lines</p>
-          {/* Request 01, filled in: the whole input, five lines and two times. */}
-          <div className="crt mt-3 font-crt text-[21px] uppercase leading-[1.3]" style={{ borderWidth: 8 }}>
-            <ul className="px-4 py-3">
+          {/* The whole input: five lines, as the machine reads them back, and the shape of the day. */}
+          <div className="crt mt-3 font-crt uppercase" style={{ borderWidth: 8 }}>
+            <ul className="divide-y divide-ink/20 px-4 py-2">
               {settings.activities.map((a) => (
-                <li key={a.id} className="grid grid-cols-[1fr_4.8rem_2.4rem] gap-2">
-                  <span className="truncate">{a.name}</span>
-                  <span className="tabular-nums">{formatSpan(a.durationMinutes)}</span>
-                  <span className="text-right tabular-nums">{a.sessionsPerWeek}×</span>
-                </li>
+                <InputLine key={a.id} activity={a} onCount={(n) => setCount(a.id, n)} />
               ))}
             </ul>
-            <div className="border-t border-ink/35 px-4 py-2 text-ink/85">
+            <div className="border-t border-ink/35 px-4 py-2 text-[19px] leading-[1.3] text-ink/85">
               Wake {settings.wakeTime} · Sleep {settings.sleepTime}
               <br />
               {meals.map((m) => m.name).join(" · ")}
             </div>
           </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={shuffle} className="key px-3 py-1.5">
+              Shuffle
+            </button>
+            <button type="button" onClick={reset} disabled={!touched} className="key px-3 py-1.5">
+              Reset
+            </button>
+            <span className="label text-[11px] text-ink/75">Same rules, another arrangement</span>
+          </div>
           <p className="mt-3 text-[14px] leading-relaxed text-ink/85">
-            A name, how long, how many times a week. Optionally: which days, what time of day, travel time.
+            A name, how long, how many times a week. Optionally: which days, what hours, travel time. Change a count and watch the
+            week re-solve.
           </p>
         </div>
 
         <div aria-hidden className="flex items-center justify-center gap-3 font-crt text-[34px] leading-none lg:mt-[118px] lg:flex-col">
           <span className="lg:hidden">↓</span>
           <span className="hidden lg:inline">→</span>
-          <span className="label text-[11px] text-ink/75 lg:[writing-mode:vertical-rl]">Solved in ~30 ms</span>
+          <span className="label whitespace-nowrap text-center text-[11px] text-ink/75">
+            Solved in {solved.ms === null ? "~30" : Math.max(1, Math.round(solved.ms))} ms
+          </span>
         </div>
 
         <div className="min-w-0">
@@ -212,13 +250,76 @@ function InAndOut({ settings, schedule }: { settings: Settings; schedule: Schedu
           <div className="mt-3">
             <PlottedWeek settings={settings} schedule={schedule} size="large" />
           </div>
-          <p className="mt-3 text-[14px] leading-relaxed text-ink/85">
-            Solved by the real engine from those five lines when this page was built, not drawn by hand. Deep work stays in the
-            mornings, the gym spreads across the week, nothing overlaps.
-          </p>
+          {schedule.unplaced.length > 0 && (
+            <p role="status" className="mt-3 border-l-2 border-alert pl-3 text-[14px] leading-relaxed text-ink/85">
+              {schedule.unplaced.map((u) => `${u.name}: ${u.sessionsPlaced} of ${u.sessionsRequested} placed. ${u.why}.`).join(" ")} In
+              the machine, Fix lists the ways out it has checked.
+            </p>
+          )}
+          <div className="mt-3 flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
+            <p className="max-w-[36rem] text-[14px] leading-relaxed text-ink/85">
+              {touched
+                ? "Re-solved in your browser just now, by the same engine the machine runs on. Nothing was sent anywhere."
+                : "Solved by the real engine from those five lines, not drawn by hand. Deep work stays in the mornings, the gym spreads across the week, nothing overlaps."}
+            </p>
+            <a href={openHref} className="key key-dark whitespace-nowrap px-3 py-1.5">
+              Open this week in the machine ▶
+            </a>
+          </div>
         </div>
       </div>
     </section>
+  )
+}
+
+/** The week for these settings, and how long the engine took over it. */
+function timed(settings: Settings): { schedule: Schedule; ms: number } {
+  const t0 = performance.now()
+  const schedule = generate(settings)
+  return { schedule, ms: performance.now() - t0 }
+}
+
+/**
+ * One activity as the machine reads it back, with its count on a pair of keys:
+ * the name, how long, how many times; and under it, the days and hours it was
+ * given, when it was given any. Travel time stays in the caption: the line
+ * shows what the engine places, not how it pads it.
+ */
+function InputLine({ activity: a, onCount }: { activity: Activity; onCount: (n: number) => void }) {
+  const maxSessions = a.allowedDays?.length ?? 7
+  const details = [
+    a.allowedDays && a.allowedDays.length < 7 ? formatDays(a.allowedDays) : "",
+    a.fixedAt ? `always at ${a.fixedAt.start}` : a.window ? `${a.window.start}–${a.window.end}` : "",
+  ].filter(Boolean)
+  return (
+    <li className="py-1.5">
+      <div className="grid grid-cols-[1fr_4rem_auto] items-center gap-2 text-[21px] leading-tight">
+        <span className="truncate">{a.name}</span>
+        <span className="tabular-nums">{formatSpan(a.durationMinutes)}</span>
+        <span className="flex items-center tabular-nums">
+          <button
+            type="button"
+            aria-label={`${a.name}: one session fewer`}
+            disabled={a.sessionsPerWeek <= 1}
+            onClick={() => onCount(a.sessionsPerWeek - 1)}
+            className="px-1 text-ink/70 hover:bg-ink hover:text-paper hover:[text-shadow:none] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink/70"
+          >
+            −
+          </button>
+          <span className="w-[2.2rem] text-center">{a.sessionsPerWeek}×</span>
+          <button
+            type="button"
+            aria-label={`${a.name}: one session more`}
+            disabled={a.sessionsPerWeek >= maxSessions}
+            onClick={() => onCount(a.sessionsPerWeek + 1)}
+            className="px-1 text-ink/70 hover:bg-ink hover:text-paper hover:[text-shadow:none] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink/70"
+          >
+            +
+          </button>
+        </span>
+      </div>
+      {details.length > 0 && <div className="text-[16px] leading-tight text-ink/65">{details.join(" · ")}</div>}
+    </li>
   )
 }
 
@@ -361,13 +462,15 @@ function TheMachine({ settings, schedule }: { settings: Settings; schedule: Sche
           <figure>
             {/* eslint-disable-next-line @next/next/no-img-element -- a static export: the screenshot is served as it is. */}
             <img
-              src="/landing/machine.png"
+              src="/landing/machine.webp"
               width={1440}
               height={900}
-              alt="Robot Mode in the browser: a week drafted on the amber screen, with the keyboard unit and its function keys underneath."
+              loading="lazy"
+              decoding="async"
+              alt="Robot Mode in the browser: the sample week drafted on the amber screen, with the keyboard unit and its function keys underneath."
               className="h-auto w-full border-2 border-ink"
             />
-            <figcaption className="mt-3 text-[14px] leading-relaxed text-ink/85">The Deep work template, drafted on the screen.</figcaption>
+            <figcaption className="mt-3 text-[14px] leading-relaxed text-ink/85">The week above, drafted on the screen.</figcaption>
           </figure>
           <div>
             <div className="crt px-5 py-4 font-crt uppercase" style={{ borderWidth: 8 }}>
@@ -460,7 +563,7 @@ function FinalCall() {
         <a href={START} className="key key-dark mt-8 inline-block px-8 py-3.5 text-[14px]!">
           Build my week ▶
         </a>
-        <p className="label mt-4 text-[12px] text-ink/80">Free · No AI · No account</p>
+        <p className="label mt-4 text-[12px] text-ink/80">{TERMS}</p>
         {PUBLISHER.x && (
           <p className="mt-8 text-[14px] text-ink/85">
             Built by{" "}

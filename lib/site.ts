@@ -13,6 +13,12 @@ export const SITE_NAME = "Robot Mode"
 /** The value proposition, a line per beat. The landing page's headline and the share image both use it. */
 export const VALUE_PROP = ["Tell it what you want to do.", "It finds the time."] as const
 
+/** What it is, in the words people search for: the line under the headline. */
+export const CATEGORY = "A free automatic weekly schedule maker that runs in your browser."
+
+/** The three things it costs nothing to try: on the key, and under the final one. */
+export const TERMS = "Free · Private · No account"
+
 /** Search results and link previews: what it is, in a sentence. */
 export const SITE_TITLE = `${SITE_NAME} · Free automatic weekly schedule maker`
 export const SITE_DESCRIPTION =

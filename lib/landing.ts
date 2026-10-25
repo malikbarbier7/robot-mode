@@ -18,7 +18,7 @@ export const STEPS = [
   },
   {
     title: "Adjust, then lock it in",
-    body: "Move a session and the rest re-plans around it. When it looks right, print it: that's the version you follow. No printer needed.",
+    body: "Move a session and the rest re-plans around it. When it looks right, lock it in: that's the version you follow for the week.",
     line: "move gym mon to tue",
   },
   {

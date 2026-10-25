@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildIcs, mondayOf } from "./ics"
+import { buildIcs, exportWeekStart, mondayOf } from "./ics"
 import { generate } from "./scheduler/generate"
 import { comfortableWeek } from "./fixtures/weeks"
 
@@ -63,6 +63,21 @@ describe("ics export", () => {
     const long = [{ ...blocks[0], name: "A".repeat(200) }]
     const out = buildIcs(long, { sequence: 0, weekStart, now })
     for (const line of out.split("\r\n")) expect(line.length).toBeLessThanOrEqual(75)
+  })
+})
+
+describe("exportWeekStart", () => {
+  it("is this week's Monday from Monday to Friday", () => {
+    for (const d of [21, 22, 23, 24, 25]) expect(exportWeekStart(new Date(2026, 8, d, 20)).getTime()).toBe(new Date(2026, 8, 21).getTime())
+  })
+
+  it("is next Monday on the weekend", () => {
+    for (const d of [26, 27]) expect(exportWeekStart(new Date(2026, 8, d, 20)).getTime()).toBe(new Date(2026, 8, 28).getTime())
+  })
+
+  it("puts a Sunday 25 October export on Monday 26 October", () => {
+    const out = buildIcs([{ ...generate(comfortableWeek).blocks[0], day: 0, startMinute: 480, endMinute: 540 }], { sequence: 0, now: new Date(2026, 9, 25, 18) })
+    expect(out).toContain("DTSTART:20261026T080000")
   })
 })
 
