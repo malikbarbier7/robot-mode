@@ -37,6 +37,17 @@ export function mondayOf(date: Date = new Date()): Date {
 }
 
 /**
+ * The Monday the exported week lands on. Midweek that is this week, so the
+ * days left still count; from Saturday on, what's left is a weekend and the
+ * week being planned is the one coming, so it is next Monday.
+ */
+export function exportWeekStart(now: Date = new Date()): Date {
+  const monday = mondayOf(now)
+  if (now.getDay() === 6 || now.getDay() === 0) monday.setDate(monday.getDate() + 7)
+  return monday
+}
+
+/**
  * The UID must be stable across regenerations, so re-importing REPLACES events
  * instead of duplicating them. A second export that piles 60 more events into
  * someone's calendar is how you lose a user permanently.
@@ -54,7 +65,7 @@ export type IcsOptions = {
 }
 
 export function buildIcs(blocks: PlacedBlock[], options: IcsOptions): string {
-  const weekStart = options.weekStart ?? mondayOf()
+  const weekStart = options.weekStart ?? exportWeekStart(options.now)
   const dtstamp = utcStamp(options.now ?? new Date())
   const name = options.calendarName ?? "Robot Mode"
 
