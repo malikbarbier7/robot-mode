@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<div align="center">
 
-## Getting Started
+# 🤖 Robot Mode
 
-First, run the development server:
+**Tell it what you want to do. It finds the time.**
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+A free, automatic weekly scheduler styled as a 1970s computer.
+No AI. No account. No server. Your week never leaves your browser.
+
+[**Try it → getrobotmode.com**](https://www.getrobotmode.com)
+
+</div>
+
+---
+
+```text
+┌─ RM-01 ───────────────────────────────────────────────┐
+│                                                       │
+│  > gym 1h15 4x                                        │
+│  > reading 1h 5x                                      │
+│  > work 8h 5x at 9:00 weekdays                        │
+│  > shuffle_                                           │
+│                                                       │
+│  PLANNED 68.3H OF 112H AVAILABLE                      │
+│                                                       │
+└───────────────────────────────────────────────────────┘
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## What it does
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+You list what you want in a week (a name, how long, how many times) plus when you wake, sleep and eat. Robot Mode places every session on a 15-minute grid, around your sleep, meals, travel time and fixed commitments. Then you adjust it, lock it in, and export it.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Calendar apps record appointments. Robot Mode answers a different question: *given everything I want to do this week, what should my week look like?*
 
-## Learn More
+## Why it's different
 
-To learn more about Next.js, take a look at the following resources:
+- **No AI.** The scheduler is a deterministic, seeded constraint solver. Same input, same week, every time.
+- **It explains itself.** Every block can tell you why it landed where it did.
+- **Honest about conflicts.** When something doesn't fit, it says what's in the way and offers fixes that were actually tried, not guessed.
+- **Local-first.** Everything lives in `localStorage`. Nothing is uploaded, there are no cookies, no login.
+- **Plan once, then live it.** Export to Google Calendar, Apple Calendar or Outlook (`.ics`), save a PDF, or pocket today's ticket.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Talk to the machine
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The week is edited by typing, not dragging:
 
-## Deploy on Vercel
+```text
+move gym monday 10h to 11h      lock gym monday
+remove gym wednesday            edit deep work monday 2h
+shuffle                         export
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Run it yourself
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Needs Node 22 (see `.nvmrc`).
+
+```bash
+npm install
+npm run dev      # http://localhost:3000
+```
+
+```bash
+npm test         # vitest: scheduler, commands, .ics export, ...
+npm run lint
+npm run build    # static export to out/
+```
+
+## How it's built
+
+- **Next.js** (App Router, static export) · **React** · **Tailwind CSS** · **TypeScript**
+- The scheduler is plain TypeScript with no solver library: [`lib/scheduler/`](lib/scheduler)
+- The whole site is plain files in `out/`, so any static host works. The live site runs on Cloudflare.
+- The full design, from philosophy to scoring rules, is in [`product.md`](product.md).
+
+## Contributing
+
+It's a fun side project and there's no money in it. Issues and ideas are welcome. Pull requests too, but please open an issue first for anything big.
+
+Built by [@malikbuilds](https://x.com/malikbuilds). Released under the [MIT License](LICENSE).
